@@ -31,6 +31,8 @@ jobs:
       - name: Rebuild registry
         env:
           FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: bun run build:sources
       # a registry that breaches either bound must never reach review
       - name: Evaluate before proposing

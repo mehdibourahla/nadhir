@@ -7,8 +7,8 @@ const LABEL = /^[a-zA-Z0-9_.:-]{1,100}$/;
 type CaptureError =
   "network_error" | "body_read_failed" | "body_too_large" | "storage_failed";
 export class ArchiveFailure extends Error {
-  constructor(code: string) {
-    super(`Source archive ${code}`);
+  constructor(code: string, options?: ErrorOptions) {
+    super(`Source archive ${code}`, options);
     this.name = "ArchiveFailure";
   }
 }
@@ -84,8 +84,9 @@ function safeParams(value: unknown, depth = 0): Json {
 async function capture(store: SourceArchiveStore, row: SourceCapture) {
   try {
     await store.capture(row);
-  } catch {
-    throw new ArchiveFailure("catalog_failed");
+  } catch (error) {
+    if (error instanceof ArchiveFailure) throw error;
+    throw new ArchiveFailure("catalog_failed", { cause: error });
   }
 }
 
@@ -239,11 +240,11 @@ const store: SourceArchiveStore = {
       .from("source-archive")
       .upload(path, bytes, { contentType: mediaType, upsert: false });
     if (error && String(error.statusCode) !== "409")
-      throw new ArchiveFailure("storage_failed");
+      throw new ArchiveFailure("storage_failed", { cause: error });
   },
   async capture(row) {
     const { error } = await supabaseAdmin.from("source_captures").insert(row);
-    if (error) throw new ArchiveFailure("catalog_failed");
+    if (error) throw new ArchiveFailure("catalog_failed", { cause: error });
   },
 };
 export const archivedFetch = createArchivedFetch(store);
