@@ -15,8 +15,12 @@ if (target !== "github") {
   console.error("--target must be github");
   process.exit(1);
 }
-if (contract !== "local_fwi" && contract !== "effis") {
-  console.error("--contract must be local_fwi or effis");
+if (
+  contract !== "local_fwi" &&
+  contract !== "effis" &&
+  contract !== "ita_facebook"
+) {
+  console.error("--contract must be local_fwi, effis or ita_facebook");
   process.exit(1);
 }
 

@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       contract:
-        description: Source contract key (local_fwi, effis)
+        description: Source contract key (local_fwi, effis, ita_facebook)
         required: true
         type: string
 
@@ -33,7 +33,7 @@ jobs:
           if [ -n "$one" ]; then
             echo "contracts=[\"$one\"]" >> "$GITHUB_OUTPUT"
           else
-            echo 'contracts=["local_fwi","effis"]' >> "$GITHUB_OUTPUT"
+            echo 'contracts=["local_fwi","effis","ita_facebook"]' >> "$GITHUB_OUTPUT"
           fi
 
   consume:
@@ -75,5 +75,7 @@ jobs:
             fi
             if [ "$status" -eq 76 ]; then continue; fi
             if [ "$status" -ne 75 ]; then exit "$status"; fi
+            # Facebook walls by IP: the retry is the next 2-minute slot on a fresh runner, not this one
+            if [ "$CONTRACT" = "ita_facebook" ]; then exit 0; fi
             sleep 60
           done
