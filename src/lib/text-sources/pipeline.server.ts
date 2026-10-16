@@ -512,7 +512,8 @@ export async function runTextSourceWith(
               documentId: doc.id,
               advice: situation.advice.text,
               wilayaIds,
-              validFrom: situation.advice.validFrom,
+              // undated advice would date from the insert, so a retried post would read as current
+              validFrom: situation.advice.validFrom ?? asOf,
               validTo: situation.advice.validTo,
             });
             run.adviceStored += 1;

@@ -1520,6 +1520,28 @@ describe("Protection Civile posts beyond fire", () => {
     ]);
   });
 
+  it("dates undated advice from its post, not from when it was read", async () => {
+    const memory = memoryStore();
+    await runTextSourceWith("dgpc_telegram", {
+      ...deps([weatherPost], memory.store),
+      now: () => new Date("2026-09-12T23:00:00Z"),
+      readSituation: async () =>
+        situation({
+          disposition: "weather_relay",
+          advice: {
+            text: "يُرجى توخي الحيطة والحذر",
+            wilayas: ["سكيكدة"],
+            validFrom: null,
+            validTo: null,
+          },
+        }),
+    });
+    const validFrom = memory.advice[0]?.["validFrom"] as string;
+    expect(Date.parse(validFrom)).toBeLessThanOrEqual(
+      Date.parse("2026-09-02T19:00:00Z"),
+    );
+  });
+
   it("publishes nothing from an accident that is over", async () => {
     const memory = memoryStore();
     const result = await runTextSourceWith("dgpc_telegram", {
