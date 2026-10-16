@@ -46,6 +46,15 @@ jobs:
         with:
           bun-version: 1.3.14
 
+      # ECR also rate-limits shared runners; a cached image set skips the registry entirely
+      - id: images
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/supabase-images.tar
+          key: supabase-images-2.116.0-${{ hashFiles('supabase/.temp/*-version') }}
+      - if: steps.images.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/supabase-images.tar
+
       # applies every migration to a fresh Postgres, then runs supabase/tests/*.sql
       - run: supabase start -x studio,imgproxy,inbucket,mailpit,logflare,vector,realtime,edge-runtime,supavisor
         env:
@@ -54,6 +63,14 @@ jobs:
       - run: bash scripts/test-db.sh
         env:
           SUPABASE_INTERNAL_IMAGE_REGISTRY: public.ecr.aws
+      # after the tests, so pg_prove is in the set and a half-pulled set is never saved
+      - if: steps.images.outputs.cache-hit != 'true'
+        run: docker save -o /tmp/supabase-images.tar $(docker images --format '{{.Repository}}:{{.Tag}}' | grep '/supabase/')
+      - if: steps.images.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/supabase-images.tar
+          key: ${{ steps.images.outputs.cache-primary-key }}
       - run: bun install --frozen-lockfile
       - name: Auth integration
         run: |
