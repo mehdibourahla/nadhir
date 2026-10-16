@@ -161,15 +161,34 @@ describe("source runner registry", () => {
       fetched: 0,
       stored: 0,
       newestPostAt: null,
-      error: "Facebook login wall",
+      error: "Facebook login wall (HTTP 302)",
     });
     const result = await createSourceRunners(deps).ita_facebook(
       job("ita_facebook"),
     );
     expect(result).toMatchObject({
       outcome: "failed",
+      publicReasonCode: "upstream_unreachable",
       retryDisposition: "transient",
-      privateDiagnostic: "Facebook login wall",
+      privateDiagnostic: "Facebook login wall (HTTP 302)",
+    });
+  });
+
+  it("reports a page that renders no post as a schema change, not an internal error", async () => {
+    const deps = dependencies();
+    deps.runItaFacebookSource.mockResolvedValue({
+      fetched: 0,
+      stored: 0,
+      newestPostAt: null,
+      error: "Facebook page rendered no post (schema changed?)",
+    });
+    const result = await createSourceRunners(deps).ita_facebook(
+      job("ita_facebook"),
+    );
+    expect(result).toMatchObject({
+      outcome: "failed",
+      publicReasonCode: "schema_invalid",
+      retryDisposition: "permanent",
     });
   });
 

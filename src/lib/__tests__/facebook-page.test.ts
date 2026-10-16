@@ -93,7 +93,7 @@ describe("Facebook page reader", () => {
     const upstream = vi.fn<typeof fetch>(async () => wall());
     await expect(
       fetchFacebookPagePosts("traficalg", facebookPageFetch(upstream)),
-    ).rejects.toThrow("Facebook login wall");
+    ).rejects.toThrow("Facebook login wall (HTTP 302)");
     expect(upstream).toHaveBeenCalledTimes(3);
   });
 
@@ -125,6 +125,6 @@ describe("Facebook page reader", () => {
         "traficalg",
         facebookPageFetch(async () => new Response("<html></html>")),
       ),
-    ).rejects.toThrow("Facebook page rendered no post");
+    ).rejects.toThrow("Facebook page rendered no post (schema changed?)");
   });
 });
