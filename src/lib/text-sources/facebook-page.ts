@@ -135,11 +135,12 @@ export async function fetchFacebookPagePosts(
   const response = await fetchImpl(`https://www.facebook.com/${page}`, {
     signal: AbortSignal.timeout(20_000),
   });
-  if (response.status === LOGIN_WALL) throw new Error("Facebook login wall");
+  if (response.status === LOGIN_WALL)
+    throw new Error("Facebook login wall (HTTP 302)");
   if (!response.ok) throw new Error(`Facebook page HTTP ${response.status}`);
   const { page_id, stories } = ExtractSchema.parse(await response.json());
   if (!page_id || !stories.length)
-    throw new Error("Facebook page rendered no post");
+    throw new Error("Facebook page rendered no post (schema changed?)");
   return stories.flatMap(({ post_id, creation_time, message }) =>
     message?.trim()
       ? [

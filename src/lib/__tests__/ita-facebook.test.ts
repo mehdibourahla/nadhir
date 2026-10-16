@@ -38,7 +38,7 @@ describe("ITA Facebook collector", () => {
     const save = vi.fn(async () => 0);
     const run = await runItaFacebookSourceWith({
       fetchPosts: async () => {
-        throw new Error("Facebook login wall");
+        throw new Error("Facebook login wall (HTTP 302)");
       },
       save,
     });
@@ -46,7 +46,7 @@ describe("ITA Facebook collector", () => {
       fetched: 0,
       stored: 0,
       newestPostAt: null,
-      error: "Facebook login wall",
+      error: "Facebook login wall (HTTP 302)",
     });
     expect(save).not.toHaveBeenCalled();
   });
