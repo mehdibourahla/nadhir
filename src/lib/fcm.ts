@@ -257,3 +257,37 @@ export function fcmMessagesForOfficial(args: {
     }
   return out;
 }
+
+// FCM evaluates at most five topics in one condition
+const CONDITION_TOPICS = 5;
+
+export type FcmTarget = Omit<FcmMessage, "topic"> &
+  ({ topic: string } | { condition: string });
+
+// sends, not topics, bound a delivery run, so identical payloads share one
+export function packTopics(
+  messages: FcmMessage[],
+): { key: string; message: FcmTarget }[] {
+  const groups = new Map<
+    string,
+    { rest: Omit<FcmMessage, "topic">; topics: string[] }
+  >();
+  for (const { topic, ...rest } of messages) {
+    const shape = JSON.stringify(rest);
+    const group = groups.get(shape);
+    if (group) group.topics.push(topic);
+    else groups.set(shape, { rest, topics: [topic] });
+  }
+  const out: { key: string; message: FcmTarget }[] = [];
+  for (const { rest, topics } of groups.values())
+    for (let i = 0; i < topics.length; i += CONDITION_TOPICS) {
+      const chunk = topics.slice(i, i + CONDITION_TOPICS);
+      if (chunk.length === 1) {
+        out.push({ key: chunk[0]!, message: { ...rest, topic: chunk[0]! } });
+        continue;
+      }
+      const condition = chunk.map((t) => `'${t}' in topics`).join(" || ");
+      out.push({ key: condition, message: { ...rest, condition } });
+    }
+  return out;
+}

@@ -3,7 +3,9 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const { from, rpc, fcmSend, sendTelegram } = vi.hoisted(() => ({
   from: vi.fn(),
   rpc: vi.fn(),
-  fcmSend: vi.fn(async (_message: { topic: string }) => {}),
+  fcmSend: vi.fn(
+    async (_message: { topic?: string; condition?: string }) => {},
+  ),
   sendTelegram: vi.fn(async (_chat: string, _html: string) => {}),
 }));
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -19,6 +21,11 @@ vi.mock("@/lib/ingest/telegram.server", () => ({
 }));
 
 import { deliverBroadcasts } from "@/lib/ingest/delivery.server";
+
+const target = (message: { topic?: string; condition?: string }) =>
+  message.topic ?? message.condition;
+const either = (...codes: string[]) =>
+  codes.map((c) => `'v1.commune.${c}.fr' in topics`).join(" || ");
 
 function store(codes = ["1501", "1601", "1701"]) {
   const broadcast: Record<string, unknown> = {
@@ -183,27 +190,43 @@ it("retries only the failed Telegram chat and still attempts later chats", async
   expect(sendTelegram).not.toHaveBeenCalled();
 });
 
-it("retries only the failed FCM topic without blocking Telegram", async () => {
-  const { broadcast } = store();
-  fcmSend.mockImplementation(async ({ topic }) => {
-    if (topic === "v1.commune.1601.fr") throw new Error("FCM rejected");
+it("retries only the failed FCM message without blocking Telegram", async () => {
+  const codes = ["1501", "1601", "1701", "1801", "1901", "2001", "2101"];
+  const { broadcast } = store(codes);
+  fcmSend.mockImplementation(async (message) => {
+    if (target(message)?.includes("2001")) throw new Error("FCM rejected");
   });
   await expect(deliverBroadcasts()).rejects.toThrow("FCM rejected");
-  expect(fcmSend.mock.calls.map((c) => c[0].topic)).toEqual([
-    "v1.commune.1501.fr",
-    "v1.commune.1601.fr",
-    "v1.commune.1701.fr",
+  expect(fcmSend.mock.calls.map((c) => target(c[0]))).toEqual([
+    either("1501", "1601", "1701", "1801", "1901"),
+    either("2001", "2101"),
   ]);
   expect(broadcast["telegram_delivered_at"]).not.toBeNull();
   fcmSend.mockClear().mockResolvedValue(undefined);
   sendTelegram.mockClear();
   vi.advanceTimersByTime(91_000);
   await deliverBroadcasts();
-  expect(fcmSend.mock.calls.map((c) => c[0].topic)).toEqual([
-    "v1.commune.1601.fr",
+  expect(fcmSend.mock.calls.map((c) => target(c[0]))).toEqual([
+    either("2001", "2101"),
   ]);
   expect(sendTelegram).not.toHaveBeenCalled();
-  expect(broadcast["fcm_topics"]).toBe(3);
+  expect(broadcast["fcm_topics"]).toBe(7);
+});
+
+it("never repacks a topic a per-topic receipt already covers", async () => {
+  const codes = ["1501", "1601", "1701", "1801", "1901", "2001", "2101"];
+  const { receipts, broadcast } = store(codes);
+  for (const code of ["1501", "1601", "1701"])
+    receipts.push({
+      broadcast_id: "b1",
+      channel: "fcm",
+      destination: `v1.commune.${code}.fr`,
+    });
+  await deliverBroadcasts();
+  expect(fcmSend.mock.calls.map((c) => target(c[0]))).toEqual([
+    either("1801", "1901", "2001", "2101"),
+  ]);
+  expect(broadcast["fcm_topics"]).toBe(7);
 });
 
 it("does not resend acknowledged destinations when the broadcast completion write fails", async () => {
@@ -222,7 +245,7 @@ it("does not resend acknowledged destinations when the broadcast completion writ
 });
 
 it("resumes a broadcast larger than the FCM budget after its saved successes", async () => {
-  const codes = Array.from({ length: 501 }, (_, i) => String(i + 1000));
+  const codes = Array.from({ length: 2501 }, (_, i) => String(i + 1000));
   const { broadcast } = store(codes);
   await deliverBroadcasts();
   expect(fcmSend).toHaveBeenCalledTimes(500);
@@ -236,10 +259,10 @@ it("resumes a broadcast larger than the FCM budget after its saved successes", a
   });
   fcmSend.mockClear();
   await deliverBroadcasts();
-  expect(fcmSend.mock.calls.map((c) => c[0].topic)).toEqual([
-    "v1.commune.1500.fr",
+  expect(fcmSend.mock.calls.map((c) => target(c[0]))).toEqual([
+    "v1.commune.3500.fr",
   ]);
-  expect(broadcast["fcm_topics"]).toBe(501);
+  expect(broadcast["fcm_topics"]).toBe(2501);
   expect(broadcast["fcm_delivered_at"]).not.toBeNull();
 });
 
@@ -252,7 +275,7 @@ it("does not send after its delivery lease cannot be renewed", async () => {
 });
 
 it("rechecks the lease before every provider send", async () => {
-  const { state } = store();
+  const { state } = store(["1501", "1601", "1701", "1801", "1901", "2001"]);
   fcmSend.mockImplementation(async () => {
     state.fcmRenewalAllowed = false;
   });
@@ -304,7 +327,7 @@ it("sends nothing when receipt history cannot be read", async () => {
 });
 
 it("caps failed FCM send attempts too and preserves their retry error", async () => {
-  store(Array.from({ length: 501 }, (_, i) => String(i + 1000)));
+  store(Array.from({ length: 2501 }, (_, i) => String(i + 1000)));
   fcmSend.mockRejectedValue(new Error("provider unavailable"));
   await expect(deliverBroadcasts()).rejects.toThrow("provider unavailable");
   expect(fcmSend).toHaveBeenCalledTimes(500);
