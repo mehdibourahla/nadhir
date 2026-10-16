@@ -6,6 +6,7 @@ import {
   fcmMessagesForFire,
   fcmMessagesForOnm,
   fcmTopic,
+  packTopics,
   userTopic,
 } from "@/lib/fcm";
 
@@ -312,4 +313,51 @@ it("keeps distinct long ONM tags distinct after shortening the iOS collapse id",
   expect(ids[0]).not.toBe(ids[1]);
   for (const id of ids)
     expect(new TextEncoder().encode(id).length).toBeLessThanOrEqual(64);
+});
+
+describe("packTopics", () => {
+  it("sends one ONM message per commune across its four language topics", () => {
+    const packed = packTopics(
+      fcmMessagesForOnm({
+        broadcastId: "b-2",
+        severity: "Severe",
+        communeCodes: ["1503", "1510"],
+        title: "Rain",
+        headlineFr: "Pluies",
+        wilayaId: "w15",
+        event: "Rain",
+      }),
+    );
+    expect(packed.map((p) => p.key)).toEqual([
+      "'v1.commune.1503.ar' in topics || 'v1.commune.1503.fr' in topics || 'v1.commune.1503.en' in topics || 'v1.commune.1503.kab' in topics",
+      "'v1.commune.1510.ar' in topics || 'v1.commune.1510.fr' in topics || 'v1.commune.1510.en' in topics || 'v1.commune.1510.kab' in topics",
+    ]);
+    expect(packed[1]!.message.webpush.fcm_options.link).toContain("1510");
+    expect("topic" in packed[0]!.message).toBe(false);
+  });
+
+  it("keeps each language's text apart and caps a condition at five topics", () => {
+    const codes = ["1501", "1502", "1503", "1504", "1505", "1506"];
+    const packed = packTopics(
+      fcmMessagesForFire({
+        broadcastId: "b-1",
+        severity: "Severe",
+        communeCodes: codes,
+        shortId: "DZ7K4A",
+        info: info.slice(0, 2),
+      }),
+    );
+    expect(packed).toHaveLength(4);
+    for (const { key, message } of packed) {
+      const lang = message.notification.title.startsWith("حريق") ? "ar" : "fr";
+      const topics = key.match(/v1\.commune\.\d+\.\w+/g)!;
+      expect(topics.length).toBeLessThanOrEqual(5);
+      expect(topics.every((t) => t.endsWith(`.${lang}`))).toBe(true);
+    }
+    expect(
+      packed.find((p) => p.key === "v1.commune.1506.fr")?.message,
+    ).toMatchObject({
+      topic: "v1.commune.1506.fr",
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import type { FcmMessage, FcmUserMessage } from "@/lib/fcm";
+import type { FcmTarget, FcmUserMessage } from "@/lib/fcm";
 
 const SCOPE =
   "https://www.googleapis.com/auth/firebase.messaging https://www.googleapis.com/auth/cloud-platform";
@@ -94,7 +94,7 @@ export type FcmDeviceTest = {
 };
 
 export async function fcmSend(
-  message: FcmMessage | FcmUserMessage | FcmDeviceTest,
+  message: FcmTarget | FcmUserMessage | FcmDeviceTest,
 ): Promise<void> {
   const account = requireAccount();
   const token = await accessToken(account);
@@ -112,7 +112,8 @@ export async function fcmSend(
   );
   // a topic nobody subscribed yet is not a failure; aborting here would
   // re-send the row's earlier topics next run as duplicates
-  if (res.status === 404 && "topic" in message) return;
+  if (res.status === 404 && ("topic" in message || "condition" in message))
+    return;
   if (!res.ok) throw new Error(`fcm send failed (${res.status})`);
 }
 
