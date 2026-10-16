@@ -85,26 +85,46 @@ export function extractFacebookPage(html: string): FacebookPageExtract {
   return { page_id: pageId, stories: [...stories.values()] };
 }
 
+const ATTEMPTS = 3;
+const EMPTY = { page_id: null, stories: [] };
+
+function isLoginWall(response: Response) {
+  const location = response.headers.get("location");
+  return (
+    response.status >= 300 &&
+    response.status < 400 &&
+    location !== null &&
+    new URL(location, "https://www.facebook.com").pathname.startsWith("/login")
+  );
+}
+
 export function facebookPageFetch(
   fetchImpl: typeof fetch = fetch,
 ): typeof fetch {
   return async (input, init) => {
-    const response = await fetchImpl(input, {
-      ...init,
-      headers: HEADERS,
-      redirect: "follow",
-    });
-    if (response.url && new URL(response.url).pathname.startsWith("/login"))
-      return Response.json(
-        { page_id: null, stories: [] },
-        { status: LOGIN_WALL },
-      );
-    if (!response.ok)
-      return Response.json(
-        { page_id: null, stories: [] },
-        { status: response.status },
-      );
-    return Response.json(extractFacebookPage(await response.text()));
+    const cookies = new Map<string, string>();
+    for (let attempt = 1; ; attempt++) {
+      const response = await fetchImpl(input, {
+        ...init,
+        headers: cookies.size
+          ? { ...HEADERS, Cookie: [...cookies.values()].join("; ") }
+          : HEADERS,
+        redirect: "manual",
+      });
+      if (!isLoginWall(response)) {
+        if (!response.ok)
+          return Response.json(EMPTY, { status: response.status });
+        return Response.json(extractFacebookPage(await response.text()));
+      }
+      await response.body?.cancel();
+      if (attempt === ATTEMPTS)
+        return Response.json(EMPTY, { status: LOGIN_WALL });
+      // from shared datacenter IPs the wall is intermittent; a browser replays its cookies and retries
+      for (const header of response.headers.getSetCookie()) {
+        const pair = header.split(";")[0]!.trim();
+        cookies.set(pair.split("=")[0]!, pair);
+      }
+    }
   };
 }
 
