@@ -260,7 +260,8 @@ async function deliverFcm(errors: string[]): Promise<{
       if (messages === null) throw new Error("fcm delivery context missing");
       const delivered = await deliveryReceipts(row.id, "fcm");
       let failure: string | null = null;
-      for (const { key, message } of packTopics(messages)) {
+      const unsent = messages.filter((m) => !delivered.has(m.topic));
+      for (const { key, message } of packTopics(unsent)) {
         if (delivered.has(key)) continue;
         if (attempts >= FCM_SEND_BUDGET) {
           failure ??= "budget_exhausted";

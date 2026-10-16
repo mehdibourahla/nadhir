@@ -213,6 +213,22 @@ it("retries only the failed FCM message without blocking Telegram", async () => 
   expect(broadcast["fcm_topics"]).toBe(7);
 });
 
+it("never repacks a topic a per-topic receipt already covers", async () => {
+  const codes = ["1501", "1601", "1701", "1801", "1901", "2001", "2101"];
+  const { receipts, broadcast } = store(codes);
+  for (const code of ["1501", "1601", "1701"])
+    receipts.push({
+      broadcast_id: "b1",
+      channel: "fcm",
+      destination: `v1.commune.${code}.fr`,
+    });
+  await deliverBroadcasts();
+  expect(fcmSend.mock.calls.map((c) => target(c[0]))).toEqual([
+    either("1801", "1901", "2001", "2101"),
+  ]);
+  expect(broadcast["fcm_topics"]).toBe(7);
+});
+
 it("does not resend acknowledged destinations when the broadcast completion write fails", async () => {
   const { state, broadcast } = store();
   state.completionError = true;
