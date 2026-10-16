@@ -216,9 +216,9 @@ export function createArchivedFetch(store: SourceArchiveStore) {
         bytes,
         base.media_type ?? "application/octet-stream",
       );
-    } catch {
+    } catch (error) {
       await capture(store, { ...base, error_code: "storage_failed" });
-      throw new ArchiveFailure("storage_failed");
+      throw new ArchiveFailure("storage_failed", { cause: error });
     }
     await capture(store, {
       ...base,
