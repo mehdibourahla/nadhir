@@ -140,13 +140,13 @@ export function createArchivedFetch(store: SourceArchiveStore) {
     let response: Response;
     try {
       response = await (options?.fetchImpl ?? fetch)(input, init);
-    } catch {
+    } catch (error) {
       await capture(store, {
         ...base,
         fetched_at: new Date().toISOString(),
         error_code: "network_error",
       });
-      throw new Error("Source upstream network error");
+      throw new Error("Source upstream network error", { cause: error });
     }
     base.http_status = response.status;
     base.media_type =
