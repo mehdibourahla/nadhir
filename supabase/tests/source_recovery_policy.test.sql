@@ -109,6 +109,12 @@ values('test.recovery-policy','feed','https://example.invalid',now(),now(),'fail
 set local role anon;
 select is((select pending from source_processing_health() where key='test.recovery-policy'),1::bigint,'public health counts unfinished retryable work');
 select is((select quarantined from source_processing_health() where key='test.recovery-policy'),1::bigint,'public health separates quarantined work');
+reset role;
+insert into source_documents(id,text_source_id,external_id,url,published_at,fetched_at,content_hash,body)
+values('18000000-0000-4000-8000-000000000014','18000000-0000-4000-8000-000000000001','14','https://example.invalid/14',now()-interval '4 days',now()-interval '4 days','fixture','private source text');
+update document_extractions set attempts=4 where document_id='18000000-0000-4000-8000-000000000014';
+set local role anon;
+select is((select quarantined from source_processing_health() where key='test.recovery-policy'),1::bigint,'a quarantine older than the map window no longer degrades the source');
 select is((select collection_at from source_processing_health() where key='test.recovery-policy'),now()-interval '2 minutes','successful collection remains visible despite quarantined processing and later fetch failure');
 select is((select array_agg(k order by k) from source_processing_health() h cross join lateral jsonb_object_keys(to_jsonb(h)) k where h.key='test.recovery-policy'),array['collection_at','key','pending','quarantined'],'public health exposes only aggregate fields');
 select throws_ok($$select previous_error from source_recovery_events$$,'42501',null,'public health cannot expose private recovery errors');
