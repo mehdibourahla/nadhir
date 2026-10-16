@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { llmHttpError } from "./llm-unavailable";
 
 const KINDS = ["vegetation", "agricultural", "urban", "unknown"] as const;
 const STATUSES = [
@@ -117,8 +118,9 @@ export async function completeWithOpenRouter(
     body: JSON.stringify(request),
   });
   if (!res.ok)
-    throw new Error(
+    throw llmHttpError(
       `openrouter ${res.status}: ${(await res.text()).slice(0, 200)}`,
+      res.status,
     );
   const body = (await res.json()) as {
     choices?: { message?: { content?: string | null } }[];

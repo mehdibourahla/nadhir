@@ -6,6 +6,7 @@ import {
   type LlmExtractionDependencies,
   type OpenRouterRequest,
 } from "@/lib/text-sources/extract-llm.server";
+import { LlmUnavailable } from "@/lib/text-sources/llm-unavailable";
 
 const text =
   "✅⏮️ حريق غابة منطقة صعبة المسلك ببلدية الولجة بولبلوط ولاية #سكيكدة، مع إقحام طائرتي الإطفاء، العملية متواصلة...";
@@ -50,6 +51,29 @@ describe("extractMentionsWithLlm over OpenRouter", () => {
       expect(timeout).toHaveBeenCalledWith(45_000);
     } finally {
       timeout.mockRestore();
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
+  });
+  it("tells a provider outage apart from a bad request", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-only");
+    try {
+      for (const [status, unavailable] of [
+        [402, true],
+        [429, true],
+        [503, true],
+        [400, false],
+      ] as const) {
+        vi.stubGlobal("fetch", async () => new Response("no", { status }));
+        const failure = await extractMentionsWithLlm({
+          text,
+          wilayaHint: null,
+          language: "ar",
+        }).catch((error: unknown) => error);
+        expect(failure instanceof LlmUnavailable).toBe(unavailable);
+        expect(String(failure)).toContain(`openrouter ${status}`);
+      }
+    } finally {
       vi.unstubAllGlobals();
       vi.unstubAllEnvs();
     }

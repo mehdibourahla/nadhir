@@ -1,6 +1,6 @@
 begin;
 set local search_path = public, extensions;
-select plan(39);
+select plan(43);
 select has_table('public','ita_reports','ITA source revisions exist');
 select is((select cadence_minutes from source_contracts where key='ita_website'),5,'five-minute schedule');
 insert into auth.users(id,email) values
@@ -67,6 +67,10 @@ update ita_reports set extraction_attempts=5,next_extraction_at=clock_timestamp(
 update ita_reports set next_extraction_at=clock_timestamp()-interval '1 day' where content_hash=repeat('c',64);
 select is((select count(*) from claim_ita_extractions(current_setting('ita.job')::uuid,current_setting('ita.attempt')::integer,5)),1::bigint,'exhausted retries excluded while eligible report retries');
 select is((select extraction_attempts from ita_reports where content_hash=repeat('c',64)),2,'retry increments attempt durably');
+select lives_ok($$select release_ita_extraction(current_setting('ita.job')::uuid,current_setting('ita.attempt')::integer,
+ (select id from ita_reports where content_hash=repeat('c',64)))$$,'provider outage releases a claimed report');
+select is((select extraction_attempts from ita_reports where content_hash=repeat('c',64)),1,'released report gets its attempt back');
+select is((select count(*) from claim_ita_extractions(current_setting('ita.job')::uuid,current_setting('ita.attempt')::integer,5)),1::bigint,'released report is due again at once');
 select throws_ok($$select save_ita_feed(current_setting('ita.job')::uuid,current_setting('ita.attempt')::integer+1,'[]','"wrong"',false)$$,'55000','ita_source_lease_lost','different attempt cannot use active lease');
 select is((select etag from ita_feed_state where singleton),'"v2"','fenced attempt leaves checkpoint unchanged');
 reset role;
@@ -75,6 +79,8 @@ set local role service_role;
 select throws_ok($$select save_ita_feed(current_setting('ita.job')::uuid,current_setting('ita.attempt')::integer,'[]','"stale"',false)$$,'55000','ita_source_lease_lost','expired worker cannot overwrite checkpoint');
 select throws_ok($$select finish_ita_extraction(current_setting('ita.job')::uuid,current_setting('ita.attempt')::integer,
  (select id from ita_reports where content_hash=repeat('b',64)),'{}',null)$$,'55000','ita_source_lease_lost','expired worker cannot finish extraction');
+select throws_ok($$select release_ita_extraction(current_setting('ita.job')::uuid,current_setting('ita.attempt')::integer,
+ (select id from ita_reports where content_hash=repeat('c',64)))$$,'55000','ita_source_lease_lost','expired worker cannot release extraction');
 reset role;
 select ok((select incidents=(select count(*) from official_incidents) and mentions=(select count(*) from incident_mentions)
  and broadcasts=(select count(*) from broadcasts) from ita_before),'ITA never creates official incidents, mentions, or broadcasts');

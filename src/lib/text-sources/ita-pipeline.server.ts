@@ -5,6 +5,7 @@ import type { ClaimedSourceJob } from "@/lib/source-jobs";
 import { fetchItaFeed, type ItaFeedPost } from "./ita-feed";
 import { extractItaReport, type ItaExtraction } from "./ita-extract.server";
 import { runCivilInvestigations } from "@/lib/civil-investigation.server";
+import { LlmUnavailable } from "./llm-unavailable";
 
 export type Revision = {
   source_post_id: string;
@@ -28,6 +29,7 @@ export type ItaStore = {
     extraction: ItaExtraction | null,
     error: string | null,
   ) => Promise<void>;
+  release: (id: string) => Promise<void>;
   pendingCount: () => Promise<number>;
 };
 export type ItaRun = {
@@ -95,12 +97,18 @@ export async function runItaSourceWith({
   const pending = await store.claim(5);
   let extracted = 0;
   let failed = 0;
-  for (const report of pending) {
+  for (const [index, report] of pending.entries()) {
     let result: ItaExtraction | null = null;
     let failure: string | null = null;
     try {
       result = await extract(report.raw);
     } catch (cause) {
+      if (cause instanceof LlmUnavailable) {
+        for (const unread of pending.slice(index))
+          await store.release(unread.id);
+        error ??= cause.message;
+        break;
+      }
       failure =
         cause instanceof Error
           ? cause.message.slice(0, 500)
@@ -131,7 +139,7 @@ export async function runItaSource(job: ClaimedSourceJob): Promise<ItaRun> {
   const fence = { _job: job.id, _attempt: job.attempt_count };
   const recovery = await supabaseAdmin.rpc("prepare_source_recovery", {
     _key: "ita_website",
-    _parser_version: "ita-extract-v4",
+    _parser_version: "ita-extract-v5",
     ...fence,
   });
   if (recovery.error)
@@ -175,6 +183,13 @@ export async function runItaSource(job: ClaimedSourceJob): Promise<ItaRun> {
         _error: failure,
       });
       if (error) throw new Error(`ITA extraction completion: ${error.message}`);
+    },
+    async release(id) {
+      const { error } = await supabaseAdmin.rpc("release_ita_extraction", {
+        ...fence,
+        _id: id,
+      });
+      if (error) throw new Error(`ITA extraction release: ${error.message}`);
     },
     async pendingCount() {
       const { count, error } = await supabaseAdmin

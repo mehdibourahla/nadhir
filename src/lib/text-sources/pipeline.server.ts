@@ -5,6 +5,7 @@ import { getSourceArchiveContext } from "@/lib/source-archive-context.server";
 import type { Json } from "@/integrations/supabase/types";
 
 import { parseDgpcBulletin, type DgpcBulletin } from "./dgpc-template";
+import { LlmUnavailable } from "./llm-unavailable";
 import {
   extractMentionsWithLlm,
   type LlmExtractionInput,
@@ -466,6 +467,7 @@ export async function runTextSourceWith(
       } catch (error) {
         run.llmFailed += 1;
         lastLlmError = error instanceof Error ? error.message : String(error);
+        if (error instanceof LlmUnavailable) break;
         await deps.store.recordExtractionFailure(doc.id, lastLlmError);
         continue;
       }
@@ -555,6 +557,7 @@ export async function runTextSourceWith(
       run.llmFailed += 1;
       run.unresolved += 1;
       lastLlmError = error instanceof Error ? error.message : String(error);
+      if (error instanceof LlmUnavailable) break;
       await deps.store.recordExtractionFailure(doc.id, lastLlmError);
       continue;
     }
