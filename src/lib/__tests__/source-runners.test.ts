@@ -52,11 +52,9 @@ function dependencies() {
       notModified: false,
     }),
     runItaFacebookSource: vi.fn().mockResolvedValue({
-      fetched: 2,
+      fetched: 1,
       stored: 1,
-      rejected: 0,
-      lookbackMinutes: 22,
-      complete: true,
+      newestPostAt: "2026-08-31T19:55:00Z",
     }),
     ingestFirms: vi.fn().mockResolvedValue({
       fetched: 2,
@@ -157,55 +155,30 @@ describe("source runner registry", () => {
     expect(deps.evaluateAlerts).not.toHaveBeenCalled();
     expect(deps.fuseDetections).not.toHaveBeenCalled();
   });
-  it("reports a capped Apify account as an unreachable upstream", async () => {
+  it("reports a Facebook login wall as an unreachable upstream", async () => {
     const deps = dependencies();
     deps.runItaFacebookSource.mockResolvedValue({
       fetched: 0,
       stored: 0,
-      rejected: 0,
-      lookbackMinutes: 22,
-      complete: false,
-      error: "Apify usage cap reached (HTTP 403)",
+      newestPostAt: null,
+      error: "Facebook login wall",
     });
     const result = await createSourceRunners(deps).ita_facebook(
       job("ita_facebook"),
     );
     expect(result).toMatchObject({
       outcome: "failed",
-      publicReasonCode: "upstream_unreachable",
       retryDisposition: "transient",
-      privateDiagnostic: "Apify usage cap reached (HTTP 403)",
-      qualityChecks: { lookback_minutes: 22 },
+      privateDiagnostic: "Facebook login wall",
     });
-  });
-  it("does not cover the interval of an incomplete Facebook window", async () => {
-    const deps = dependencies();
-    deps.runItaFacebookSource.mockResolvedValue({
-      fetched: 20,
-      stored: 20,
-      rejected: 0,
-      lookbackMinutes: 22,
-      complete: false,
-    });
-    const result = await createSourceRunners(deps).ita_facebook(
-      job("ita_facebook"),
-    );
-    expect(result).toMatchObject({
-      outcome: "partial",
-      coverageStatus: "partial",
-      publicReasonCode: "coverage_partial",
-    });
-    expect(result.dataFrom).toBeUndefined();
   });
 
-  it("counts an empty Facebook window as a covered success", async () => {
+  it("covers the interval of a successful page read", async () => {
     const deps = dependencies();
     deps.runItaFacebookSource.mockResolvedValue({
-      fetched: 0,
+      fetched: 1,
       stored: 0,
-      rejected: 0,
-      lookbackMinutes: 20,
-      complete: true,
+      newestPostAt: "2026-08-31T19:40:00Z",
     });
     const result = await createSourceRunners(deps).ita_facebook(
       job("ita_facebook"),
@@ -215,7 +188,8 @@ describe("source runner registry", () => {
       retryDisposition: "none",
       dataFrom: "2026-08-31T19:50:00.000Z",
       dataThrough: "2026-08-31T20:00:00.000Z",
-      recordsSeen: 0,
+      recordsSeen: 1,
+      qualityChecks: { newest_post_at: "2026-08-31T19:40:00Z" },
     });
   });
   it("contains exactly one runner for every runtime contract", () => {

@@ -1,5 +1,7 @@
 # ITA Facebook source: Apify bridge now, Meta PPCA later
 
+**Superseded 2026-10-16.** The page is read directly, logged out, every minute (`facebook-page.ts`); Apify is removed. The "login wall, datacenter" rejection below was never tested: a browser-headed GET returns the newest post server-rendered, from Cloudflare too.
+
 Collect every post of Info Trafic Algérie's Facebook page, not only the subset its website feed
 republishes. The target is Meta's Page Public Content Access (PPCA); an Apify collector carries
 the posts until PPCA is approved. Measurements of 2026-09-28 decided the design.

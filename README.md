@@ -154,8 +154,7 @@ signature of the CPU limit rather than a broken deploy.
 `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are baked into the client bundle at
 build time. Everything else is a runtime secret set with `wrangler secret put <NAME>`:
 `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `FIRMS_MAP_KEY`,
-`EUMETSAT_CONSUMER_KEY`, `EUMETSAT_CONSUMER_SECRET`, `APIFY_TOKEN`, `APIFY_ITA_TASK_ID`,
-`NADHIR_CRON_SECRET`.
+`EUMETSAT_CONSUMER_KEY`, `EUMETSAT_CONSUMER_SECRET`, `NADHIR_CRON_SECRET`.
 
 `NADHIR_CRON_SECRET` authenticates only the private one-job execution route. There are no
 `/api/public/cron/*` execution endpoints. `source_jobs`, `source_job_leases`, `source_gaps`,
