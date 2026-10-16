@@ -65,16 +65,49 @@ describe("Facebook page reader", () => {
     expect((await response.text()).length).toBeLessThan(2_000);
   });
 
-  it("fails loudly on a login wall", async () => {
-    const wall = Object.defineProperty(new Response("<html></html>"), "url", {
-      value: "https://www.facebook.com/login/?next=traficalg",
+  const wall = (cookie = "datr=abc; Path=/; Secure") =>
+    new Response(null, {
+      status: 302,
+      headers: {
+        location: "https://www.facebook.com/login/?next=traficalg",
+        "set-cookie": cookie,
+      },
+    });
+
+  it("replays the wall's cookies like a browser and reads the page on a retry", async () => {
+    const upstream = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(wall())
+      .mockResolvedValueOnce(new Response(html));
+    const posts = await fetchFacebookPagePosts(
+      "traficalg",
+      facebookPageFetch(upstream),
+    );
+    expect(posts).toHaveLength(1);
+    expect(upstream.mock.calls[1]![1]!.headers).toMatchObject({
+      Cookie: "datr=abc",
+    });
+  });
+
+  it("fails loudly on a login wall that holds for every attempt", async () => {
+    const upstream = vi.fn<typeof fetch>(async () => wall());
+    await expect(
+      fetchFacebookPagePosts("traficalg", facebookPageFetch(upstream)),
+    ).rejects.toThrow("Facebook login wall");
+    expect(upstream).toHaveBeenCalledTimes(3);
+  });
+
+  it("fails on a redirect that is not the login wall instead of following it", async () => {
+    const moved = new Response(null, {
+      status: 302,
+      headers: { location: "https://www.facebook.com/elsewhere" },
     });
     await expect(
       fetchFacebookPagePosts(
         "traficalg",
-        facebookPageFetch(async () => wall),
+        facebookPageFetch(async () => moved),
       ),
-    ).rejects.toThrow("Facebook login wall");
+    ).rejects.toThrow("Facebook page HTTP 302");
   });
 
   it("fails loudly when Facebook refuses the request", async () => {
