@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { llmHttpError } from "./llm-unavailable";
+import { llmFetchError, llmHttpError } from "./llm-unavailable";
 
 const KINDS = ["vegetation", "agricultural", "urban", "unknown"] as const;
 const STATUSES = [
@@ -116,7 +116,7 @@ export async function completeWithOpenRouter(
       "x-title": "Nadhir",
     },
     body: JSON.stringify(request),
-  });
+  }).catch(llmFetchError);
   if (!res.ok)
     throw llmHttpError(
       `openrouter ${res.status}: ${(await res.text()).slice(0, 200)}`,

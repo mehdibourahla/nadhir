@@ -252,10 +252,14 @@ it("shares the report deadline with its repair request", async () => {
     vi.unstubAllEnvs();
   }
 });
-it("reports exhausted credits as a provider outage", async () => {
+it("reports exhausted credits and a dropped connection as a provider outage", async () => {
   vi.stubEnv("OPENROUTER_API_KEY", "test");
-  vi.stubGlobal("fetch", async () => new Response("", { status: 402 }));
   try {
+    vi.stubGlobal("fetch", async () => new Response("", { status: 402 }));
+    await expect(extractItaReport(post)).rejects.toBeInstanceOf(LlmUnavailable);
+    vi.stubGlobal("fetch", async () => {
+      throw new TypeError("fetch failed");
+    });
     await expect(extractItaReport(post)).rejects.toBeInstanceOf(LlmUnavailable);
   } finally {
     vi.unstubAllGlobals();
