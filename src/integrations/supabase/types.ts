@@ -4143,6 +4143,10 @@ export type Database = {
         };
         Returns: undefined;
       };
+      release_ita_extraction: {
+        Args: { _attempt: number; _id: string; _job: string };
+        Returns: undefined;
+      };
       save_ita_facebook_posts: {
         Args: { _attempt: number; _job: string; _posts: Json };
         Returns: number;

@@ -4,6 +4,7 @@ import {
   runItaSourceWith,
   type ItaStore,
 } from "../text-sources/ita-pipeline.server";
+import { LlmUnavailable } from "../text-sources/llm-unavailable";
 
 const post = {
   id: "808412572528916_1511278197712051",
@@ -20,6 +21,7 @@ function setup() {
     saveFeed: vi.fn<ItaStore["saveFeed"]>().mockResolvedValue(1),
     claim: vi.fn().mockResolvedValue([{ id: "revision", raw: post }]),
     finish: vi.fn().mockResolvedValue(undefined),
+    release: vi.fn().mockResolvedValue(undefined),
     pendingCount: vi.fn().mockResolvedValue(0),
   } satisfies ItaStore;
   const fetchFeed = vi
@@ -135,6 +137,21 @@ describe("ITA pipeline", () => {
       null,
       "OPENROUTER_API_KEY missing",
     );
+  });
+  it("returns every unread claim when the model provider is unavailable", async () => {
+    const deps = setup();
+    deps.store.claim.mockResolvedValue([
+      { id: "first", raw: post },
+      { id: "second", raw: post },
+    ]);
+    deps.extract.mockRejectedValue(
+      new LlmUnavailable("ITA extraction HTTP 402"),
+    );
+    const run = await runItaSourceWith(deps);
+    expect(deps.extract).toHaveBeenCalledTimes(1);
+    expect(deps.store.finish).not.toHaveBeenCalled();
+    expect(deps.store.release.mock.calls).toEqual([["first"], ["second"]]);
+    expect(run).toMatchObject({ failed: 0, error: "ITA extraction HTTP 402" });
   });
   it("does not extract or advance after a storage failure", async () => {
     const deps = setup();

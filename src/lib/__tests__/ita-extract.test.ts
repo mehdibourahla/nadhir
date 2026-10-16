@@ -1,5 +1,6 @@
 import { expect, it, vi } from "vitest";
 import { extractItaReport } from "../text-sources/ita-extract.server";
+import { LlmUnavailable } from "../text-sources/llm-unavailable";
 type ExtractionRequest = Parameters<
   NonNullable<Parameters<typeof extractItaReport>[1]>["complete"]
 >[0];
@@ -251,6 +252,21 @@ it("shares the report deadline with its repair request", async () => {
     vi.unstubAllEnvs();
   }
 });
+it("reports exhausted credits and a dropped connection as a provider outage", async () => {
+  vi.stubEnv("OPENROUTER_API_KEY", "test");
+  try {
+    vi.stubGlobal("fetch", async () => new Response("", { status: 402 }));
+    await expect(extractItaReport(post)).rejects.toBeInstanceOf(LlmUnavailable);
+    vi.stubGlobal("fetch", async () => {
+      throw new TypeError("fetch failed");
+    });
+    await expect(extractItaReport(post)).rejects.toBeInstanceOf(LlmUnavailable);
+  } finally {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  }
+});
+
 it("requires evidence for a claimed current status", async () => {
   await expect(
     extractItaReport(

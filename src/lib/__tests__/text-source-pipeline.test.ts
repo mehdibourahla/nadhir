@@ -10,6 +10,7 @@ import type { LlmMention } from "@/lib/text-sources/extract-llm.server";
 import { isFireKind, type OpenIncident } from "@/lib/text-sources/merge";
 import type { Situation } from "@/lib/text-sources/dgpc-situation.server";
 import type { TelegramPost } from "@/lib/text-sources/telegram-public";
+import { LlmUnavailable } from "@/lib/text-sources/llm-unavailable";
 import recoveryPosts from "./fixtures/dgpc-recovery-posts.json";
 
 const SKIKDA = "w-skikda";
@@ -830,6 +831,32 @@ describe("runTextSource LLM failures", () => {
       ),
     );
     expect(dead.error).toMatch(/incomplete llm extraction: openrouter 502/);
+  });
+  it("spends no attempt and stops the pass while the model provider is unavailable", async () => {
+    const f = memoryStore();
+    const recorded: string[] = [];
+    f.store.recordExtractionFailure = async (id) => {
+      recorded.push(id);
+    };
+    let calls = 0;
+    const result = await runTextSourceWith(
+      "dgpc_telegram",
+      deps(
+        [
+          post("30", "2026-09-02T09:00:00Z", bulletin("07", skikda2, twoFires)),
+          post("31", "2026-09-02T09:05:00Z", bulletin("07", skikda2, twoFires)),
+        ],
+        f.store,
+        async () => {
+          calls += 1;
+          throw new LlmUnavailable("openrouter 402: more credits required");
+        },
+      ),
+    );
+    expect(calls).toBe(1);
+    expect(recorded).toEqual([]);
+    expect(f.retry.size).toBe(2);
+    expect(result.error).toMatch(/incomplete llm extraction: openrouter 402/);
   });
 });
 
