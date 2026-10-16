@@ -213,19 +213,14 @@ export function createSourceRunners(
     },
     ita_facebook: async (job) => {
       const run = await dependencies.runItaFacebookSource(job);
-      const health = adapterHealth({
-        accepted: run.fetched,
-        expected: run.complete ? null : run.fetched + 1,
-        error: run.error,
-      });
+      const health = adapterHealth({ accepted: run.fetched, error: run.error });
       return {
         ...baseReport(job),
         ...health,
         ...coveredInterval(job, health.outcome === "succeeded"),
         recordsSeen: run.fetched,
         recordsInserted: run.stored,
-        recordsRejected: run.rejected,
-        qualityChecks: { lookback_minutes: run.lookbackMinutes },
+        qualityChecks: { newest_post_at: run.newestPostAt },
       };
     },
     firms: async (job) => {

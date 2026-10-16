@@ -1,7 +1,7 @@
 begin;
 set local search_path = public, extensions;
 select plan(13);
-select is((select cadence_minutes from source_contracts where key='ita_facebook'),15,'fifteen-minute schedule');
+select is((select cadence_minutes from source_contracts where key='ita_facebook'),1,'one-minute schedule, since the page renders only its newest post');
 select is((select replay_capability from source_contracts where key='ita_facebook'),'none','no gap replay');
 set local role authenticated;
 select throws_ok($$select save_ita_facebook_posts(gen_random_uuid(),1,'[]')$$,'42501',null,'users cannot invoke the collector');
