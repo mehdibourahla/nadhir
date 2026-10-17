@@ -1,7 +1,7 @@
 begin;
 set local search_path = public, extensions;
 select plan(13);
-select is((select cadence_minutes from source_contracts where key='ita_facebook'),1,'one-minute schedule, since the page renders only its newest post');
+select is((select cadence_minutes from source_contracts where key='ita_facebook'),2,'two-minute schedule on GitHub runners');
 select is((select replay_capability from source_contracts where key='ita_facebook'),'none','no gap replay');
 set local role authenticated;
 select throws_ok($$select save_ita_facebook_posts(gen_random_uuid(),1,'[]')$$,'42501',null,'users cannot invoke the collector');
@@ -11,7 +11,7 @@ select throws_ok($$select save_ita_facebook_posts(gen_random_uuid(),1,'[]')$$,'5
 reset role;
 select public.enqueue_due_source_jobs(now(),'database');
 select set_config('fb.job',id::text,true),set_config('fb.attempt',attempt_count::text,true)
- from public.claim_source_job('ita-fb-test','cloudflare','ita_facebook');
+ from public.claim_source_job('ita-fb-test','github','ita_facebook');
 select set_config('web.job',id::text,true),set_config('web.attempt',attempt_count::text,true)
  from public.claim_source_job('ita-web-test','cloudflare','ita_website');
 set local role service_role;
