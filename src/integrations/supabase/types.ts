@@ -2767,6 +2767,7 @@ export type Database = {
           expected_coverage: Json;
           family: string;
           freshness_basis: string;
+          is_reference: boolean;
           key: string;
           label: string;
           lease_seconds: number;
@@ -2799,6 +2800,7 @@ export type Database = {
           expected_coverage?: Json;
           family: string;
           freshness_basis: string;
+          is_reference?: boolean;
           key: string;
           label: string;
           lease_seconds?: number;
@@ -2831,6 +2833,7 @@ export type Database = {
           expected_coverage?: Json;
           family?: string;
           freshness_basis?: string;
+          is_reference?: boolean;
           key?: string;
           label?: string;
           lease_seconds?: number;
