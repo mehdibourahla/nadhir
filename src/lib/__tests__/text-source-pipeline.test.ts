@@ -429,6 +429,52 @@ describe("runTextSource", () => {
     });
   });
 
+  it("resolves a gazetteer name spelled with Persian letters when the post names its former wilaya", async () => {
+    const { store, incidents } = memoryStore();
+    const result = await runTextSourceWith(
+      "dgpc_telegram",
+      deps(
+        [
+          post(
+            "1",
+            "2026-10-18T06:50:00Z",
+            bulletin(
+              "13",
+              "⏮️⏮️ ولاية تلمسان 01",
+              "✅⏮️ حريق ببلدية البويهي، العملية متواصلة...",
+            ),
+          ),
+        ],
+        {
+          ...store,
+          loadGazetteer: async () => ({
+            wilayas: [
+              { id: "w-tlemcen", name_ar: "تلمسان" },
+              { id: "w-aricha", name_ar: "العريشة" },
+            ],
+            communesByWilaya: new Map([
+              [
+                "w-tlemcen",
+                [{ id: "c-tlemcen", name_ar: "تلمسان", aliases: [] }],
+              ],
+              [
+                "w-aricha",
+                [{ id: "c-bouihi", name_ar: "البويھي", aliases: [] }],
+              ],
+            ]),
+            formerWilayaByCommune: new Map([["c-bouihi", "w-tlemcen"]]),
+          }),
+        },
+        llmWith(mention({ wilaya: "تلمسان", commune: "البويهي" })),
+      ),
+    );
+    expect(result).toMatchObject({ mentions: 1, incidentsCreated: 1 });
+    expect([...incidents.values()][0]).toMatchObject({
+      commune_id: "c-bouihi",
+      wilaya_id: "w-aricha",
+    });
+  });
+
   it("stores but neither extracts nor calls the model for posts that are not land fires", async () => {
     const { store, mentions } = memoryStore();
     let calls = 0;
