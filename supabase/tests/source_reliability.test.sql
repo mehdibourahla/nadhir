@@ -585,6 +585,80 @@ select is(
   'current complete coverage is healthy'
 );
 
+insert into public.source_contracts (
+  key,
+  version,
+  label,
+  family,
+  criticality,
+  freshness_basis,
+  cadence_minutes,
+  warning_after_minutes,
+  stale_after_minutes,
+  expected_coverage,
+  parser_version,
+  licence,
+  attribution,
+  owner,
+  enabled,
+  is_reference
+)
+select
+  'pgtap_reference_' || state,
+  1,
+  'pgTAP reference ' || state,
+  'reference_enrichment',
+  'critical',
+  'published_at',
+  43200,
+  44640,
+  86400,
+  '{}'::jsonb,
+  'test-v1',
+  'test-only',
+  'test-only',
+  'test',
+  true,
+  true
+from unnest(array['old', 'unpublished']) as state;
+
+insert into public.source_checkpoints (
+  contract_key,
+  last_attempt_at,
+  last_success_at,
+  validated_at,
+  published_at,
+  consecutive_failures,
+  records_accepted,
+  coverage_status
+)
+values (
+  'pgtap_reference_old',
+  now() - interval '400 days',
+  now() - interval '400 days',
+  now() - interval '400 days',
+  now() - interval '400 days',
+  0,
+  1,
+  'complete'
+);
+
+select is(
+  (select is_reference from public.source_contracts where key = 'geo'),
+  true,
+  'geo is reference data'
+);
+select is(
+  (select state from public.source_health where key = 'pgtap_reference_old'),
+  'healthy',
+  'reference data does not age once published with complete coverage'
+);
+select is(
+  (select state from public.source_health where key = 'pgtap_reference_unpublished'),
+  'unavailable',
+  'reference data that was never published is unavailable'
+);
+
 select * from finish();
 
 rollback;
