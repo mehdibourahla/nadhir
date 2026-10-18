@@ -39,6 +39,11 @@ describe("normalizeArabic", () => {
     expect(normalizeArabic("ڨالمة")).toBe(normalizeArabic("قالمة"));
   });
 
+  it("folds the Persian heh and yeh the gazetteer uses into Arabic letters", () => {
+    expect(normalizeArabic("البويهي")).toBe(normalizeArabic("البويھي"));
+    expect(normalizeArabic("عين الحمام")).toBe(normalizeArabic("عین الحمام"));
+  });
+
   it("drops hashtags, underscores and punctuation", () => {
     expect(normalizeArabic("#تيزي_وزو:")).toBe("تيزي وزو");
   });

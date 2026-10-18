@@ -7,6 +7,8 @@ export function normalizeArabic(input: string): string {
   s = s
     .replace(/[إأآٱ]/g, "ا")
     .replace(/ى/g, "ي")
+    .replace(/ی/g, "ي")
+    .replace(/ھ/g, "ه")
     .replace(/ة/g, "ه")
     .replace(/ؤ/g, "و")
     .replace(/ئ/g, "ي")
