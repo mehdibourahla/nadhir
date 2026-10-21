@@ -1,6 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
 
-import { CodexLogin as CodexLoginState } from "@/lib/llm/codex-login.server";
+import {
+  CodexLogin as CodexLoginState,
+  type CodexOutcome,
+} from "@/lib/llm/codex-login.server";
 
 export class CodexLogin extends DurableObject<Record<string, unknown>> {
   #login = new CodexLoginState({
@@ -12,11 +15,7 @@ export class CodexLogin extends DurableObject<Record<string, unknown>> {
     return this.#login.lease();
   }
 
-  pause(seconds: number) {
-    return this.#login.pause(seconds);
-  }
-
-  expire(token: string) {
-    return this.#login.expire(token);
+  report(token: string, outcome: CodexOutcome) {
+    return this.#login.report(token, outcome);
   }
 }

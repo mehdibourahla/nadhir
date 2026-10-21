@@ -4,6 +4,12 @@ import { OAUTH_CLIENT_ID, OAUTH_TOKEN_URL } from "@/lib/llm/codex.server";
 import { CodexLogin, type LoginStorage } from "@/lib/llm/codex-login.server";
 
 const NOW = Date.UTC(2026, 9, 21, 12);
+const unauthorized = {
+  ok: false,
+  reason: "http_401",
+  status: 401,
+  retryAfter: null,
+} as const;
 
 function jwt(claims: Record<string, unknown>) {
   const part = (value: unknown) =>
@@ -146,7 +152,7 @@ describe("CodexLogin", () => {
     refreshReplies();
     const first = setup();
     await first.login.lease();
-    await first.login.pause(600);
+    await first.login.report(access("a1", 3600), unauthorized);
 
     const relogin = setup({
       seed: JSON.stringify({
@@ -210,14 +216,28 @@ describe("CodexLogin", () => {
     });
   });
 
-  it("refreshes on the next lease after a 401 marks the current token stale", async () => {
+  const usage = (primaryUsed: number) => ({
+    ok: true as const,
+    usage: {
+      primaryUsed,
+      primaryResetAfter: 900,
+      secondaryUsed: 5,
+      secondaryResetAfter: 500000,
+    },
+  });
+
+  it("pauses ten minutes after a 401, then refreshes the stale token", async () => {
     const fetch = refreshReplies({
       access_token: access("a2", 3600),
       refresh_token: "refresh-2",
     });
-    const { login } = setup();
-    const first = await login.lease();
-    await login.expire("token" in first ? first.token : "");
+    const { login, clock } = setup();
+    await login.lease();
+    expect(await login.report(access("a1", 3600), unauthorized)).toEqual({
+      pausedSeconds: 600,
+    });
+    expect(await login.lease()).toEqual({ status: "paused" });
+    clock.now += 601_000;
     expect(await login.lease()).toMatchObject({ token: access("a2", 3600) });
     expect(fetch).toHaveBeenCalledTimes(1);
   });
@@ -227,20 +247,62 @@ describe("CodexLogin", () => {
       access_token: access("a2", 3600),
       refresh_token: "refresh-2",
     });
-    const { login } = setup();
-    await login.expire(access("a1", 3600));
+    const { login, clock } = setup();
     await login.lease();
-    await login.expire(access("a1", 3600));
+    await login.report(access("a1", 3600), unauthorized);
+    clock.now += 601_000;
+    await login.lease();
+    await login.report(access("a1", 3600), unauthorized);
+    clock.now += 601_000;
     expect(await login.lease()).toMatchObject({ token: access("a2", 3600) });
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for the server's reset time on a 429", async () => {
+    refreshReplies();
+    const { login } = setup();
+    await login.lease();
+    expect(
+      await login.report(access("a1", 3600), {
+        ok: false,
+        reason: "http_429",
+        status: 429,
+        retryAfter: 1800,
+      }),
+    ).toEqual({ pausedSeconds: 1800 });
+  });
+
+  it("pauses until the window resets once a call reports 80% of the plan used", async () => {
+    refreshReplies();
+    const { login, clock } = setup();
+    await login.lease();
+    expect(await login.report(access("a1", 3600), usage(79))).toEqual({
+      pausedSeconds: null,
+    });
+    expect(await login.lease()).toMatchObject({ status: "ready" });
+    expect(await login.report(access("a1", 3600), usage(80))).toEqual({
+      pausedSeconds: 900,
+    });
+    clock.now += 899_000;
+    expect(await login.lease()).toEqual({ status: "paused" });
   });
 
   it("only ever extends a pause", async () => {
     refreshReplies();
     const { login, clock } = setup();
     await login.lease();
-    await login.pause(600);
-    await login.pause(60);
+    await login.report(access("a1", 3600), {
+      ok: false,
+      reason: "refresh_http_400",
+      status: null,
+      retryAfter: null,
+    });
+    await login.report(access("a1", 3600), {
+      ok: false,
+      reason: "http_503",
+      status: 503,
+      retryAfter: null,
+    });
     clock.now += 61_000;
     expect(await login.lease()).toEqual({ status: "paused" });
     clock.now += 540_000;

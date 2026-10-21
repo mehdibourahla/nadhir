@@ -1,37 +1,77 @@
+import { z } from "zod/v4";
+
 import {
   CodexUnavailable,
   completeWithCodex,
-  pauseFor,
   transient,
-  usagePause,
   type ChatRequest,
+  type CodexEffort,
 } from "./codex.server";
-import type { Lease } from "./codex-login.server";
+import type { CodexLoginRpc, CodexOutcome, Lease } from "./codex-login.server";
 
-export type CodexLoginRpc = {
-  lease(): Promise<Lease>;
-  pause(seconds: number): Promise<void>;
-  expire(token: string): Promise<void>;
-};
+const LeaseReply = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("ready"),
+    access_token: z.string().min(1),
+    account_id: z.string().min(1),
+  }),
+  z.object({ status: z.literal("paused") }),
+  z.object({
+    status: z.literal("unavailable"),
+    reason: z.string(),
+    pausedSeconds: z.number(),
+  }),
+]);
 
-type Namespace = {
-  idFromName(name: string): unknown;
-  get(id: unknown): CodexLoginRpc;
-};
+const ReportReply = z.object({ pausedSeconds: z.number().nullable() });
 
-async function workersLogin(): Promise<CodexLoginRpc | null> {
-  const namespace = (await import("cloudflare:workers")).env["CODEX_LOGIN"] as
-    Namespace | undefined;
-  return namespace ? namespace.get(namespace.idFromName("codex")) : null;
+export function routeLogin(appUrl: string, secret: string): CodexLoginRpc {
+  const call = async (body: unknown): Promise<unknown> => {
+    const res = await fetch(`${appUrl}/api/internal/codex-login`, {
+      method: "POST",
+      signal: AbortSignal.timeout(15_000),
+      headers: {
+        authorization: `Bearer ${secret}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`codex login route HTTP ${res.status}`);
+    return res.json();
+  };
+  return {
+    async lease(): Promise<Lease> {
+      const reply = LeaseReply.parse(await call({ action: "lease" }));
+      return reply.status === "ready"
+        ? {
+            status: "ready",
+            token: reply.access_token,
+            account: reply.account_id,
+          }
+        : reply;
+    },
+    async report(token: string, outcome: CodexOutcome) {
+      return ReportReply.parse(
+        await call({ action: "report", token, outcome }),
+      );
+    },
+  };
 }
 
 function log(level: "warn" | "error", fields: Record<string, unknown>) {
   console[level](JSON.stringify(fields));
 }
 
+function recordFailed(error: unknown) {
+  log("error", {
+    message: "codex login route failed",
+    error: error instanceof Error ? error.message : String(error),
+  });
+}
+
 export function subscriptionTransport(deps: {
   model: () => string | undefined;
-  login: () => Promise<CodexLoginRpc | null>;
+  login: () => CodexLoginRpc | null;
 }) {
   let usageWarned = false;
 
@@ -55,18 +95,17 @@ export function subscriptionTransport(deps: {
     purpose: string,
     request: R,
     openRouter: (request: R) => Promise<string>,
-    signal?: AbortSignal,
+    options: { effort: CodexEffort; signal?: AbortSignal | undefined },
   ): Promise<string> {
     const model = deps.model();
     if (!model) return openRouter(request);
-    let login: CodexLoginRpc | null;
+    const login = deps.login();
+    if (!login) {
+      unavailable(purpose, "login_route_unset", false, null);
+      return openRouter(request);
+    }
     let lease: Lease;
     try {
-      login = await deps.login();
-      if (!login) {
-        unavailable(purpose, "binding_missing", false, null);
-        return openRouter(request);
-      }
       lease = await login.lease();
     } catch (error) {
       unavailable(purpose, "unreachable", false, null);
@@ -78,52 +117,68 @@ export function subscriptionTransport(deps: {
       unavailable(purpose, lease.reason, false, lease.pausedSeconds);
       return openRouter(request);
     }
+
+    let text: string | null = null;
+    let outcome: CodexOutcome;
+    let sent = true;
     try {
-      const reply = await completeWithCodex(model, request, lease, signal);
-      const { usage } = reply;
-      if (
-        usage.primaryUsed === null &&
-        usage.secondaryUsed === null &&
-        !usageWarned
-      ) {
-        usageWarned = true;
-        log("warn", {
-          message: "codex usage unknown",
-          detail: "no usage headers, the 80% ceiling cannot apply",
-        });
-      }
-      const ceiling = usagePause(usage);
-      if (ceiling !== null) {
-        log("warn", {
-          message: "codex subscription paused",
-          reason: "usage_ceiling",
-          primary_used: usage.primaryUsed,
-          secondary_used: usage.secondaryUsed,
-          paused_s: ceiling,
-        });
-        await login.pause(ceiling).catch(recordFailed);
-      }
-      return reply.text;
+      const reply = await completeWithCodex(model, request, lease, options);
+      text = reply.text;
+      outcome = { ok: true, usage: reply.usage };
     } catch (error) {
       if (!(error instanceof CodexUnavailable)) throw error;
-      const seconds = pauseFor(error);
-      unavailable(purpose, error.reason, error.sent, seconds);
-      if (error.status === 401)
-        await login.expire(lease.token).catch(recordFailed);
-      await login.pause(seconds).catch(recordFailed);
+      sent = error.sent;
+      outcome = {
+        ok: false,
+        reason: error.reason,
+        status: error.status,
+        retryAfter: error.retryAfter,
+      };
+    }
+    const { pausedSeconds } = await login
+      .report(lease.token, outcome)
+      .catch((error: unknown) => {
+        recordFailed(error);
+        return { pausedSeconds: null };
+      });
+
+    if (!outcome.ok) {
+      unavailable(purpose, outcome.reason, sent, pausedSeconds);
       return openRouter(request);
     }
+    const { usage } = outcome;
+    if (
+      usage.primaryUsed === null &&
+      usage.secondaryUsed === null &&
+      !usageWarned
+    ) {
+      usageWarned = true;
+      log("warn", {
+        message: "codex usage unknown",
+        detail: "no usage headers, the 80% ceiling cannot apply",
+      });
+    }
+    if (pausedSeconds !== null)
+      log("warn", {
+        message: "codex subscription paused",
+        reason: "usage_ceiling",
+        primary_used: usage.primaryUsed,
+        secondary_used: usage.secondaryUsed,
+        paused_s: pausedSeconds,
+      });
+    return text!;
   };
 }
 
-function recordFailed(error: unknown) {
-  log("error", {
-    message: "codex login state not recorded",
-    error: error instanceof Error ? error.message : String(error),
-  });
-}
-
+// Workers share the code but never the plan: chatgpt.com's edge refuses Workers egress
 export const subscriptionFirst = subscriptionTransport({
-  model: () => process.env["CODEX_MODEL"] || undefined,
-  login: workersLogin,
+  model: () =>
+    process.env["GITHUB_ACTIONS"] === "true"
+      ? process.env["CODEX_MODEL"] || undefined
+      : undefined,
+  login: () => {
+    const url = process.env["NADHIR_APP_URL"];
+    const secret = process.env["NADHIR_CRON_SECRET"];
+    return url && secret ? routeLogin(url, secret) : null;
+  },
 });

@@ -78,7 +78,9 @@ describe("completeWithCodex", () => {
     );
     vi.stubGlobal("fetch", fetch);
 
-    const reply = await completeWithCodex("gpt-6-luna", request, lease);
+    const reply = await completeWithCodex("gpt-6-luna", request, lease, {
+      effort: "none",
+    });
 
     expect(reply.text).toBe('{"mentions":[]}');
     const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
@@ -123,11 +125,21 @@ describe("completeWithCodex", () => {
     });
   });
 
+  it("asks for the reasoning effort the call site chose", async () => {
+    const fetch = vi.fn(async () => sse([delta("{}"), completed]));
+    vi.stubGlobal("fetch", fetch);
+    await completeWithCodex("gpt-6-luna", request, lease, { effort: "medium" });
+    const init = (fetch.mock.calls[0] as unknown as [string, RequestInit])[1];
+    expect(JSON.parse(init.body as string).reasoning).toEqual({
+      effort: "medium",
+    });
+  });
+
   it("opens a fresh session for every call", async () => {
     const fetch = vi.fn(async () => sse([delta("{}"), completed]));
     vi.stubGlobal("fetch", fetch);
-    await completeWithCodex("gpt-6-luna", request, lease);
-    await completeWithCodex("gpt-6-luna", request, lease);
+    await completeWithCodex("gpt-6-luna", request, lease, { effort: "none" });
+    await completeWithCodex("gpt-6-luna", request, lease, { effort: "none" });
     const sessions = fetch.mock.calls.map(
       (call) =>
         (
@@ -142,7 +154,9 @@ describe("completeWithCodex", () => {
 
   it("returns the plan usage headers", async () => {
     vi.stubGlobal("fetch", async () => sse([delta("{}"), completed]));
-    const reply = await completeWithCodex("gpt-6-luna", request, lease);
+    const reply = await completeWithCodex("gpt-6-luna", request, lease, {
+      effort: "none",
+    });
     expect(reply.usage).toEqual({
       primaryUsed: 12,
       primaryResetAfter: 900,
@@ -156,7 +170,7 @@ describe("completeWithCodex", () => {
     async (status) => {
       vi.stubGlobal("fetch", async () => new Response("no", { status }));
       const error = await failure(
-        completeWithCodex("gpt-6-luna", request, lease),
+        completeWithCodex("gpt-6-luna", request, lease, { effort: "none" }),
       );
       expect(error).toMatchObject({
         reason: `http_${status}`,
@@ -181,7 +195,7 @@ describe("completeWithCodex", () => {
         async () => new Response("slow", { status: 429, headers }),
       );
       const error = await failure(
-        completeWithCodex("gpt-6-luna", request, lease),
+        completeWithCodex("gpt-6-luna", request, lease, { effort: "none" }),
       );
       expect(error).toMatchObject({ reason: "http_429", retryAfter });
     },
@@ -192,7 +206,9 @@ describe("completeWithCodex", () => {
       sse([delta("{"), { type: "response.failed", response: {} }]),
     );
     expect(
-      await failure(completeWithCodex("gpt-6-luna", request, lease)),
+      await failure(
+        completeWithCodex("gpt-6-luna", request, lease, { effort: "none" }),
+      ),
     ).toMatchObject({
       reason: "stream_failed",
       sent: true,
@@ -202,21 +218,33 @@ describe("completeWithCodex", () => {
   it("an error event is unavailable", async () => {
     vi.stubGlobal("fetch", async () => sse([{ type: "error", message: "x" }]));
     expect(
-      (await failure(completeWithCodex("gpt-6-luna", request, lease))).reason,
+      (
+        await failure(
+          completeWithCodex("gpt-6-luna", request, lease, { effort: "none" }),
+        )
+      ).reason,
     ).toBe("stream_failed");
   });
 
   it("a stream that ends before completion is unavailable", async () => {
     vi.stubGlobal("fetch", async () => sse([delta('{"mentions":')]));
     expect(
-      (await failure(completeWithCodex("gpt-6-luna", request, lease))).reason,
+      (
+        await failure(
+          completeWithCodex("gpt-6-luna", request, lease, { effort: "none" }),
+        )
+      ).reason,
     ).toBe("stream_incomplete");
   });
 
   it("a malformed stream line is unavailable", async () => {
     vi.stubGlobal("fetch", async () => sse([], { raw: "data: {not json\n\n" }));
     expect(
-      (await failure(completeWithCodex("gpt-6-luna", request, lease))).reason,
+      (
+        await failure(
+          completeWithCodex("gpt-6-luna", request, lease, { effort: "none" }),
+        )
+      ).reason,
     ).toBe("stream_malformed");
   });
 
@@ -225,7 +253,9 @@ describe("completeWithCodex", () => {
       throw new TypeError("network connection lost");
     });
     expect(
-      await failure(completeWithCodex("gpt-6-luna", request, lease)),
+      await failure(
+        completeWithCodex("gpt-6-luna", request, lease, { effort: "none" }),
+      ),
     ).toMatchObject({
       reason: "network",
       sent: true,
@@ -237,7 +267,11 @@ describe("completeWithCodex", () => {
       throw new DOMException("timed out", "TimeoutError");
     });
     expect(
-      (await failure(completeWithCodex("gpt-6-luna", request, lease))).reason,
+      (
+        await failure(
+          completeWithCodex("gpt-6-luna", request, lease, { effort: "none" }),
+        )
+      ).reason,
     ).toBe("timeout");
   });
 
@@ -249,18 +283,18 @@ describe("completeWithCodex", () => {
       throw new DOMException("aborted", "AbortError");
     });
     await expect(
-      completeWithCodex("gpt-6-luna", request, lease, caller.signal),
+      completeWithCodex("gpt-6-luna", request, lease, {
+        effort: "none",
+        signal: caller.signal,
+      }),
     ).rejects.toBe(reason);
   });
 });
 
 describe("pauseFor", () => {
-  const unavailable = (reason: string, retryAfter: number | null = null) =>
-    new CodexUnavailable(reason, { sent: true, retryAfter });
-
   it("waits for the server's reset time on a 429", () => {
-    expect(pauseFor(unavailable("http_429", 1800))).toBe(1800);
-    expect(pauseFor(unavailable("http_429"))).toBe(60);
+    expect(pauseFor("http_429", 1800)).toBe(1800);
+    expect(pauseFor("http_429", null)).toBe(60);
   });
 
   it.each([
@@ -276,7 +310,7 @@ describe("pauseFor", () => {
     "refresh_http_502",
     "unreachable",
   ])("pauses a transient %s for a minute", (reason) => {
-    expect(pauseFor(unavailable(reason))).toBe(60);
+    expect(pauseFor(reason, null)).toBe(60);
   });
 
   it.each([
@@ -288,7 +322,7 @@ describe("pauseFor", () => {
     "refresh_http_400",
     "refresh_malformed",
   ])("pauses a login problem %s for ten minutes", (reason) => {
-    expect(pauseFor(unavailable(reason))).toBe(600);
+    expect(pauseFor(reason, null)).toBe(600);
   });
 });
 

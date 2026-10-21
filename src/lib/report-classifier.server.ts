@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import {
-  completeWithSubscription,
+  completeWithOpenRouter,
   DEFAULT_OPENROUTER_MODEL,
   stripFence,
   type OpenRouterRequest,
@@ -78,8 +78,7 @@ export function defaultClassifier(): ClassifierDependencies {
   return {
     apiKey,
     model: process.env["OPENROUTER_MODEL"] || DEFAULT_OPENROUTER_MODEL,
-    complete: (request) =>
-      completeWithSubscription("report_classifier", apiKey ?? "", request),
+    complete: (request) => completeWithOpenRouter(apiKey ?? "", request),
   };
 }
 

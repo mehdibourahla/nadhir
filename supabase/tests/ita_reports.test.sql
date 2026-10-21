@@ -42,7 +42,7 @@ create temporary table ita_before as select
  (select count(*) from broadcasts) broadcasts;
 select public.enqueue_due_source_jobs(now(),'database');
 select set_config('ita.job',id::text,true),set_config('ita.attempt',attempt_count::text,true)
- from public.claim_source_job('ita-sql-test','cloudflare','ita_website');
+ from public.claim_source_job('ita-sql-test','github','ita_website');
 set local role service_role;
 select is(public.save_ita_feed(current_setting('ita.job')::uuid,current_setting('ita.attempt')::integer,
  '[{"source_post_id":"second","source_page":"traficalg","source_url":"https://www.facebook.com/traficalg/posts/second","published_at":"2026-09-08T18:35:11Z","content_hash":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","body":"original","raw":{}}]', '"v1"',false),1,'new report stored');

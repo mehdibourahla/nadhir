@@ -47,6 +47,7 @@ import { Route as AuthenticatedAdminRiskRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAdminSourcesRouteImport } from './routes/_authenticated/admin/sources'
 import { Route as AuthenticatedAdminToolsRouteImport } from './routes/_authenticated/admin/tools'
 import { Route as AuthenticatedAdminTranslationsRouteImport } from './routes/_authenticated/admin/translations'
+import { Route as ApiInternalCodexLoginRouteImport } from './routes/api/internal/codex-login'
 import { Route as ApiPrivateAccountRouteImport } from './routes/api/private/account'
 import { Route as ApiPrivateAlertCheckRouteImport } from './routes/api/private/alert-check'
 import { Route as ApiPrivateEnsembleRouteImport } from './routes/api/private/ensemble'
@@ -268,6 +269,11 @@ const AuthenticatedAdminTranslationsRoute =
     path: '/translations',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
+const ApiInternalCodexLoginRoute = ApiInternalCodexLoginRouteImport.update({
+  id: '/api/internal/codex-login',
+  path: '/api/internal/codex-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPrivateAccountRoute = ApiPrivateAccountRouteImport.update({
   id: '/api/private/account',
   path: '/api/private/account',
@@ -431,6 +437,7 @@ export interface FileRoutesByFullPath {
   '/admin/sources': typeof AuthenticatedAdminSourcesRoute
   '/admin/tools': typeof AuthenticatedAdminToolsRoute
   '/admin/translations': typeof AuthenticatedAdminTranslationsRoute
+  '/api/internal/codex-login': typeof ApiInternalCodexLoginRoute
   '/api/private/account': typeof ApiPrivateAccountRoute
   '/api/private/alert-check': typeof ApiPrivateAlertCheckRoute
   '/api/private/ensemble': typeof ApiPrivateEnsembleRoute
@@ -492,6 +499,7 @@ export interface FileRoutesByTo {
   '/admin/sources': typeof AuthenticatedAdminSourcesRoute
   '/admin/tools': typeof AuthenticatedAdminToolsRoute
   '/admin/translations': typeof AuthenticatedAdminTranslationsRoute
+  '/api/internal/codex-login': typeof ApiInternalCodexLoginRoute
   '/api/private/account': typeof ApiPrivateAccountRoute
   '/api/private/alert-check': typeof ApiPrivateAlertCheckRoute
   '/api/private/ensemble': typeof ApiPrivateEnsembleRoute
@@ -557,6 +565,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/sources': typeof AuthenticatedAdminSourcesRoute
   '/_authenticated/admin/tools': typeof AuthenticatedAdminToolsRoute
   '/_authenticated/admin/translations': typeof AuthenticatedAdminTranslationsRoute
+  '/api/internal/codex-login': typeof ApiInternalCodexLoginRoute
   '/api/private/account': typeof ApiPrivateAccountRoute
   '/api/private/alert-check': typeof ApiPrivateAlertCheckRoute
   '/api/private/ensemble': typeof ApiPrivateEnsembleRoute
@@ -622,6 +631,7 @@ export interface FileRouteTypes {
     | '/admin/sources'
     | '/admin/tools'
     | '/admin/translations'
+    | '/api/internal/codex-login'
     | '/api/private/account'
     | '/api/private/alert-check'
     | '/api/private/ensemble'
@@ -683,6 +693,7 @@ export interface FileRouteTypes {
     | '/admin/sources'
     | '/admin/tools'
     | '/admin/translations'
+    | '/api/internal/codex-login'
     | '/api/private/account'
     | '/api/private/alert-check'
     | '/api/private/ensemble'
@@ -747,6 +758,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/sources'
     | '/_authenticated/admin/tools'
     | '/_authenticated/admin/translations'
+    | '/api/internal/codex-login'
     | '/api/private/account'
     | '/api/private/alert-check'
     | '/api/private/ensemble'
@@ -789,6 +801,7 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   FireIdRoute: typeof FireIdRoute
   IncidentIdRoute: typeof IncidentIdRoute
+  ApiInternalCodexLoginRoute: typeof ApiInternalCodexLoginRoute
   ApiPrivateAccountRoute: typeof ApiPrivateAccountRoute
   ApiPrivateAlertCheckRoute: typeof ApiPrivateAlertCheckRoute
   ApiPrivateEnsembleRoute: typeof ApiPrivateEnsembleRoute
@@ -1083,6 +1096,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminTranslationsRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/api/internal/codex-login': {
+      id: '/api/internal/codex-login'
+      path: '/api/internal/codex-login'
+      fullPath: '/api/internal/codex-login'
+      preLoaderRoute: typeof ApiInternalCodexLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/private/account': {
       id: '/api/private/account'
       path: '/api/private/account'
@@ -1348,6 +1368,7 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   FireIdRoute: FireIdRoute,
   IncidentIdRoute: IncidentIdRoute,
+  ApiInternalCodexLoginRoute: ApiInternalCodexLoginRoute,
   ApiPrivateAccountRoute: ApiPrivateAccountRoute,
   ApiPrivateAlertCheckRoute: ApiPrivateAlertCheckRoute,
   ApiPrivateEnsembleRoute: ApiPrivateEnsembleRoute,

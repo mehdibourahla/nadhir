@@ -29,7 +29,9 @@ export type ChatRequest = {
   };
 };
 
-export type CodexLease = { token: string; account: string };
+type CodexLease = { token: string; account: string };
+
+export type CodexEffort = "none" | "low" | "medium" | "high";
 
 export type CodexUsage = {
   primaryUsed: number | null;
@@ -64,7 +66,7 @@ function intHeader(headers: Headers, name: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function codexBody(model: string, request: ChatRequest) {
+function codexBody(model: string, request: ChatRequest, effort: CodexEffort) {
   const { name, schema, strict } = request.response_format.json_schema;
   return {
     model,
@@ -87,7 +89,7 @@ function codexBody(model: string, request: ChatRequest) {
     text: { format: { type: "json_schema", name, schema, strict } },
     store: false,
     stream: true,
-    reasoning: { effort: "none" },
+    reasoning: { effort },
   };
 }
 
@@ -95,7 +97,7 @@ export async function completeWithCodex(
   model: string,
   request: ChatRequest,
   lease: CodexLease,
-  signal?: AbortSignal,
+  { effort, signal }: { effort: CodexEffort; signal?: AbortSignal | undefined },
 ): Promise<{ text: string; usage: CodexUsage }> {
   const timeout = AbortSignal.timeout(CODEX_TIMEOUT_MS);
   try {
@@ -110,7 +112,7 @@ export async function completeWithCodex(
         "content-type": "application/json",
         session_id: crypto.randomUUID(),
       },
-      body: JSON.stringify(codexBody(model, request)),
+      body: JSON.stringify(codexBody(model, request, effort)),
     });
     if (res.status !== 200) {
       await res.body?.cancel();
@@ -192,9 +194,9 @@ export function transient(reason: string): boolean {
   return TRANSIENT.some((prefix) => reason.startsWith(prefix));
 }
 
-export function pauseFor(error: CodexUnavailable): number {
-  if (error.retryAfter !== null) return error.retryAfter;
-  return transient(error.reason) ? TRANSIENT_PAUSE_S : LOGIN_PAUSE_S;
+export function pauseFor(reason: string, retryAfter: number | null): number {
+  if (retryAfter !== null) return retryAfter;
+  return transient(reason) ? TRANSIENT_PAUSE_S : LOGIN_PAUSE_S;
 }
 
 export function usagePause(usage: CodexUsage): number | null {

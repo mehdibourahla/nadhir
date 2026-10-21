@@ -1,8 +1,9 @@
 import {
-  CodexUnavailable,
   OAUTH_CLIENT_ID,
   OAUTH_TOKEN_URL,
   pauseFor,
+  usagePause,
+  type CodexUsage,
 } from "./codex.server";
 
 const REFRESH_MARGIN_MS = 300_000;
@@ -17,6 +18,15 @@ export type Lease =
   | { status: "ready"; token: string; account: string }
   | { status: "paused" }
   | { status: "unavailable"; reason: string; pausedSeconds: number };
+
+export type CodexOutcome =
+  | { ok: true; usage: CodexUsage }
+  | {
+      ok: false;
+      reason: string;
+      status: number | null;
+      retryAfter: number | null;
+    };
 
 type LoginRecord = {
   refresh_token: string;
@@ -113,20 +123,31 @@ export class CodexLogin {
     return this.#refreshing;
   }
 
-  async pause(seconds: number): Promise<void> {
+  async report(
+    token: string,
+    outcome: CodexOutcome,
+  ): Promise<{ pausedSeconds: number | null }> {
     const state = await this.#load();
+    const pausedSeconds = outcome.ok
+      ? usagePause(outcome.usage)
+      : pauseFor(outcome.reason, outcome.retryAfter);
+    // a late 401 from a token already replaced must not force a second refresh
+    if (
+      !outcome.ok &&
+      outcome.status === 401 &&
+      state.record?.access_token === token
+    )
+      state.stale = true;
+    if (pausedSeconds !== null) this.#extendPause(state, pausedSeconds);
+    await this.#save(state);
+    return { pausedSeconds };
+  }
+
+  #extendPause(state: State, seconds: number) {
     state.pausedUntil = Math.max(
       state.pausedUntil,
       this.#now() + seconds * 1000,
     );
-    await this.#save(state);
-  }
-
-  async expire(token: string): Promise<void> {
-    const state = await this.#load();
-    if (state.record?.access_token !== token) return;
-    state.stale = true;
-    await this.#save(state);
   }
 
   #load(): Promise<State> {
@@ -158,13 +179,8 @@ export class CodexLogin {
   }
 
   async #fail(state: State, reason: string): Promise<Lease> {
-    const pausedSeconds = pauseFor(
-      new CodexUnavailable(reason, { sent: false }),
-    );
-    state.pausedUntil = Math.max(
-      state.pausedUntil,
-      this.#now() + pausedSeconds * 1000,
-    );
+    const pausedSeconds = pauseFor(reason, null);
+    this.#extendPause(state, pausedSeconds);
     await this.#save(state);
     return { status: "unavailable", reason, pausedSeconds };
   }
@@ -214,3 +230,5 @@ export class CodexLogin {
     return this.#ready(state, refreshed);
   }
 }
+
+export type CodexLoginRpc = Pick<CodexLogin, "lease" | "report">;

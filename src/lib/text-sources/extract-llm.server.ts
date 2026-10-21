@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import type { CodexEffort } from "@/lib/llm/codex.server";
 import { subscriptionFirst } from "@/lib/llm/subscription.server";
 import { llmFetchError, llmHttpError } from "./llm-unavailable";
 
@@ -137,6 +138,7 @@ export async function completeWithOpenRouter(
 
 export async function completeWithSubscription(
   purpose: string,
+  effort: CodexEffort,
   apiKey: string,
   request: OpenRouterRequest,
 ): Promise<{ content: string }> {
@@ -144,6 +146,7 @@ export async function completeWithSubscription(
     purpose,
     request,
     async (r) => (await completeWithOpenRouter(apiKey, r)).content,
+    { effort },
   );
   return { content };
 }
@@ -154,7 +157,12 @@ function defaultDependencies(): LlmExtractionDependencies {
     apiKey,
     model: process.env["OPENROUTER_MODEL"] || DEFAULT_OPENROUTER_MODEL,
     complete: (request) =>
-      completeWithSubscription("text_source_extract", apiKey ?? "", request),
+      completeWithSubscription(
+        "text_source_extract",
+        "low",
+        apiKey ?? "",
+        request,
+      ),
   };
 }
 

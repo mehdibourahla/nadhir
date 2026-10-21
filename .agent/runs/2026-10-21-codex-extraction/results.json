@@ -1,0 +1,6352 @@
+{
+ "lastUsage": {
+  "primaryUsed": 1,
+  "primaryResetAfter": 15194,
+  "secondaryUsed": 9,
+  "secondaryResetAfter": 583938
+ },
+ "rows": [
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "DGPCDZ/7069",
+   "ms": 1115,
+   "error": null,
+   "fires": 1,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "بسكرة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية بسكرة 01 (حريق واحة نخيل)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "DGPCDZ/7042",
+   "ms": 1077,
+   "error": null,
+   "fires": 2,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "المسيلة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية المسيلة 01 (حريق أحزمة تبن)"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية سكيكدة 01 (حريق أحزمة تبن)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "DGPCDZ/6998",
+   "ms": 1008,
+   "error": null,
+   "fires": 1,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "عين الفراج",
+     "place": "قرية منداس",
+     "kind": "agricultural",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق أشجار مثمرة وأحراش ببلدية عين الفراج بالمكان المسمى قرية منداس، الحريق في مرحلة معالجة البؤر المتبقية...عملية  متواصلة..."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "DGPCDZ/6872",
+   "ms": 1238,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "باتنة",
+     "commune": "عزيل عبد القادر",
+     "place": "العيضات",
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق أحزمة تبن بمشتة العيضات ببلدية عزيل عبد القادر."
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": "بابور",
+     "place": "واد عافرة و لارباع",
+     "kind": "vegetation",
+     "status": "contained",
+     "count": 1,
+     "evidence": "حريق أدغال و احراش ، بالمكان المسمى واد عافرة و لارباع، ببلدية بابور، في أخر مراحل الإخماد."
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "DGPCDZ/6876",
+   "ms": 1376,
+   "error": null,
+   "fires": 3,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #سكيكدة 01"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #سطيف 01"
+    },
+    {
+     "wilaya": "المدية",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #المدية 01"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 3
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "DGPCDZ/6919",
+   "ms": 1076,
+   "error": null,
+   "fires": 2,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "برج بوعريريج",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية برج بوعريريج: 01 (حريق حزم تبن)"
+    },
+    {
+     "wilaya": "الجزائر",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الجزائر: 01 (حريق أشجار مثمرة)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "DGPCDZ/7012",
+   "ms": 909,
+   "error": null,
+   "fires": 1,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "البويرة",
+     "commune": "الصحاريج",
+     "place": null,
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "ولاية #البويرة:\n✅⏮️ حريق غابة ببلدية الصحاريج، عملية معالجة بؤر الحرائق وبقايا الجمر متواصلة..."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "bulletin-6857-1300.txt",
+   "ms": 7465,
+   "error": null,
+   "fires": 44,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 5,
+     "evidence": "ولاية سكيكدة 05"
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 4,
+     "evidence": "ولاية قالمة 04"
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 3,
+     "evidence": "ولاية بجاية 03"
+    },
+    {
+     "wilaya": "جيجل",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية جيجل 02"
+    },
+    {
+     "wilaya": "عنابة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية عنابة 02"
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية ميلة 02"
+    },
+    {
+     "wilaya": "سوق أهراس",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية سوق أهراس 02"
+    },
+    {
+     "wilaya": "تيزي وزو",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية تيزي وزو 02"
+    },
+    {
+     "wilaya": "الطارف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الطارف 01"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية تبسة 01"
+    },
+    {
+     "wilaya": "قسنطينة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية قسنطينة 01"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية سطيف 01"
+    },
+    {
+     "wilaya": "المدية",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية المدية 01"
+    },
+    {
+     "wilaya": "الجلفة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الجلفة 01"
+    },
+    {
+     "wilaya": "البويرة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية البويرة 01"
+    },
+    {
+     "wilaya": "جيجل",
+     "commune": "تاكسنة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي تاكسنة وزيامة منصورية، مع تدعيم الفرق المتدخلة بـ 04 طائرات من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "جيجل",
+     "commune": "زيامة منصورية",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي تاكسنة وزيامة منصورية، مع تدعيم الفرق المتدخلة بـ 04 طائرات من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "الحمامات",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية الحمامات، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عزابة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عين زويت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "السبت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "أم الطوب",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "القصر",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 03 حرائق ببلديتي القصر وتيشي (02)، العملية متواصلة..."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "تيشي",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "تسجيل 03 حرائق ببلديتي القصر وتيشي (02)، العملية متواصلة..."
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": "سلاوة عنونة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي سلاوة عنونة وهليوبوليس، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": "هليوبوليس",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي سلاوة عنونة وهليوبوليس، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": "عميرة أراس",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية عميرة أراس، العملية متواصلة..."
+    },
+    {
+     "wilaya": "تيزي وزو",
+     "commune": "بوزقن",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية بوزقن، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة..."
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 31
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "bulletin-6865.txt",
+   "ms": 2712,
+   "error": null,
+   "fires": 14,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 4,
+     "evidence": "ولاية جيجل 04"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية تبسة 02"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية سطيف 02"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية سكيكدة 01"
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية ميلة 01"
+    },
+    {
+     "wilaya": "غليزان",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية غليزان 01"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "الحمامات",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي الحمامات ومرسط، العملية متواصلة..."
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "مرسط",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي الحمامات ومرسط، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عين زويت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية عين زويت، العملية متواصلة..."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 11
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "bulletin-6908-0700.txt",
+   "ms": 1711,
+   "error": null,
+   "fires": 3,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "الطارف",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الطارف 01"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": "تالة إيفاسن",
+     "place": "أولاد دلادج",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق ببلدية تالة إيفاسن بالمكان المسمى أولاد دلادج، تم إخماده وهو حالياً تحت الحراسة..."
+    },
+    {
+     "wilaya": "الطارف",
+     "commune": "عين العسل",
+     "place": "فج النخلة",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق ببلدية عين العسل بالمكان المسمى فج النخلة، عملية معالجة بؤر الحريق وبقايا الجمر متواصلة..."
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "bulletin-6947-24h.txt",
+   "ms": 1268,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "بوطالب",
+     "place": "غابة شاران بيان",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "ولاية #سطيف: حريق بغابة شاران بيان، بلدية بوطالب؛ الحريق حالياً في مرحلة معالجة بقايا الجمر والدخان ."
+    },
+    {
+     "wilaya": "سوق أهراس",
+     "commune": "مشروحة",
+     "place": "مشتة الطباقة",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "ولاية #سوق_أهراس: حريق بالمكان المسمى مشتة الطباقة، بلدية مشروحة؛ الحريق حالياً في مرحلة معالجة بقايا الجمر والدخان."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "bulletin-7158.txt",
+   "ms": 1321,
+   "error": null,
+   "fires": 2,
+   "covered": null,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": "الشقفة",
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "بلدية الشقفة: حريق غابة مهم مع وجود سكنات، تم إشراك الرتل المتنقل، وإرسال 04 طائرات AT802 وطائرة BE200 كتعزيزات."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "أيت إسماعيل",
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "بلدية أيت إسماعيل: حريق غابة في منطقة وعرة وصعبة الوصول، تم إرسال طائرتين AT802 كتعزيزات."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "ita",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "roadworks",
+   "ms": 1343,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "roadworks",
+      "summary_fr": "Travaux à Bouira en direction d'Alger.",
+      "evidence": "أشغال في البويرة اتجاه الجزائر",
+      "location_text": "في البويرة",
+      "location_evidence": "في البويرة",
+      "direction_text": "اتجاه الجزائر",
+      "direction_evidence": "اتجاه الجزائر",
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "accident",
+   "ms": 1719,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "collision",
+      "summary_fr": "Un accident de la circulation sur la route nationale numéro 5 dans la commune de Lakhdaria en direction de Bouira, le trafic est lent.",
+      "evidence": "حادث مرور على الطريق الوطني رقم 5 ببلدية الأخضرية في اتجاه البويرة، حركة المرور بطيئة",
+      "location_text": "على الطريق الوطني رقم 5 ببلدية الأخضرية",
+      "location_evidence": "على الطريق الوطني رقم 5 ببلدية الأخضرية",
+      "direction_text": "في اتجاه البويرة",
+      "direction_evidence": "في اتجاه البويرة",
+      "current_status": "ongoing",
+      "status_evidence": "حركة المرور بطيئة",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "snow",
+   "ms": 1583,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "weather",
+      "summary_fr": "La route nationale 15 est fermée à cause des chutes de neige à Tikjda.",
+      "evidence": "الطريق الوطني رقم 15 مغلق بسبب تساقط الثلوج على مستوى تيكجدة",
+      "location_text": "الطريق الوطني رقم 15",
+      "location_evidence": "الطريق الوطني رقم 15 مغلق بسبب تساقط الثلوج على مستوى تيكجدة",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "ongoing",
+      "status_evidence": "مغلق",
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "awareness",
+   "ms": 732,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "general_information",
+    "incidents": [],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "flood-fr",
+   "ms": 1371,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "flooding",
+      "summary_fr": "La route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l'échangeur, rendant la circulation très difficile.",
+      "evidence": "Attention : la route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l'échangeur, circulation très difficile",
+      "location_text": "au niveau de l'échangeur",
+      "location_evidence": "au niveau de l'échangeur",
+      "direction_text": "de Bab Ezzouar vers Dar El Beida",
+      "direction_evidence": "de Bab Ezzouar vers Dar El Beida",
+      "current_status": "ongoing",
+      "status_evidence": "est inondée",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "reopened",
+   "ms": 1274,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "road_hazard",
+      "summary_fr": "Réouverture de la route nationale numéro 5 à la circulation après l'enlèvement de la terre au niveau de Lakhdaria.",
+      "evidence": "إعادة فتح الطريق الوطني رقم 5 أمام حركة المرور بعد إزالة الأتربة على مستوى الأخضرية",
+      "location_text": "على مستوى الأخضرية",
+      "location_evidence": "على مستوى الأخضرية",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "resolved",
+      "status_evidence": "إعادة فتح الطريق الوطني رقم 5 أمام حركة المرور بعد إزالة الأتربة",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "two-places",
+   "ms": 1781,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "congestion",
+      "summary_fr": "Important embouteillage sur l'autoroute Est-Ouest à la sortie de Boudouaou.",
+      "evidence": "ازدحام مروري كبير على الطريق السيار شرق غرب بمخرج بودواو",
+      "location_text": "على الطريق السيار شرق غرب بمخرج بودواو",
+      "location_evidence": "على الطريق السيار شرق غرب بمخرج بودواو",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "unverified",
+      "review_reasons": []
+     },
+     {
+      "kind": "collision",
+      "summary_fr": "Un accident de la circulation sur la route nationale numéro 24 à Réghaïa.",
+      "evidence": "حادث مرور على الطريق الوطني رقم 24 بالرغاية",
+      "location_text": "على الطريق الوطني رقم 24 بالرغاية",
+      "location_evidence": "على الطريق الوطني رقم 24 بالرغاية",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gemini-2.5-flash",
+   "run": 1,
+   "id": "past-example",
+   "ms": 655,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "general_information",
+    "incidents": [],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "DGPCDZ/7069",
+   "ms": 1678,
+   "error": null,
+   "fires": 1,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "بسكرة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية بسكرة 01 (حريق واحة نخيل)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "DGPCDZ/7042",
+   "ms": 1673,
+   "error": null,
+   "fires": 2,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "المسيلة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية المسيلة 01 (حريق أحزمة تبن)"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية سكيكدة 01 (حريق أحزمة تبن)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "DGPCDZ/6998",
+   "ms": 1558,
+   "error": null,
+   "fires": 1,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "عين الفراج",
+     "place": "قرية منداس",
+     "kind": "agricultural",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق أشجار مثمرة وأحراش ببلدية عين الفراج بالمكان المسمى قرية منداس، الحريق في مرحلة معالجة البؤر المتبقية...عملية  متواصلة..."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "DGPCDZ/6872",
+   "ms": 2715,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "باتنة",
+     "commune": "عزيل عبد القادر",
+     "place": "مشتة العيضات",
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق أحزمة تبن بمشتة العيضات ببلدية عزيل عبد القادر."
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": "بابور",
+     "place": "واد عافرة و لارباع",
+     "kind": "vegetation",
+     "status": "contained",
+     "count": 1,
+     "evidence": "حريق أدغال و احراش ، بالمكان المسمى واد عافرة و لارباع، ببلدية بابور، في أخر مراحل الإخماد."
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "DGPCDZ/6876",
+   "ms": 1653,
+   "error": null,
+   "fires": 3,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #سكيكدة 01"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #سطيف 01"
+    },
+    {
+     "wilaya": "المدية",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #المدية 01"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 3
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "DGPCDZ/6919",
+   "ms": 1892,
+   "error": null,
+   "fires": 2,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "برج بوعريريج",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية برج بوعريريج: 01 (حريق حزم تبن)"
+    },
+    {
+     "wilaya": "الجزائر",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الجزائر: 01 (حريق أشجار مثمرة)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "DGPCDZ/7012",
+   "ms": 1597,
+   "error": null,
+   "fires": 1,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "البويرة",
+     "commune": "الصحاريج",
+     "place": null,
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق غابة ببلدية الصحاريج، عملية معالجة بؤر الحرائق وبقايا الجمر متواصلة"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "bulletin-6857-1300.txt",
+   "ms": 9176,
+   "error": null,
+   "fires": 44,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 5,
+     "evidence": "ولاية سكيكدة 05"
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 4,
+     "evidence": "ولاية قالمة 04"
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 3,
+     "evidence": "ولاية بجاية 03"
+    },
+    {
+     "wilaya": "جيجل",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية جيجل 02"
+    },
+    {
+     "wilaya": "عنابة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية عنابة 02"
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية ميلة 02"
+    },
+    {
+     "wilaya": "سوق أهراس",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية سوق أهراس 02"
+    },
+    {
+     "wilaya": "تيزي وزو",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية تيزي وزو 02"
+    },
+    {
+     "wilaya": "الطارف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الطارف 01"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية تبسة 01"
+    },
+    {
+     "wilaya": "قسنطينة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية قسنطينة 01"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية سطيف 01"
+    },
+    {
+     "wilaya": "المدية",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية المدية 01"
+    },
+    {
+     "wilaya": "الجلفة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الجلفة 01"
+    },
+    {
+     "wilaya": "البويرة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية البويرة 01"
+    },
+    {
+     "wilaya": "جيجل",
+     "commune": "تاكسنة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي تاكسنة وزيامة منصورية، مع تدعيم الفرق المتدخلة بـ 04 طائرات من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "جيجل",
+     "commune": "زيامة منصورية",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي تاكسنة وزيامة منصورية، مع تدعيم الفرق المتدخلة بـ 04 طائرات من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "الحمامات",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية الحمامات، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عزابة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عين زويت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "السبت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "أم الطوب",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "القصر",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 03 حرائق ببلديتي القصر وتيشي (02)، العملية متواصلة..."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "تيشي",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "تسجيل 03 حرائق ببلديتي القصر وتيشي (02)، العملية متواصلة..."
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": "سلاوة عنونة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي سلاوة عنونة وهليوبوليس، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": "هليوبوليس",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي سلاوة عنونة وهليوبوليس، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": "عميرة أراس",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية عميرة أراس، العملية متواصلة..."
+    },
+    {
+     "wilaya": "تيزي وزو",
+     "commune": "بوزقن",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية بوزقن، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة..."
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 31
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "bulletin-6865.txt",
+   "ms": 4590,
+   "error": null,
+   "fires": 14,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 4,
+     "evidence": "ولاية جيجل 04"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية تبسة 02"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية سطيف 02"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية سكيكدة 01"
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية ميلة 01"
+    },
+    {
+     "wilaya": "غليزان",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية غليزان 01"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "الحمامات",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريقين (02) ببلديتي الحمامات ومرسط، العملية متواصلة"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "مرسط",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريقين (02) ببلديتي الحمامات ومرسط، العملية متواصلة"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عين زويت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية عين زويت، العملية متواصلة"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 11
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "bulletin-6908-0700.txt",
+   "ms": 2067,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "تالة إيفاسن",
+     "place": "أولاد دلادج",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق ببلدية تالة إيفاسن بالمكان المسمى أولاد دلادج، تم إخماده وهو حالياً تحت الحراسة"
+    },
+    {
+     "wilaya": "الطارف",
+     "commune": "عين العسل",
+     "place": "فج النخلة",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق ببلدية عين العسل بالمكان المسمى فج النخلة، عملية معالجة بؤر الحريق وبقايا الجمر متواصلة"
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "bulletin-6947-24h.txt",
+   "ms": 2088,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "بوطالب",
+     "place": "شاران بيان",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "ولاية #سطيف: حريق بغابة شاران بيان، بلدية بوطالب؛ الحريق حالياً في مرحلة معالجة بقايا الجمر والدخان"
+    },
+    {
+     "wilaya": "سوق_أهراس",
+     "commune": "مشروحة",
+     "place": "مشتة الطباقة",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "ولاية #سوق_أهراس: حريق بالمكان المسمى مشتة الطباقة، بلدية مشروحة؛ الحريق حالياً في مرحلة معالجة بقايا الجمر والدخان"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "bulletin-7158.txt",
+   "ms": 2124,
+   "error": null,
+   "fires": 2,
+   "covered": null,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": "الشقفة",
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "بلدية الشقفة: حريق غابة مهم مع وجود سكنات، تم إشراك الرتل المتنقل، وإرسال 04 طائرات AT802 وطائرة BE200 كتعزيزات."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "أيت إسماعيل",
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "بلدية أيت إسماعيل: حريق غابة في منطقة وعرة وصعبة الوصول، تم إرسال طائرتين AT802 كتعزيزات."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "roadworks",
+   "ms": 1856,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "roadworks",
+      "summary_fr": "Des travaux sont signalés à البويرة, en direction d’Alger.",
+      "evidence": "أشغال في البويرة اتجاه الجزائر",
+      "location_text": "في البويرة",
+      "location_evidence": "أشغال في البويرة اتجاه الجزائر",
+      "direction_text": "اتجاه الجزائر",
+      "direction_evidence": "أشغال في البويرة اتجاه الجزائر",
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "accident",
+   "ms": 2509,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "collision",
+      "summary_fr": "Un accident de la circulation est signalé sur la route nationale n° 5, à بلدية الأخضرية, en direction de Bouira ; la circulation est lente.",
+      "evidence": "حادث مرور على الطريق الوطني رقم 5 ببلدية الأخضرية في اتجاه البويرة، حركة المرور بطيئة",
+      "location_text": "ببلدية الأخضرية",
+      "location_evidence": "حادث مرور على الطريق الوطني رقم 5 ببلدية الأخضرية في اتجاه البويرة، حركة المرور بطيئة",
+      "direction_text": "في اتجاه البويرة",
+      "direction_evidence": "حادث مرور على الطريق الوطني رقم 5 ببلدية الأخضرية في اتجاه البويرة، حركة المرور بطيئة",
+      "current_status": "ongoing",
+      "status_evidence": "حركة المرور بطيئة",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "snow",
+   "ms": 2749,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "weather",
+      "summary_fr": "La route nationale n° 15 est fermée en raison de chutes de neige au niveau de Tikjda.",
+      "evidence": "الطريق الوطني رقم 15 مغلق بسبب تساقط الثلوج على مستوى تيكجدة",
+      "location_text": "على مستوى تيكجدة",
+      "location_evidence": "الطريق الوطني رقم 15 مغلق بسبب تساقط الثلوج على مستوى تيكجدة",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "ongoing",
+      "status_evidence": "الطريق الوطني رقم 15 مغلق بسبب تساقط الثلوج على مستوى تيكجدة",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "awareness",
+   "ms": 1562,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "general_information",
+    "incidents": [],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "flood-fr",
+   "ms": 2054,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "flooding",
+      "summary_fr": "La route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l’échangeur et la circulation est très difficile.",
+      "evidence": "la route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l'échangeur, circulation très difficile",
+      "location_text": "au niveau de l'échangeur",
+      "location_evidence": "inondée au niveau de l'échangeur",
+      "direction_text": "vers Dar El Beida",
+      "direction_evidence": "la route de Bab Ezzouar vers Dar El Beida",
+      "current_status": "ongoing",
+      "status_evidence": "la route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l'échangeur, circulation très difficile",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "reopened",
+   "ms": 1992,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "road_hazard",
+      "summary_fr": "La route nationale n° 5 a été rouverte à la circulation après l’enlèvement des terres au niveau de Lakhdaria.",
+      "evidence": "إعادة فتح الطريق الوطني رقم 5 أمام حركة المرور بعد إزالة الأتربة على مستوى الأخضرية",
+      "location_text": "على مستوى الأخضرية",
+      "location_evidence": "إعادة فتح الطريق الوطني رقم 5 أمام حركة المرور بعد إزالة الأتربة على مستوى الأخضرية",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "resolved",
+      "status_evidence": "إعادة فتح الطريق الوطني رقم 5 أمام حركة المرور",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "two-places",
+   "ms": 3106,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "congestion",
+      "summary_fr": "Important embouteillage sur l’autoroute Est-Ouest à la sortie de بودواو.",
+      "evidence": "ازدحام مروري كبير على الطريق السيار شرق غرب بمخرج بودواو",
+      "location_text": "بمخرج بودواو",
+      "location_evidence": "ازدحام مروري كبير على الطريق السيار شرق غرب بمخرج بودواو",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "unverified",
+      "review_reasons": []
+     },
+     {
+      "kind": "collision",
+      "summary_fr": "Un accident de la circulation est signalé sur la route nationale n° 24 à الرغاية.",
+      "evidence": "حادث مرور على الطريق الوطني رقم 24 بالرغاية",
+      "location_text": "بالرغاية",
+      "location_evidence": "حادث مرور على الطريق الوطني رقم 24 بالرغاية",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:none",
+   "run": 1,
+   "id": "past-example",
+   "ms": 1267,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "general_information",
+    "incidents": [],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "DGPCDZ/7069",
+   "ms": 1416,
+   "error": null,
+   "fires": 1,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "بسكرة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية بسكرة 01 (حريق واحة نخيل)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "DGPCDZ/7042",
+   "ms": 1939,
+   "error": null,
+   "fires": 2,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "المسيلة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية المسيلة 01 (حريق أحزمة تبن)"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية سكيكدة 01 (حريق أحزمة تبن)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "DGPCDZ/6998",
+   "ms": 1782,
+   "error": null,
+   "fires": 1,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "عين الفراج",
+     "place": "قرية منداس",
+     "kind": "agricultural",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق أشجار مثمرة وأحراش ببلدية عين الفراج بالمكان المسمى قرية منداس، الحريق في مرحلة معالجة البؤر المتبقية...عملية  متواصلة..."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "DGPCDZ/6872",
+   "ms": 2080,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "باتنة",
+     "commune": "عزيل عبد القادر",
+     "place": "مشتة العيضات",
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق أحزمة تبن بمشتة العيضات ببلدية عزيل عبد القادر."
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": "بابور",
+     "place": "واد عافرة و لارباع",
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق أدغال و احراش ، بالمكان المسمى واد عافرة و لارباع، ببلدية بابور، في أخر مراحل الإخماد."
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "DGPCDZ/6876",
+   "ms": 2522,
+   "error": null,
+   "fires": 3,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #سكيكدة 01"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #سطيف 01"
+    },
+    {
+     "wilaya": "المدية",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #المدية 01"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 3
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "DGPCDZ/6919",
+   "ms": 1911,
+   "error": null,
+   "fires": 2,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "برج بوعريريج",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية برج بوعريريج: 01 (حريق حزم تبن)"
+    },
+    {
+     "wilaya": "الجزائر",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الجزائر: 01 (حريق أشجار مثمرة)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "DGPCDZ/7012",
+   "ms": 1930,
+   "error": null,
+   "fires": 1,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "البويرة",
+     "commune": "الصحاريج",
+     "place": null,
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق غابة ببلدية الصحاريج، عملية معالجة بؤر الحرائق وبقايا الجمر متواصلة..."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "bulletin-6857-1300.txt",
+   "ms": 6895,
+   "error": null,
+   "fires": 15,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": "تاكسنة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي تاكسنة وزيامة منصورية، مع تدعيم الفرق المتدخلة بـ 04 طائرات من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "جيجل",
+     "commune": "زيامة منصورية",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي تاكسنة وزيامة منصورية، مع تدعيم الفرق المتدخلة بـ 04 طائرات من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "الحمامات",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية الحمامات، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عزابة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عين زويت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "السبت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "أم الطوب",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "القصر",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 03 حرائق ببلديتي القصر وتيشي (02)، العملية متواصلة..."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "تيشي",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "تسجيل 03 حرائق ببلديتي القصر وتيشي (02)، العملية متواصلة..."
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": "سلاوة عنونة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي سلاوة عنونة وهليوبوليس، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": "هليوبوليس",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي سلاوة عنونة وهليوبوليس، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": "عميرة أراس",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية عميرة أراس، العملية متواصلة..."
+    },
+    {
+     "wilaya": "تيزي وزو",
+     "commune": "بوزقن",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية بوزقن، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة..."
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 31
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "bulletin-6865.txt",
+   "ms": 3819,
+   "error": null,
+   "fires": 14,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 4,
+     "evidence": "ولاية جيجل 04"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية تبسة 02"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية سطيف 02"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية سكيكدة 01"
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية ميلة 01"
+    },
+    {
+     "wilaya": "غليزان",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية غليزان 01"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "الحمامات",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي الحمامات ومرسط، العملية متواصلة"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "مرسط",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي الحمامات ومرسط، العملية متواصلة"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عين زويت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية عين زويت، العملية متواصلة"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 11
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "bulletin-6908-0700.txt",
+   "ms": 2717,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "تالة إيفاسن",
+     "place": "أولاد دلادج",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق ببلدية تالة إيفاسن بالمكان المسمى أولاد دلادج، تم إخماده وهو حالياً تحت الحراسة"
+    },
+    {
+     "wilaya": "الطارف",
+     "commune": "عين العسل",
+     "place": "فج النخلة",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق ببلدية عين العسل بالمكان المسمى فج النخلة، عملية معالجة بؤر الحريق وبقايا الجمر متواصلة"
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "bulletin-6947-24h.txt",
+   "ms": 2448,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "بوطالب",
+     "place": "شاران بيان",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق بغابة شاران بيان، بلدية بوطالب؛ الحريق حالياً في مرحلة معالجة بقايا الجمر والدخان"
+    },
+    {
+     "wilaya": "سوق_أهراس",
+     "commune": "مشروحة",
+     "place": "مشتة الطباقة",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق بالمكان المسمى مشتة الطباقة، بلدية مشروحة؛ الحريق حالياً في مرحلة معالجة بقايا الجمر والدخان"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "bulletin-7158.txt",
+   "ms": 2154,
+   "error": null,
+   "fires": 2,
+   "covered": null,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": "الشقفة",
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "بلدية الشقفة: حريق غابة مهم مع وجود سكنات، تم إشراك الرتل المتنقل، وإرسال 04 طائرات AT802 وطائرة BE200 كتعزيزات."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "أيت إسماعيل",
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "بلدية أيت إسماعيل: حريق غابة في منطقة وعرة وصعبة الوصول، تم إرسال طائرتين AT802 كتعزيزات."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "roadworks",
+   "ms": 2022,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "roadworks",
+      "summary_fr": "Des travaux sont signalés à البويرة, en direction d’Alger.",
+      "evidence": "أشغال في البويرة اتجاه الجزائر",
+      "location_text": "في البويرة",
+      "location_evidence": "أشغال في البويرة اتجاه الجزائر",
+      "direction_text": "اتجاه الجزائر",
+      "direction_evidence": "أشغال في البويرة اتجاه الجزائر",
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "accident",
+   "ms": 1971,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "collision",
+      "summary_fr": "Un accident de la circulation est signalé sur la route nationale n° 5, à بلدية الأخضرية, en direction de البويرة ; la circulation est lente.",
+      "evidence": "حادث مرور على الطريق الوطني رقم 5 ببلدية الأخضرية في اتجاه البويرة، حركة المرور بطيئة",
+      "location_text": "ببلدية الأخضرية",
+      "location_evidence": "حادث مرور على الطريق الوطني رقم 5 ببلدية الأخضرية",
+      "direction_text": "في اتجاه البويرة",
+      "direction_evidence": "في اتجاه البويرة",
+      "current_status": "ongoing",
+      "status_evidence": "حركة المرور بطيئة",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "snow",
+   "ms": 2150,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "weather",
+      "summary_fr": "La route nationale n° 15 est fermée en raison des chutes de neige au niveau de تيكجدة.",
+      "evidence": "الطريق الوطني رقم 15 مغلق بسبب تساقط الثلوج على مستوى تيكجدة",
+      "location_text": "على مستوى تيكجدة",
+      "location_evidence": "الطريق الوطني رقم 15 مغلق بسبب تساقط الثلوج على مستوى تيكجدة",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "ongoing",
+      "status_evidence": "الطريق الوطني رقم 15 مغلق",
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "awareness",
+   "ms": 1544,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "general_information",
+    "incidents": [],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "flood-fr",
+   "ms": 2296,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "flooding",
+      "summary_fr": "La route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l’échangeur, avec une circulation très difficile.",
+      "evidence": "la route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l'échangeur, circulation très difficile",
+      "location_text": "au niveau de l'échangeur",
+      "location_evidence": "est inondée au niveau de l'échangeur",
+      "direction_text": "vers Dar El Beida",
+      "direction_evidence": "la route de Bab Ezzouar vers Dar El Beida est inondée",
+      "current_status": "ongoing",
+      "status_evidence": "est inondée au niveau de l'échangeur, circulation très difficile",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "reopened",
+   "ms": 1849,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "roadworks",
+      "summary_fr": "Réouverture de la route nationale n° 5 à la circulation après le déblaiement de terre au niveau de الأخضرية.",
+      "evidence": "إعادة فتح الطريق الوطني رقم 5 أمام حركة المرور بعد إزالة الأتربة على مستوى الأخضرية",
+      "location_text": "الأخضرية",
+      "location_evidence": "على مستوى الأخضرية",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "resolved",
+      "status_evidence": "إعادة فتح الطريق الوطني رقم 5 أمام حركة المرور",
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "two-places",
+   "ms": 2779,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "congestion",
+      "summary_fr": "Important embouteillage sur l’autoroute Est-Ouest à la sortie de Boudouaou.",
+      "evidence": "ازدحام مروري كبير على الطريق السيار شرق غرب بمخرج بودواو",
+      "location_text": "بمخرج بودواو",
+      "location_evidence": "ازدحام مروري كبير على الطريق السيار شرق غرب بمخرج بودواو",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "unverified",
+      "review_reasons": []
+     },
+     {
+      "kind": "collision",
+      "summary_fr": "Un accident de la circulation est signalé sur la route nationale 24 à الرغاية.",
+      "evidence": "حادث مرور على الطريق الوطني رقم 24 بالرغاية",
+      "location_text": "بالرغاية",
+      "location_evidence": "حادث مرور على الطريق الوطني رقم 24 بالرغاية",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:low",
+   "run": 1,
+   "id": "past-example",
+   "ms": 1547,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "general_information",
+    "incidents": [],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "DGPCDZ/7069",
+   "ms": 1639,
+   "error": null,
+   "fires": 1,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "بسكرة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية بسكرة 01 (حريق واحة نخيل)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "DGPCDZ/7042",
+   "ms": 1793,
+   "error": null,
+   "fires": 2,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "المسيلة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية المسيلة 01 (حريق أحزمة تبن)"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية سكيكدة 01 (حريق أحزمة تبن)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "DGPCDZ/6998",
+   "ms": 2915,
+   "error": null,
+   "fires": 1,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "عين الفراج",
+     "place": "قرية منداس",
+     "kind": "agricultural",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق أشجار مثمرة وأحراش ببلدية عين الفراج بالمكان المسمى قرية منداس، الحريق في مرحلة معالجة البؤر المتبقية...عملية  متواصلة..."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "DGPCDZ/6872",
+   "ms": 3388,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "باتنة",
+     "commune": "عزيل عبد القادر",
+     "place": "مشتة العيضات",
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق أحزمة تبن بمشتة العيضات ببلدية عزيل عبد القادر."
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": "بابور",
+     "place": "واد عافرة و لارباع",
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق أدغال و احراش ، بالمكان المسمى واد عافرة و لارباع، ببلدية بابور، في أخر مراحل الإخماد."
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "DGPCDZ/6876",
+   "ms": 2456,
+   "error": null,
+   "fires": 3,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #سكيكدة 01"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #سطيف 01"
+    },
+    {
+     "wilaya": "المدية",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #المدية 01"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 3
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "DGPCDZ/6919",
+   "ms": 2371,
+   "error": null,
+   "fires": 2,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "برج بوعريريج",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية برج بوعريريج: 01 (حريق حزم تبن)"
+    },
+    {
+     "wilaya": "الجزائر",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الجزائر: 01 (حريق أشجار مثمرة)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "DGPCDZ/7012",
+   "ms": 3401,
+   "error": null,
+   "fires": 1,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "البويرة",
+     "commune": "الصحاريج",
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق غابة ببلدية الصحاريج، عملية معالجة بؤر الحرائق وبقايا الجمر متواصلة..."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "bulletin-6857-1300.txt",
+   "ms": 10029,
+   "error": null,
+   "fires": 15,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": "تاكسنة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريقين (02) ببلديتي تاكسنة وزيامة منصورية"
+    },
+    {
+     "wilaya": "جيجل",
+     "commune": "زيامة منصورية",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريقين (02) ببلديتي تاكسنة وزيامة منصورية"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "الحمامات",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية الحمامات، العملية متواصلة"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عزابة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عين زويت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "السبت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "أم الطوب",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)"
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "القصر",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 03 حرائق ببلديتي القصر وتيشي (02)"
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "تيشي",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "تسجيل 03 حرائق ببلديتي القصر وتيشي (02)"
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": "سلاوة عنونة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريقين (02) ببلديتي سلاوة عنونة وهليوبوليس"
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": "هليوبوليس",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريقين (02) ببلديتي سلاوة عنونة وهليوبوليس"
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": "عميرة أراس",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية عميرة أراس، العملية متواصلة"
+    },
+    {
+     "wilaya": "تيزي وزو",
+     "commune": "بوزقن",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية بوزقن، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة"
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 31
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "bulletin-6865.txt",
+   "ms": 5044,
+   "error": null,
+   "fires": 11,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 4,
+     "evidence": "ولاية جيجل 04"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "الحمامات",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريقين (02) ببلديتي الحمامات ومرسط، العملية متواصلة..."
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "مرسط",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريقين (02) ببلديتي الحمامات ومرسط، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية سطيف 02"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عين زويت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية عين زويت، العملية متواصلة..."
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية ميلة 01"
+    },
+    {
+     "wilaya": "غليزان",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية غليزان 01"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 11
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "bulletin-6908-0700.txt",
+   "ms": 4013,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "تالة إيفاسن",
+     "place": "أولاد دلادج",
+     "kind": "unknown",
+     "status": "extinguished",
+     "count": 1,
+     "evidence": "حريق ببلدية تالة إيفاسن بالمكان المسمى أولاد دلادج، تم إخماده"
+    },
+    {
+     "wilaya": "الطارف",
+     "commune": "عين العسل",
+     "place": "فج النخلة",
+     "kind": "unknown",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق ببلدية عين العسل بالمكان المسمى فج النخلة، عملية معالجة بؤر الحريق وبقايا الجمر متواصلة"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "bulletin-6947-24h.txt",
+   "ms": 3388,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "بوطالب",
+     "place": "شاران بيان",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "ولاية #سطيف: حريق بغابة شاران بيان، بلدية بوطالب؛ الحريق حالياً في مرحلة معالجة بقايا الجمر والدخان ."
+    },
+    {
+     "wilaya": "سوق_أهراس",
+     "commune": "مشروحة",
+     "place": "مشتة الطباقة",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "ولاية #سوق_أهراس: حريق بالمكان المسمى مشتة الطباقة، بلدية مشروحة؛ الحريق حالياً في مرحلة معالجة بقايا الجمر والدخان."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "bulletin-7158.txt",
+   "ms": 2699,
+   "error": null,
+   "fires": 2,
+   "covered": null,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": "الشقفة",
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "بلدية الشقفة: حريق غابة مهم مع وجود سكنات، تم إشراك الرتل المتنقل، وإرسال 04 طائرات AT802 وطائرة BE200 كتعزيزات."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "أيت إسماعيل",
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "بلدية أيت إسماعيل: حريق غابة في منطقة وعرة وصعبة الوصول، تم إرسال طائرتين AT802 كتعزيزات."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "roadworks",
+   "ms": 3189,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "roadworks",
+      "summary_fr": "Des travaux sont signalés à البويرة, en direction d’Alger.",
+      "evidence": "أشغال في البويرة اتجاه الجزائر",
+      "location_text": "في البويرة",
+      "location_evidence": "أشغال في البويرة اتجاه الجزائر",
+      "direction_text": "اتجاه الجزائر",
+      "direction_evidence": "أشغال في البويرة اتجاه الجزائر",
+      "current_status": "ongoing",
+      "status_evidence": "أشغال",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "accident",
+   "ms": 3829,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "collision",
+      "summary_fr": "Accident de la circulation sur la RN 5, à الأخضرية, en direction de Bouira ; la circulation est lente.",
+      "evidence": "حادث مرور على الطريق الوطني رقم 5 ببلدية الأخضرية في اتجاه البويرة، حركة المرور بطيئة",
+      "location_text": "على الطريق الوطني رقم 5 ببلدية الأخضرية",
+      "location_evidence": "حادث مرور على الطريق الوطني رقم 5 ببلدية الأخضرية",
+      "direction_text": "في اتجاه البويرة",
+      "direction_evidence": "في اتجاه البويرة",
+      "current_status": "ongoing",
+      "status_evidence": "حركة المرور بطيئة",
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "snow",
+   "ms": 3322,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "road_hazard",
+      "summary_fr": "La route nationale n° 15 est fermée en raison de chutes de neige au niveau de تيكجدة.",
+      "evidence": "الطريق الوطني رقم 15 مغلق بسبب تساقط الثلوج على مستوى تيكجدة",
+      "location_text": "تيكجدة",
+      "location_evidence": "على مستوى تيكجدة",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "ongoing",
+      "status_evidence": "الطريق الوطني رقم 15 مغلق بسبب تساقط الثلوج على مستوى تيكجدة",
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "awareness",
+   "ms": 1775,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "general_information",
+    "incidents": [],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "flood-fr",
+   "ms": 3842,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "flooding",
+      "summary_fr": "La route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l’échangeur, avec une circulation très difficile.",
+      "evidence": "la route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l'échangeur, circulation très difficile",
+      "location_text": "au niveau de l'échangeur",
+      "location_evidence": "est inondée au niveau de l'échangeur",
+      "direction_text": "de Bab Ezzouar vers Dar El Beida",
+      "direction_evidence": "la route de Bab Ezzouar vers Dar El Beida",
+      "current_status": "ongoing",
+      "status_evidence": "est inondée au niveau de l'échangeur, circulation très difficile",
+      "region_assessment": "unverified",
+      "review_reasons": [
+       "La région indiquée comme Alger n’est pas explicitement confirmée dans le message."
+      ]
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "reopened",
+   "ms": 5375,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "road_hazard",
+      "summary_fr": "La route nationale n° 5 a été rouverte à la circulation après l’enlèvement de déblais au niveau de الأخضرية.",
+      "evidence": "إعادة فتح الطريق الوطني رقم 5 أمام حركة المرور بعد إزالة الأتربة على مستوى الأخضرية",
+      "location_text": "الأخضرية",
+      "location_evidence": "على مستوى الأخضرية",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "resolved",
+      "status_evidence": "إعادة فتح الطريق الوطني رقم 5 أمام حركة المرور بعد إزالة الأتربة على مستوى الأخضرية",
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "two-places",
+   "ms": 4188,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "congestion",
+      "summary_fr": "Important embouteillage signalé sur l’autoroute Est-Ouest, à la sortie de بودواو.",
+      "evidence": "ازدحام مروري كبير على الطريق السيار شرق غرب بمخرج بودواو",
+      "location_text": "بمخرج بودواو",
+      "location_evidence": "ازدحام مروري كبير على الطريق السيار شرق غرب بمخرج بودواو",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "unverified",
+      "review_reasons": [
+       "La région indiquée dans les métadonnées n’est pas confirmée par le texte."
+      ]
+     },
+     {
+      "kind": "collision",
+      "summary_fr": "Accident de la circulation signalé sur la route nationale n° 24, à الرغاية.",
+      "evidence": "حادث مرور على الطريق الوطني رقم 24 بالرغاية",
+      "location_text": "بالرغاية",
+      "location_evidence": "حادث مرور على الطريق الوطني رقم 24 بالرغاية",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "unverified",
+      "review_reasons": [
+       "La région indiquée dans les métadonnées n’est pas confirmée par le texte."
+      ]
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:medium",
+   "run": 1,
+   "id": "past-example",
+   "ms": 3195,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "general_information",
+    "incidents": [],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "DGPCDZ/7069",
+   "ms": 987,
+   "error": null,
+   "fires": 1,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "بسكرة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية بسكرة 01 (حريق واحة نخيل)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "DGPCDZ/7042",
+   "ms": 1324,
+   "error": null,
+   "fires": 2,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "المسيلة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية المسيلة 01 (حريق أحزمة تبن)"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية سكيكدة 01 (حريق أحزمة تبن)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "DGPCDZ/6998",
+   "ms": 1152,
+   "error": null,
+   "fires": 1,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "عين الفراج",
+     "place": "قرية منداس",
+     "kind": "agricultural",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق أشجار مثمرة وأحراش ببلدية عين الفراج بالمكان المسمى قرية منداس، الحريق في مرحلة معالجة البؤر المتبقية...عملية  متواصلة..."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "DGPCDZ/6872",
+   "ms": 1349,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "باتنة",
+     "commune": "عزيل عبد القادر",
+     "place": "العيضات",
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق أحزمة تبن بمشتة العيضات ببلدية عزيل عبد القادر."
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": "بابور",
+     "place": "واد عافرة و لارباع",
+     "kind": "vegetation",
+     "status": "contained",
+     "count": 1,
+     "evidence": "حريق أدغال و احراش ، بالمكان المسمى واد عافرة و لارباع، ببلدية بابور، في أخر مراحل الإخماد."
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "DGPCDZ/6876",
+   "ms": 1328,
+   "error": null,
+   "fires": 3,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #سكيكدة 01"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #سطيف 01"
+    },
+    {
+     "wilaya": "المدية",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #المدية 01"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 3
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "DGPCDZ/6919",
+   "ms": 1185,
+   "error": null,
+   "fires": 2,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "برج بوعريريج",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية برج بوعريريج: 01 (حريق حزم تبن)"
+    },
+    {
+     "wilaya": "الجزائر",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الجزائر: 01 (حريق أشجار مثمرة)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "DGPCDZ/7012",
+   "ms": 1209,
+   "error": null,
+   "fires": 1,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "البويرة",
+     "commune": "الصحاريج",
+     "place": null,
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق غابة ببلدية الصحاريج، عملية معالجة بؤر الحرائق وبقايا الجمر متواصلة..."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "bulletin-6857-1300.txt",
+   "ms": 7474,
+   "error": null,
+   "fires": 44,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 5,
+     "evidence": "ولاية سكيكدة 05"
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 4,
+     "evidence": "ولاية قالمة 04"
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 3,
+     "evidence": "ولاية بجاية 03"
+    },
+    {
+     "wilaya": "جيجل",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية جيجل 02"
+    },
+    {
+     "wilaya": "عنابة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية عنابة 02"
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية ميلة 02"
+    },
+    {
+     "wilaya": "سوق أهراس",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية سوق أهراس 02"
+    },
+    {
+     "wilaya": "تيزي وزو",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية تيزي وزو 02"
+    },
+    {
+     "wilaya": "الطارف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الطارف 01"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية تبسة 01"
+    },
+    {
+     "wilaya": "قسنطينة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية قسنطينة 01"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية سطيف 01"
+    },
+    {
+     "wilaya": "المدية",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية المدية 01"
+    },
+    {
+     "wilaya": "الجلفة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الجلفة 01"
+    },
+    {
+     "wilaya": "البويرة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية البويرة 01"
+    },
+    {
+     "wilaya": "جيجل",
+     "commune": "تاكسنة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي تاكسنة وزيامة منصورية، مع تدعيم الفرق المتدخلة بـ 04 طائرات من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "جيجل",
+     "commune": "زيامة منصورية",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي تاكسنة وزيامة منصورية، مع تدعيم الفرق المتدخلة بـ 04 طائرات من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "الحمامات",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية الحمامات، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عزابة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عين زويت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "السبت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "أم الطوب",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "القصر",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 03 حرائق ببلديتي القصر وتيشي (02)، العملية متواصلة..."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "تيشي",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "تسجيل 03 حرائق ببلديتي القصر وتيشي (02)، العملية متواصلة..."
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": "سلاوة عنونة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي سلاوة عنونة وهليوبوليس، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": "هليوبوليس",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي سلاوة عنونة وهليوبوليس، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": "عميرة أراس",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية عميرة أراس، العملية متواصلة..."
+    },
+    {
+     "wilaya": "تيزي وزو",
+     "commune": "بوزقن",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية بوزقن، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة..."
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 31
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "bulletin-6865.txt",
+   "ms": 2568,
+   "error": null,
+   "fires": 14,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 4,
+     "evidence": "ولاية جيجل 04"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية تبسة 02"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية سطيف 02"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية سكيكدة 01"
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية ميلة 01"
+    },
+    {
+     "wilaya": "غليزان",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية غليزان 01"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "الحمامات",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي الحمامات ومرسط، العملية متواصلة..."
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "مرسط",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي الحمامات ومرسط، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عين زويت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية عين زويت، العملية متواصلة..."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 11
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "bulletin-6908-0700.txt",
+   "ms": 1421,
+   "error": null,
+   "fires": 3,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "الطارف",
+     "commune": null,
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الطارف 01"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": "تالة إيفاسن",
+     "place": "أولاد دلادج",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق ببلدية تالة إيفاسن بالمكان المسمى أولاد دلادج، تم إخماده وهو حالياً تحت الحراسة..."
+    },
+    {
+     "wilaya": "الطارف",
+     "commune": "عين العسل",
+     "place": "فج النخلة",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق ببلدية عين العسل بالمكان المسمى فج النخلة، عملية معالجة بؤر الحريق وبقايا الجمر متواصلة..."
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "bulletin-6947-24h.txt",
+   "ms": 1337,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "بوطالب",
+     "place": "غابة شاران بيان",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "ولاية #سطيف: حريق بغابة شاران بيان، بلدية بوطالب؛ الحريق حالياً في مرحلة معالجة بقايا الجمر والدخان ."
+    },
+    {
+     "wilaya": "سوق أهراس",
+     "commune": "مشروحة",
+     "place": "مشتة الطباقة",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "ولاية #سوق_أهراس: حريق بالمكان المسمى مشتة الطباقة، بلدية مشروحة؛ الحريق حالياً في مرحلة معالجة بقايا الجمر والدخان."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "bulletin-7158.txt",
+   "ms": 1275,
+   "error": null,
+   "fires": 2,
+   "covered": null,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": "الشقفة",
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "بلدية الشقفة: حريق غابة مهم مع وجود سكنات، تم إشراك الرتل المتنقل، وإرسال 04 طائرات AT802 وطائرة BE200 كتعزيزات."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "أيت إسماعيل",
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "بلدية أيت إسماعيل: حريق غابة في منطقة وعرة وصعبة الوصول، تم إرسال طائرتين AT802 كتعزيزات."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "ita",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "roadworks",
+   "ms": 1205,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "roadworks",
+      "summary_fr": "Travaux à Bouira en direction d'Alger.",
+      "evidence": "أشغال في البويرة اتجاه الجزائر",
+      "location_text": "في البويرة",
+      "location_evidence": "في البويرة اتجاه الجزائر",
+      "direction_text": "اتجاه الجزائر",
+      "direction_evidence": "في البويرة اتجاه الجزائر",
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "accident",
+   "ms": 1296,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "collision",
+      "summary_fr": "Un accident de la circulation sur la route nationale numéro 5 dans la commune de Lakhdaria en direction de Bouira, la circulation est lente.",
+      "evidence": "حادث مرور على الطريق الوطني رقم 5 ببلدية الأخضرية في اتجاه البويرة، حركة المرور بطيئة",
+      "location_text": "على الطريق الوطني رقم 5 ببلدية الأخضرية",
+      "location_evidence": "على الطريق الوطني رقم 5 ببلدية الأخضرية",
+      "direction_text": "في اتجاه البويرة",
+      "direction_evidence": "في اتجاه البويرة",
+      "current_status": "ongoing",
+      "status_evidence": "حركة المرور بطيئة",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "snow",
+   "ms": 1143,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "weather",
+      "summary_fr": "La route nationale 15 est fermée en raison de chutes de neige à Tikjda.",
+      "evidence": "الطريق الوطني رقم 15 مغلق بسبب تساقط الثلوج على مستوى تيكجدة",
+      "location_text": "تيكجدة",
+      "location_evidence": "على مستوى تيكجدة",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "ongoing",
+      "status_evidence": "مغلق",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "awareness",
+   "ms": 753,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "general_information",
+    "incidents": [],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "flood-fr",
+   "ms": 1295,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "flooding",
+      "summary_fr": "La route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l'échangeur, rendant la circulation très difficile.",
+      "evidence": "Attention : la route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l'échangeur, circulation très difficile",
+      "location_text": "au niveau de l'échangeur",
+      "location_evidence": "au niveau de l'échangeur",
+      "direction_text": "de Bab Ezzouar vers Dar El Beida",
+      "direction_evidence": "de Bab Ezzouar vers Dar El Beida",
+      "current_status": "ongoing",
+      "status_evidence": "est inondée",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "reopened",
+   "ms": 1293,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "road_hazard",
+      "summary_fr": "Réouverture de la route nationale numéro 5 à la circulation après l'enlèvement de la terre au niveau de Lakhdaria.",
+      "evidence": "إعادة فتح الطريق الوطني رقم 5 أمام حركة المرور بعد إزالة الأتربة على مستوى الأخضرية",
+      "location_text": "على مستوى الأخضرية",
+      "location_evidence": "على مستوى الأخضرية",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "resolved",
+      "status_evidence": "إعادة فتح الطريق الوطني رقم 5 أمام حركة المرور بعد إزالة الأتربة",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "two-places",
+   "ms": 1625,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "congestion",
+      "summary_fr": "Important embouteillage sur l'autoroute Est-Ouest à la sortie de Boudouaou.",
+      "evidence": "ازدحام مروري كبير على الطريق السيار شرق غرب بمخرج بودواو",
+      "location_text": "على الطريق السيار شرق غرب بمخرج بودواو",
+      "location_evidence": "على الطريق السيار شرق غرب بمخرج بودواو",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "unverified",
+      "review_reasons": []
+     },
+     {
+      "kind": "collision",
+      "summary_fr": "Un accident de la circulation sur la route nationale numéro 24 à Réghaïa.",
+      "evidence": "حادث مرور على الطريق الوطني رقم 24 بالرغاية",
+      "location_text": "على الطريق الوطني رقم 24 بالرغاية",
+      "location_evidence": "على الطريق الوطني رقم 24 بالرغاية",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gemini-2.5-flash",
+   "run": 2,
+   "id": "past-example",
+   "ms": 650,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "general_information",
+    "incidents": [],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "DGPCDZ/7069",
+   "ms": 1459,
+   "error": null,
+   "fires": 1,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "بسكرة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية بسكرة 01 (حريق واحة نخيل)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "DGPCDZ/7042",
+   "ms": 2246,
+   "error": null,
+   "fires": 2,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "المسيلة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية المسيلة 01 (حريق أحزمة تبن)"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية سكيكدة 01 (حريق أحزمة تبن)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "DGPCDZ/6998",
+   "ms": 2051,
+   "error": null,
+   "fires": 1,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "عين الفراج",
+     "place": "قرية منداس",
+     "kind": "agricultural",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق أشجار مثمرة وأحراش ببلدية عين الفراج بالمكان المسمى قرية منداس، الحريق في مرحلة معالجة البؤر المتبقية...عملية  متواصلة..."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "DGPCDZ/6872",
+   "ms": 1787,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "باتنة",
+     "commune": "عزيل عبد القادر",
+     "place": "مشتة العيضات",
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق أحزمة تبن بمشتة العيضات ببلدية عزيل عبد القادر."
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": "بابور",
+     "place": "واد عافرة و لارباع",
+     "kind": "vegetation",
+     "status": "contained",
+     "count": 1,
+     "evidence": "حريق أدغال و احراش ، بالمكان المسمى واد عافرة و لارباع، ببلدية بابور، في أخر مراحل الإخماد."
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "DGPCDZ/6876",
+   "ms": 2189,
+   "error": null,
+   "fires": 0,
+   "covered": false,
+   "mentions": [],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 3
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "DGPCDZ/6919",
+   "ms": 1777,
+   "error": null,
+   "fires": 2,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "برج بوعريريج",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية برج بوعريريج: 01 (حريق حزم تبن)"
+    },
+    {
+     "wilaya": "الجزائر",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الجزائر: 01 (حريق أشجار مثمرة)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "DGPCDZ/7012",
+   "ms": 1535,
+   "error": null,
+   "fires": 1,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "البويرة",
+     "commune": "الصحاريج",
+     "place": null,
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق غابة ببلدية الصحاريج، عملية معالجة بؤر الحرائق وبقايا الجمر متواصلة"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "bulletin-6857-1300.txt",
+   "ms": 6669,
+   "error": null,
+   "fires": 15,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": "تاكسنة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي تاكسنة وزيامة منصورية، مع تدعيم الفرق المتدخلة بـ 04 طائرات من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "جيجل",
+     "commune": "زيامة منصورية",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي تاكسنة وزيامة منصورية، مع تدعيم الفرق المتدخلة بـ 04 طائرات من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "الحمامات",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية الحمامات، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عزابة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عين زويت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "السبت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "أم الطوب",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "القصر",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 03 حرائق ببلديتي القصر وتيشي (02)، العملية متواصلة..."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "تيشي",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "تسجيل 03 حرائق ببلديتي القصر وتيشي (02)، العملية متواصلة..."
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": "سلاوة عنونة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي سلاوة عنونة وهليوبوليس، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": "هليوبوليس",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي سلاوة عنونة وهليوبوليس، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": "عميرة أراس",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية عميرة أراس، العملية متواصلة..."
+    },
+    {
+     "wilaya": "تيزي وزو",
+     "commune": "بوزقن",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية بوزقن، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة..."
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 31
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "bulletin-6865.txt",
+   "ms": 3563,
+   "error": null,
+   "fires": 14,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 4,
+     "evidence": "ولاية جيجل 04"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية تبسة 02"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية سطيف 02"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية سكيكدة 01"
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية ميلة 01"
+    },
+    {
+     "wilaya": "غليزان",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية غليزان 01"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "الحمامات",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريقين (02) ببلديتي الحمامات ومرسط، العملية متواصلة"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "مرسط",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريقين (02) ببلديتي الحمامات ومرسط، العملية متواصلة"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عين زويت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية عين زويت، العملية متواصلة"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 11
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "bulletin-6908-0700.txt",
+   "ms": 2674,
+   "error": null,
+   "fires": 3,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "الطارف",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الطارف 01"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": "تالة إيفاسن",
+     "place": "أولاد دلادج",
+     "kind": "unknown",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق ببلدية تالة إيفاسن بالمكان المسمى أولاد دلادج، تم إخماده وهو حالياً تحت الحراسة..."
+    },
+    {
+     "wilaya": "الطارف",
+     "commune": "عين العسل",
+     "place": "فج النخلة",
+     "kind": "unknown",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق ببلدية عين العسل بالمكان المسمى فج النخلة، عملية معالجة بؤر الحريق وبقايا الجمر متواصلة..."
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "bulletin-6947-24h.txt",
+   "ms": 2906,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "بوطالب",
+     "place": "شاران بيان",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق بغابة شاران بيان، بلدية بوطالب؛ الحريق حالياً في مرحلة معالجة بقايا الجمر والدخان"
+    },
+    {
+     "wilaya": "سوق_أهراس",
+     "commune": "مشروحة",
+     "place": "مشتة الطباقة",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق بالمكان المسمى مشتة الطباقة، بلدية مشروحة؛ الحريق حالياً في مرحلة معالجة بقايا الجمر والدخان"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "bulletin-7158.txt",
+   "ms": 2353,
+   "error": null,
+   "fires": 2,
+   "covered": null,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": "الشقفة",
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "بلدية الشقفة: حريق غابة مهم مع وجود سكنات، تم إشراك الرتل المتنقل، وإرسال 04 طائرات AT802 وطائرة BE200 كتعزيزات."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "أيت إسماعيل",
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "بلدية أيت إسماعيل: حريق غابة في منطقة وعرة وصعبة الوصول، تم إرسال طائرتين AT802 كتعزيزات."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "roadworks",
+   "ms": 1712,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "roadworks",
+      "summary_fr": "Des travaux sont signalés à البويرة, en direction d’Alger.",
+      "evidence": "أشغال في البويرة اتجاه الجزائر",
+      "location_text": "البويرة",
+      "location_evidence": "أشغال في البويرة",
+      "direction_text": "اتجاه الجزائر",
+      "direction_evidence": "اتجاه الجزائر",
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "accident",
+   "ms": 2671,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "collision",
+      "summary_fr": "Un accident de la circulation est signalé sur la route nationale n° 5, à بلدية الأخضرية, en direction de Bouira ; la circulation est lente.",
+      "evidence": "حادث مرور على الطريق الوطني رقم 5 ببلدية الأخضرية في اتجاه البويرة، حركة المرور بطيئة",
+      "location_text": "ببلدية الأخضرية",
+      "location_evidence": "حادث مرور على الطريق الوطني رقم 5 ببلدية الأخضرية",
+      "direction_text": "في اتجاه البويرة",
+      "direction_evidence": "حادث مرور على الطريق الوطني رقم 5 ببلدية الأخضرية في اتجاه البويرة",
+      "current_status": "ongoing",
+      "status_evidence": "حركة المرور بطيئة",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "snow",
+   "ms": 1931,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "weather",
+      "summary_fr": "La route nationale n° 15 est fermée en raison de chutes de neige au niveau de تيكجدة.",
+      "evidence": "الطريق الوطني رقم 15 مغلق بسبب تساقط الثلوج على مستوى تيكجدة",
+      "location_text": "تيكجدة",
+      "location_evidence": "على مستوى تيكجدة",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "ongoing",
+      "status_evidence": "الطريق الوطني رقم 15 مغلق بسبب تساقط الثلوج",
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "awareness",
+   "ms": 1349,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "general_information",
+    "incidents": [],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "flood-fr",
+   "ms": 2951,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "flooding",
+      "summary_fr": "La route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l’échangeur, et la circulation est très difficile.",
+      "evidence": "la route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l'échangeur, circulation très difficile",
+      "location_text": "au niveau de l'échangeur",
+      "location_evidence": "inondée au niveau de l'échangeur",
+      "direction_text": "vers Dar El Beida",
+      "direction_evidence": "la route de Bab Ezzouar vers Dar El Beida",
+      "current_status": "ongoing",
+      "status_evidence": "est inondée au niveau de l'échangeur, circulation très difficile",
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "reopened",
+   "ms": 1997,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "road_hazard",
+      "summary_fr": "La route nationale n° 5 a été rouverte à la circulation après le déblaiement de terre au niveau de الأخضرية.",
+      "evidence": "إعادة فتح الطريق الوطني رقم 5 أمام حركة المرور بعد إزالة الأتربة على مستوى الأخضرية",
+      "location_text": "الأخضرية",
+      "location_evidence": "على مستوى الأخضرية",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "resolved",
+      "status_evidence": "إعادة فتح الطريق الوطني رقم 5 أمام حركة المرور بعد إزالة الأتربة",
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "two-places",
+   "ms": 2565,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "congestion",
+      "summary_fr": "Important embouteillage sur l’autoroute Est-Ouest à la sortie de بودواو.",
+      "evidence": "ازدحام مروري كبير على الطريق السيار شرق غرب بمخرج بودواو",
+      "location_text": "بمخرج بودواو",
+      "location_evidence": "ازدحام مروري كبير على الطريق السيار شرق غرب بمخرج بودواو",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "unverified",
+      "review_reasons": []
+     },
+     {
+      "kind": "collision",
+      "summary_fr": "Accident de la circulation sur la route nationale n° 24 à الرغاية.",
+      "evidence": "حادث مرور على الطريق الوطني رقم 24 بالرغاية",
+      "location_text": "بالرغاية",
+      "location_evidence": "حادث مرور على الطريق الوطني رقم 24 بالرغاية",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:none",
+   "run": 2,
+   "id": "past-example",
+   "ms": 1100,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "general_information",
+    "incidents": [],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "DGPCDZ/7069",
+   "ms": 2930,
+   "error": null,
+   "fires": 1,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "بسكرة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية بسكرة 01 (حريق واحة نخيل)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "DGPCDZ/7042",
+   "ms": 1547,
+   "error": null,
+   "fires": 2,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "المسيلة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية المسيلة 01 (حريق أحزمة تبن)"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية سكيكدة 01 (حريق أحزمة تبن)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "DGPCDZ/6998",
+   "ms": 1577,
+   "error": null,
+   "fires": 1,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "عين الفراج",
+     "place": "قرية منداس",
+     "kind": "agricultural",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق أشجار مثمرة وأحراش ببلدية عين الفراج بالمكان المسمى قرية منداس، الحريق في مرحلة معالجة البؤر المتبقية...عملية  متواصلة..."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "DGPCDZ/6872",
+   "ms": 2100,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "باتنة",
+     "commune": "عزيل عبد القادر",
+     "place": "مشتة العيضات",
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق أحزمة تبن بمشتة العيضات ببلدية عزيل عبد القادر."
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": "بابور",
+     "place": "واد عافرة و لارباع",
+     "kind": "vegetation",
+     "status": "contained",
+     "count": 1,
+     "evidence": "حريق أدغال و احراش ، بالمكان المسمى واد عافرة و لارباع، ببلدية بابور، في أخر مراحل الإخماد."
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "DGPCDZ/6876",
+   "ms": 1759,
+   "error": null,
+   "fires": 3,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #سكيكدة 01"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #سطيف 01"
+    },
+    {
+     "wilaya": "المدية",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #المدية 01"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 3
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "DGPCDZ/6919",
+   "ms": 1949,
+   "error": null,
+   "fires": 2,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "برج بوعريريج",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية برج بوعريريج: 01 (حريق حزم تبن)"
+    },
+    {
+     "wilaya": "الجزائر",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الجزائر: 01 (حريق أشجار مثمرة)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "DGPCDZ/7012",
+   "ms": 1311,
+   "error": null,
+   "fires": 1,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "البويرة",
+     "commune": "الصحاريج",
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق غابة ببلدية الصحاريج، عملية معالجة بؤر الحرائق وبقايا الجمر متواصلة"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "bulletin-6857-1300.txt",
+   "ms": 7939,
+   "error": null,
+   "fires": 15,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": "تاكسنة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي تاكسنة وزيامة منصورية، مع تدعيم الفرق المتدخلة بـ 04 طائرات من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "جيجل",
+     "commune": "زيامة منصورية",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي تاكسنة وزيامة منصورية، مع تدعيم الفرق المتدخلة بـ 04 طائرات من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "الحمامات",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية الحمامات، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عزابة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عين زويت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "السبت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "أم الطوب",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت وأم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة..."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "القصر",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 03 حرائق ببلديتي القصر وتيشي (02)، العملية متواصلة..."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "تيشي",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "تسجيل 03 حرائق ببلديتي القصر وتيشي (02)، العملية متواصلة..."
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": "سلاوة عنونة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي سلاوة عنونة وهليوبوليس، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": "هليوبوليس",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي سلاوة عنونة وهليوبوليس، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة..."
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": "عميرة أراس",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية عميرة أراس، العملية متواصلة..."
+    },
+    {
+     "wilaya": "تيزي وزو",
+     "commune": "بوزقن",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية بوزقن، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة..."
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 31
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "bulletin-6865.txt",
+   "ms": 3231,
+   "error": null,
+   "fires": 14,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 4,
+     "evidence": "ولاية جيجل 04"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية تبسة 02"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية سطيف 02"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية سكيكدة 01"
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية ميلة 01"
+    },
+    {
+     "wilaya": "غليزان",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية غليزان 01"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "الحمامات",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريقين (02) ببلديتي الحمامات ومرسط، العملية متواصلة..."
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "مرسط",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريقين (02) ببلديتي الحمامات ومرسط، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عين زويت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية عين زويت، العملية متواصلة..."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 11
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "bulletin-6908-0700.txt",
+   "ms": 2061,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "تالة إيفاسن",
+     "place": "أولاد دلادج",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق ببلدية تالة إيفاسن بالمكان المسمى أولاد دلادج، تم إخماده وهو حالياً تحت الحراسة"
+    },
+    {
+     "wilaya": "الطارف",
+     "commune": "عين العسل",
+     "place": "فج النخلة",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق ببلدية عين العسل بالمكان المسمى فج النخلة، عملية معالجة بؤر الحريق وبقايا الجمر متواصلة"
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "bulletin-6947-24h.txt",
+   "ms": 2177,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "بوطالب",
+     "place": "شاران بيان",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق بغابة شاران بيان، بلدية بوطالب؛ الحريق حالياً في مرحلة معالجة بقايا الجمر والدخان"
+    },
+    {
+     "wilaya": "سوق_أهراس",
+     "commune": "مشروحة",
+     "place": "مشتة الطباقة",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق بالمكان المسمى مشتة الطباقة، بلدية مشروحة؛ الحريق حالياً في مرحلة معالجة بقايا الجمر والدخان"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "bulletin-7158.txt",
+   "ms": 2526,
+   "error": null,
+   "fires": 2,
+   "covered": null,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": "الشقفة",
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "بلدية الشقفة: حريق غابة مهم مع وجود سكنات، تم إشراك الرتل المتنقل، وإرسال 04 طائرات AT802 وطائرة BE200 كتعزيزات."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "أيت إسماعيل",
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "بلدية أيت إسماعيل: حريق غابة في منطقة وعرة وصعبة الوصول، تم إرسال طائرتين AT802 كتعزيزات."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "roadworks",
+   "ms": 1985,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "roadworks",
+      "summary_fr": "Des travaux sont signalés à البويرة, en direction d’Alger.",
+      "evidence": "أشغال في البويرة اتجاه الجزائر",
+      "location_text": "في البويرة",
+      "location_evidence": "أشغال في البويرة اتجاه الجزائر",
+      "direction_text": "اتجاه الجزائر",
+      "direction_evidence": "أشغال في البويرة اتجاه الجزائر",
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "accident",
+   "ms": 2562,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "collision",
+      "summary_fr": "Un accident de la circulation est signalé sur la route nationale n° 5, dans la commune d’الأخضرية, en direction de البويرة ; la circulation est lente.",
+      "evidence": "حادث مرور على الطريق الوطني رقم 5 ببلدية الأخضرية في اتجاه البويرة، حركة المرور بطيئة",
+      "location_text": "ببلدية الأخضرية",
+      "location_evidence": "حادث مرور على الطريق الوطني رقم 5 ببلدية الأخضرية في اتجاه البويرة، حركة المرور بطيئة",
+      "direction_text": "في اتجاه البويرة",
+      "direction_evidence": "حادث مرور على الطريق الوطني رقم 5 ببلدية الأخضرية في اتجاه البويرة، حركة المرور بطيئة",
+      "current_status": "ongoing",
+      "status_evidence": "حركة المرور بطيئة",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "snow",
+   "ms": 1790,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "weather",
+      "summary_fr": "La route nationale n° 15 est fermée en raison des chutes de neige au niveau de Tikjda.",
+      "evidence": "الطريق الوطني رقم 15 مغلق بسبب تساقط الثلوج على مستوى تيكجدة",
+      "location_text": "على مستوى تيكجدة",
+      "location_evidence": "الطريق الوطني رقم 15 مغلق بسبب تساقط الثلوج على مستوى تيكجدة",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "ongoing",
+      "status_evidence": "الطريق الوطني رقم 15 مغلق",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "awareness",
+   "ms": 1629,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "general_information",
+    "incidents": [],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "flood-fr",
+   "ms": 2087,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "flooding",
+      "summary_fr": "La route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l'échangeur, et la circulation est très difficile.",
+      "evidence": "la route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l'échangeur, circulation très difficile",
+      "location_text": "au niveau de l'échangeur",
+      "location_evidence": "inondée au niveau de l'échangeur",
+      "direction_text": "vers Dar El Beida",
+      "direction_evidence": "la route de Bab Ezzouar vers Dar El Beida",
+      "current_status": "ongoing",
+      "status_evidence": "la route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l'échangeur, circulation très difficile",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "reopened",
+   "ms": 2833,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "road_hazard",
+      "summary_fr": "La route nationale n° 5 a été rouverte à la circulation après le déblaiement de la terre au niveau de الأخضرية.",
+      "evidence": "إعادة فتح الطريق الوطني رقم 5 أمام حركة المرور بعد إزالة الأتربة على مستوى الأخضرية",
+      "location_text": "على مستوى الأخضرية",
+      "location_evidence": "إعادة فتح الطريق الوطني رقم 5 أمام حركة المرور بعد إزالة الأتربة على مستوى الأخضرية",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "resolved",
+      "status_evidence": "إعادة فتح الطريق الوطني رقم 5 أمام حركة المرور بعد إزالة الأتربة على مستوى الأخضرية",
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "two-places",
+   "ms": 2709,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "congestion",
+      "summary_fr": "Important embouteillage sur l’autoroute Est-Ouest à la sortie de بودواو.",
+      "evidence": "ازدحام مروري كبير على الطريق السيار شرق غرب بمخرج بودواو",
+      "location_text": "بمخرج بودواو",
+      "location_evidence": "بمخرج بودواو",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "unverified",
+      "review_reasons": []
+     },
+     {
+      "kind": "collision",
+      "summary_fr": "Accident de la circulation sur la route nationale n° 24 à الرغاية.",
+      "evidence": "حادث مرور على الطريق الوطني رقم 24 بالرغاية",
+      "location_text": "بالرغاية",
+      "location_evidence": "حادث مرور على الطريق الوطني رقم 24 بالرغاية",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:low",
+   "run": 2,
+   "id": "past-example",
+   "ms": 1324,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "general_information",
+    "incidents": [],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "DGPCDZ/7069",
+   "ms": 2318,
+   "error": null,
+   "fires": 1,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "بسكرة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية بسكرة 01 (حريق واحة نخيل)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "DGPCDZ/7042",
+   "ms": 1657,
+   "error": null,
+   "fires": 2,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "المسيلة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية المسيلة 01 (حريق أحزمة تبن)"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية سكيكدة 01 (حريق أحزمة تبن)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "DGPCDZ/6998",
+   "ms": 2828,
+   "error": null,
+   "fires": 1,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "عين الفراج",
+     "place": "قرية منداس",
+     "kind": "agricultural",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق أشجار مثمرة وأحراش ببلدية عين الفراج بالمكان المسمى قرية منداس، الحريق في مرحلة معالجة البؤر المتبقية...عملية  متواصلة..."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "DGPCDZ/6872",
+   "ms": 3701,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "باتنة",
+     "commune": "عزيل عبد القادر",
+     "place": "مشتة العيضات",
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق أحزمة تبن بمشتة العيضات ببلدية عزيل عبد القادر."
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": "بابور",
+     "place": "واد عافرة و لارباع",
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق أدغال و احراش ، بالمكان المسمى واد عافرة و لارباع، ببلدية بابور، في أخر مراحل الإخماد."
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "DGPCDZ/6876",
+   "ms": 2575,
+   "error": null,
+   "fires": 3,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "سكيكدة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #سكيكدة 01"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #سطيف 01"
+    },
+    {
+     "wilaya": "المدية",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية #المدية 01"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 3
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "DGPCDZ/6919",
+   "ms": 4870,
+   "error": null,
+   "fires": 2,
+   "covered": true,
+   "mentions": [
+    {
+     "wilaya": "برج بوعريريج",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية برج بوعريريج: 01 (حريق حزم تبن)"
+    },
+    {
+     "wilaya": "الجزائر",
+     "commune": null,
+     "place": null,
+     "kind": "agricultural",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الجزائر: 01 (حريق أشجار مثمرة)"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "DGPCDZ/7012",
+   "ms": 2676,
+   "error": null,
+   "fires": 1,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "البويرة",
+     "commune": "الصحاريج",
+     "place": null,
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق غابة ببلدية الصحاريج، عملية معالجة بؤر الحرائق وبقايا الجمر متواصلة..."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "bulletin-6857-1300.txt",
+   "ms": 12062,
+   "error": null,
+   "fires": 25,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عزابة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عين زويت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "السبت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 05 حرائق ببلديات عزابة، عين زويت، السبت"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "أم الطوب",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "أم الطوب (02)، مع تدعيم الفرق المتدخلة بطائرة من نوع BE200، العملية متواصلة"
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": "سلاوة عنونة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي سلاوة عنونة"
+    },
+    {
+     "wilaya": "قالمة",
+     "commune": "هليوبوليس",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "وهليوبوليس، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة"
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "القصر",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل 03 حرائق ببلديتي القصر"
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "تيشي",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "وتيشي (02)، العملية متواصلة"
+    },
+    {
+     "wilaya": "جيجل",
+     "commune": "تاكسنة",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي تاكسنة"
+    },
+    {
+     "wilaya": "جيجل",
+     "commune": "زيامة منصورية",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "وزيامة منصورية، مع تدعيم الفرق المتدخلة بـ 04 طائرات من نوع AT802، العملية متواصلة"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "الحمامات",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية الحمامات، العملية متواصلة"
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": "عميرة أراس",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية عميرة أراس، العملية متواصلة"
+    },
+    {
+     "wilaya": "تيزي وزو",
+     "commune": "بوزقن",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية بوزقن، مع تدعيم الفرق المتدخلة بطائرتين من نوع AT802، العملية متواصلة"
+    },
+    {
+     "wilaya": "عنابة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية عنابة 02"
+    },
+    {
+     "wilaya": "سوق أهراس",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية سوق أهراس 02"
+    },
+    {
+     "wilaya": "الطارف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الطارف 01"
+    },
+    {
+     "wilaya": "قسنطينة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية قسنطينة 01"
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية سطيف 01"
+    },
+    {
+     "wilaya": "المدية",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية المدية 01"
+    },
+    {
+     "wilaya": "الجلفة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية الجلفة 01"
+    },
+    {
+     "wilaya": "البويرة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية البويرة 01"
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 31
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "bulletin-6865.txt",
+   "ms": 7039,
+   "error": null,
+   "fires": 11,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 4,
+     "evidence": "ولاية جيجل 04"
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "الحمامات",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي الحمامات ومرسط، العملية متواصلة..."
+    },
+    {
+     "wilaya": "تبسة",
+     "commune": "مرسط",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "تسجيل حريقين (02) ببلديتي الحمامات ومرسط، العملية متواصلة..."
+    },
+    {
+     "wilaya": "سطيف",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 2,
+     "evidence": "ولاية سطيف 02"
+    },
+    {
+     "wilaya": "سكيكدة",
+     "commune": "عين زويت",
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "حريق ببلدية عين زويت، العملية متواصلة..."
+    },
+    {
+     "wilaya": "ميلة",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية ميلة 01"
+    },
+    {
+     "wilaya": "غليزان",
+     "commune": null,
+     "place": null,
+     "kind": "unknown",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "ولاية غليزان 01"
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 11
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "bulletin-6908-0700.txt",
+   "ms": 4049,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "تالة إيفاسن",
+     "place": "أولاد دلادج",
+     "kind": "unknown",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق ببلدية تالة إيفاسن بالمكان المسمى أولاد دلادج، تم إخماده وهو حالياً تحت الحراسة"
+    },
+    {
+     "wilaya": "الطارف",
+     "commune": "عين العسل",
+     "place": "فج النخلة",
+     "kind": "unknown",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "حريق ببلدية عين العسل بالمكان المسمى فج النخلة، عملية معالجة بؤر الحريق وبقايا الجمر متواصلة"
+    }
+   ],
+   "verdict": "incomplete interpretation: distribution conflict",
+   "recorded": 1
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "bulletin-6947-24h.txt",
+   "ms": 2585,
+   "error": null,
+   "fires": 2,
+   "covered": false,
+   "mentions": [
+    {
+     "wilaya": "سطيف",
+     "commune": "بوطالب",
+     "place": "شاران بيان",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "ولاية #سطيف: حريق بغابة شاران بيان، بلدية بوطالب؛ الحريق حالياً في مرحلة معالجة بقايا الجمر والدخان ."
+    },
+    {
+     "wilaya": "سوق_أهراس",
+     "commune": "مشروحة",
+     "place": "مشتة الطباقة",
+     "kind": "vegetation",
+     "status": "monitoring",
+     "count": 1,
+     "evidence": "ولاية #سوق_أهراس: حريق بالمكان المسمى مشتة الطباقة، بلدية مشروحة؛ الحريق حالياً في مرحلة معالجة بقايا الجمر والدخان."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "bulletin",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "bulletin-7158.txt",
+   "ms": 3269,
+   "error": null,
+   "fires": 2,
+   "covered": null,
+   "mentions": [
+    {
+     "wilaya": "جيجل",
+     "commune": "الشقفة",
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "بلدية الشقفة: حريق غابة مهم مع وجود سكنات، تم إشراك الرتل المتنقل، وإرسال 04 طائرات AT802 وطائرة BE200 كتعزيزات."
+    },
+    {
+     "wilaya": "بجاية",
+     "commune": "أيت إسماعيل",
+     "place": null,
+     "kind": "vegetation",
+     "status": "ongoing",
+     "count": 1,
+     "evidence": "بلدية أيت إسماعيل: حريق غابة في منطقة وعرة وصعبة الوصول، تم إرسال طائرتين AT802 كتعزيزات."
+    }
+   ],
+   "verdict": "accepted",
+   "recorded": 2
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "roadworks",
+   "ms": 3662,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "roadworks",
+      "summary_fr": "Des travaux sont signalés à البويرة en direction d’Alger.",
+      "evidence": "أشغال في البويرة اتجاه الجزائر",
+      "location_text": "البويرة",
+      "location_evidence": "في البويرة",
+      "direction_text": "اتجاه الجزائر",
+      "direction_evidence": "اتجاه الجزائر",
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "consistent",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "accident",
+   "ms": 4434,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "collision",
+      "summary_fr": "Un accident de la circulation est signalé sur la route nationale 5, dans la commune de الأخضرية, en direction de Bouira ; la circulation est lente.",
+      "evidence": "حادث مرور على الطريق الوطني رقم 5 ببلدية الأخضرية في اتجاه البويرة، حركة المرور بطيئة",
+      "location_text": "ببلدية الأخضرية",
+      "location_evidence": "حادث مرور على الطريق الوطني رقم 5 ببلدية الأخضرية في اتجاه البويرة، حركة المرور بطيئة",
+      "direction_text": "في اتجاه البويرة",
+      "direction_evidence": "حادث مرور على الطريق الوطني رقم 5 ببلدية الأخضرية في اتجاه البويرة، حركة المرور بطيئة",
+      "current_status": "ongoing",
+      "status_evidence": "حركة المرور بطيئة",
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "snow",
+   "ms": 3587,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "weather",
+      "summary_fr": "La route nationale n° 15 est fermée en raison des chutes de neige à تيكجدة.",
+      "evidence": "الطريق الوطني رقم 15 مغلق بسبب تساقط الثلوج على مستوى تيكجدة",
+      "location_text": "تيكجدة",
+      "location_evidence": "على مستوى تيكجدة",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "ongoing",
+      "status_evidence": "الطريق الوطني رقم 15 مغلق",
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "awareness",
+   "ms": 1839,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "general_information",
+    "incidents": [],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "flood-fr",
+   "ms": 2559,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "flooding",
+      "summary_fr": "La route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l’échangeur, avec une circulation très difficile.",
+      "evidence": "la route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l'échangeur, circulation très difficile",
+      "location_text": "au niveau de l'échangeur",
+      "location_evidence": "inondée au niveau de l'échangeur",
+      "direction_text": "vers Dar El Beida",
+      "direction_evidence": "la route de Bab Ezzouar vers Dar El Beida",
+      "current_status": "ongoing",
+      "status_evidence": "la route de Bab Ezzouar vers Dar El Beida est inondée au niveau de l'échangeur, circulation très difficile",
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "reopened",
+   "ms": 4342,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "road_hazard",
+      "summary_fr": "La route nationale n° 5 a été rouverte à la circulation après le dégagement de terre au niveau de الأخضرية.",
+      "evidence": "إعادة فتح الطريق الوطني رقم 5 أمام حركة المرور بعد إزالة الأتربة على مستوى الأخضرية",
+      "location_text": "الأخضرية",
+      "location_evidence": "على مستوى الأخضرية",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "resolved",
+      "status_evidence": "إعادة فتح الطريق الوطني رقم 5 أمام حركة المرور",
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "two-places",
+   "ms": 5069,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "incident_report",
+    "incidents": [
+     {
+      "kind": "congestion",
+      "summary_fr": "Important embouteillage sur l’autoroute Est-Ouest à la sortie de بودواو.",
+      "evidence": "ازدحام مروري كبير على الطريق السيار شرق غرب بمخرج بودواو",
+      "location_text": "بمخرج بودواو",
+      "location_evidence": "بمخرج بودواو",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "ongoing",
+      "status_evidence": "ازدحام مروري كبير",
+      "region_assessment": "unverified",
+      "review_reasons": []
+     },
+     {
+      "kind": "collision",
+      "summary_fr": "Accident de la circulation sur la route nationale n° 24 à بالرغاية.",
+      "evidence": "حادث مرور على الطريق الوطني رقم 24 بالرغاية",
+      "location_text": "بالرغاية",
+      "location_evidence": "حادث مرور على الطريق الوطني رقم 24 بالرغاية",
+      "direction_text": null,
+      "direction_evidence": null,
+      "current_status": "unknown",
+      "status_evidence": null,
+      "region_assessment": "unverified",
+      "review_reasons": []
+     }
+    ],
+    "review_reasons": []
+   }
+  },
+  {
+   "task": "ita",
+   "arm": "gpt-6-luna:medium",
+   "run": 2,
+   "id": "past-example",
+   "ms": 1565,
+   "error": null,
+   "correct": true,
+   "output": {
+    "disposition": "general_information",
+    "incidents": [],
+    "review_reasons": []
+   }
+  }
+ ]
+}

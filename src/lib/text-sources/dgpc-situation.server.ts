@@ -116,7 +116,7 @@ export function defaultSituationReader(): SituationDependencies {
     apiKey,
     model: process.env["OPENROUTER_MODEL"] || DEFAULT_OPENROUTER_MODEL,
     complete: (request) =>
-      completeWithSubscription("dgpc_situation", apiKey ?? "", request),
+      completeWithSubscription("dgpc_situation", "low", apiKey ?? "", request),
   };
 }
 

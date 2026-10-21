@@ -2,126 +2,101 @@
 
 ## Goal
 
-Run Nadhir's five structured LLM calls (report classifier, DGPC bulletin extraction, DGPC situation reader, ITA
-extraction, civil agent) on the owner's ChatGPT Plus plan through the Codex endpoint, with OpenRouter kept as the
-automatic fallback. Off by default: OpenRouter stays primary until `CODEX_MODEL` is set.
+Run Nadhir's public-source extraction (DGPC bulletins and situation posts, ITA website and Facebook posts) on the
+owner's ChatGPT Plus plan through the Codex endpoint, OpenRouter falling back on any failure. Off until the
+`CODEX_MODEL` repository variable is set. The citizen-report classifier and the civil agent stay on OpenRouter, so
+the privacy policy (OpenRouter passes a citizen report to Gemini) stays true.
 
-The protocol is the one SanoX proved (PR #355/#356, `.agent/evidence/2026-10-21-codex-subscription-spike/` there):
-`POST https://chatgpt.com/backend-api/codex/responses`, SSE, our own `instructions`, `text.format` json_schema,
-`store: false`, `reasoning.effort: none`, model `gpt-6-luna` on the standard tier. litellm's `chatgpt` provider
-drops the schema, so plain `fetch`.
+Protocol as SanoX proved it (PR #355/#356): `POST https://chatgpt.com/backend-api/codex/responses`, SSE, our own
+`instructions`, `text.format` json_schema, `store: false`, model `gpt-6-luna` on the standard tier. Plain `fetch`.
+Probed with Nadhir's schemas: the zod-generated ITA schema and multi-turn inputs (the ITA repair turns) are accepted.
 
-Probed from this branch with Nadhir's own schemas: the zod-generated ITA and civil-agent schemas (`$schema`,
-`format: uuid`) and the classifier's `minimum`/`maximum` are accepted, and so are multi-turn inputs with assistant
-messages (the civil agent's steps and the ITA repair turns).
+## Why the calls run on GitHub runners
 
-## The hard part: one owner for the login on Workers
+From workerd, chatgpt.com's Cloudflare edge answers the Codex endpoint with its "Unable to load site" page (HTTP
+403), while curl and bun on the same machine, IP and token get 200. `auth.openai.com` answers workerd normally.
+Nadhir already moved `ita_facebook` to `execution_target = 'github'` for the same reason (Facebook walls Cloudflare
+egress), so the model calls follow it:
 
-Refresh tokens rotate: two refreshes of one grant race and the loser's token kills the login. Workers run many
-isolates at once and keep no module state between requests, so neither a per-isolate lock nor a Worker secret can
-own the token.
+- Migration `20261021120000_llm_extraction_github_egress.sql` moves `dgpc_telegram` and `ita_website` (the two
+  public-source contracts that call the model; `ita_facebook` only stores posts and is already on github). The
+  RSS feeds also use the extractor but are not in scope and stay on Workers and OpenRouter.
+- Cadence and lease stay as they are. A runner starts before it claims, so the lease covers execution only, as on
+  Workers. `dgpc_telegram` keeps 15 min and the 600 s lease every text source got; ITA keeps 5 min and 300 s,
+  bounded per revision by its 45 s budget, which the Codex attempt (30 s timeout) shares. Jobs already queued as
+  `cloudflare` drain on Workers: the claim filters on the job's own target.
+- `scripts/run-source-job.ts` and `source-jobs-github.yml` accept the two contracts; only their runs get
+  `OPENROUTER_API_KEY`, `CODEX_MODEL` and `NADHIR_CRON_SECRET`.
+- The seam (`src/lib/llm/subscription.server.ts`) is active only when `GITHUB_ACTIONS=true` and `CODEX_MODEL` is
+  set. Workers never try Codex: no probing, no pause noise.
 
-Decision: one SQLite-backed Durable Object, `CodexLogin`, addressed by a fixed name. Cloudflare runs one instance of
-it worldwide; it holds the token record, the pause deadline and the stale flag, and it is the only code that
-refreshes. Concurrent refreshes inside it share one in-flight promise.
+Owner decision, not taken here: `dgpc_telegram` feeds Official Incidents (the only path to "confirmed"). On GitHub
+its job waits for pg_cron's one-minute dispatch plus a runner start (tens of seconds, minutes when Actions is slow),
+and depends on GitHub Actions being up; the schedule fallback runs only hourly, 06:00 to 17:00 UTC.
 
-Rejected:
+## One owner for the login
 
-- Workers KV: eventually consistent (up to 60 s) with no compare-and-set, so two isolates both see an expiring token
-  and both refresh. That is the exact race.
-- A Supabase row with a lease: it works, but it puts an OAuth refresh token in the application database that every
-  service-role path can read, and needs a migration and RPC for what is process state.
+Refresh tokens rotate: two refreshes of one grant race and the loser kills the login. A SQLite-backed Durable
+Object, `CodexLogin` (`src/exports.cloudflare.ts`, state in `src/lib/llm/codex-login.server.ts`), is the only
+holder: Cloudflare runs one instance of it, concurrent refreshes share one request, and its storage survives
+restarts (both checked in workerd). Refreshing from workerd works.
 
-The Worker makes the Codex call itself (the object stays tiny and never holds a citizen's text): `lease()` returns a
-token or "paused", then the Worker reports `pause(seconds)` or `expire(token)` back. `expire` only marks the token
-stale if it is still the current one, so a late 401 from an old token cannot force a second refresh.
+Runners reach it through `POST /api/internal/codex-login` (same Bearer `NADHIR_CRON_SECRET` scheme as
+`source-jobs/run`):
 
-Nadhir already declares bindings in the generated wrangler config (`BROWSER` in `vite.config.ts`); the object is one
-more binding plus a `new_sqlite_classes` migration, exported through nitro's `cloudflare.exports` entry
-(`src/exports.cloudflare.ts`).
+- `{action: "lease"}` returns `{status: "ready", access_token, account_id}`, `{status: "paused"}` or
+  `{status: "unavailable", reason, pausedSeconds}`, never cached. Runners never see the refresh token.
+- `{action: "report", token, outcome}` after every Codex attempt: the usage headers of a served call, or the
+  failure (`reason`, HTTP `status`, `retryAfter`). The object decides: a 401 marks that token stale (only if it is
+  still the current one), and the pause is computed and stored there, only ever extended. Parallel runners
+  (DGPC and ITA run at once) therefore share one pause and one 80 % ceiling.
 
-## Login
+Rejected: Workers KV (no compare-and-set, so two refreshers race); a Supabase row (puts the refresh token in the
+application database).
 
-Nadhir gets its own device login, never a copy of SanoX's or the laptop's: two apps refreshing one grant race.
-`scripts/codex-login-seed.ts` reads the `auth.json` of a fresh `codex login --device-auth` (run by the owner in an
-empty `CODEX_HOME`), and pipes `{refresh_token, access_token, account_id}` into `wrangler secret put
-CODEX_LOGIN_SEED`. The object adopts a seed whose fingerprint (SHA-256 of the refresh token) differs from the one it
-stored, then owns the rotating record in its own storage; the secret is dead once rotated. A re-login is a new
-seed. Adopting a seed clears any pause.
+Login: `scripts/codex-login-seed.ts` moves a fresh device login (`codex login --device-auth` in an empty
+`CODEX_HOME`) into the Worker secret `CODEX_LOGIN_SEED` and deletes the local file. The object adopts a seed whose
+fingerprint changed; a re-login is a new seed and lifts any pause.
 
 ## Failure handling (as SanoX)
 
-Any failure falls back to OpenRouter for that call and pauses the subscription; pauses only ever extend.
+Any failure falls back to OpenRouter for that call. Pauses: 429 the server's reset time; login problems (refresh
+refused, no seed, 401/403, other 4xx) 10 min, logged as errors; 5xx, network, timeout, bad stream 1 min, warnings.
+At 80 % of either plan window the object pauses until that window resets. Missing usage headers warn once per
+runner. The route unreachable or the report undeliverable: fall back, logged. A caller's own abort is rethrown.
 
-- 429: the server's reset time (`x-codex-primary-reset-after-seconds`, else `retry-after`).
-- Login (refresh refused, no seed, 401/403, other 4xx): 10 min, logged as an error. A 401 also marks the token stale.
-- 5xx, network, timeout, failed/malformed/incomplete stream, refresh transport: 1 min, logged as a warning.
-- Usage headers `x-codex-{primary,secondary}-used-percent`: at 80 % of either window, pause until it resets
-  (`*-reset-after-seconds`, else 5 min). Missing headers warn once per isolate.
-- The object unreachable: fall back, logged. A caller's own abort is rethrown, never retried on OpenRouter.
+## Reasoning effort and evaluation
 
-`sent` (whether the text may have left) is logged with each failure: token and pause problems are `sent: false`,
-anything after `fetch` starts is `sent: true`.
+Each call site names its effort (`completeWithSubscription(purpose, effort, ...)`, `subscriptionFirst(...,
+{effort})`); latency no longer matters on a runner. All three use `low`.
 
-A reply that fails a caller's own validation is not a transport failure: it stays loud and is not retried on
-OpenRouter, as on the OpenRouter path today.
+`bun run evaluate:codex` (`scripts/evaluate-codex-extraction.ts`, outputs in `.agent/runs/2026-10-21-codex-extraction/`):
+the 12 DGPC fixtures through `extractMentionsWithLlm`, each result then scored by the real `runTextSourceWith` on an
+in-memory store with the committed gazetteer plus the aliases the migrations seed; 8 ITA posts (synthetic, labels are
+the evaluator's reading) through `extractItaReport`. Two runs per arm, about 130 Luna calls, plan usage 1 % (5 h) and
+9 % (week) after.
 
-## Scope
+| Arm               | Run   | Bulletins the pipeline accepts | Fires the model read | Fires the pipeline records | ITA correct | Median s |
+| ----------------- | ----- | ------------------------------ | -------------------- | -------------------------- | ----------- | -------- |
+| gemini-2.5-flash  | 1 / 2 | 9/12, 9/12                     | 77, 77               | 59, 59                     | 8/8, 8/8    | 1.3      |
+| gpt-6-luna none   | 1 / 2 | 9/12, 8/12                     | 76, 45               | 59, 59                     | 8/8, 8/8    | 2.1      |
+| gpt-6-luna low    | 1 / 2 | 9/12, 9/12                     | 47, 47               | 59, 59                     | 8/8, 8/8    | 2.1      |
+| gpt-6-luna medium | 1 / 2 | 10/12, 9/12                    | 44, 54               | 60, 59                     | 8/8, 8/8    | 3.5      |
 
-- No temperature and no max tokens on the Codex path (the endpoint takes neither); system messages become
-  `instructions`.
-- `CODEX_MODEL` must accept `reasoning.effort: none` (gpt-6-luna and gpt-6-sol do; gpt-6.1-sol does not).
-- The plan's 5-hour and weekly allowance is shared with SanoX and the owner's own Codex work; the 80 % ceiling
-  protects it.
+Read: Luna often skips the wilaya-only distribution lines, but the pipeline records the same fires either way,
+because the template reads the distribution and fills what the model left out. Every arm hits the same distribution
+conflicts (6872, 6857, 6908); `none` added one (6876, run 2); `medium` once resolved 6908. `low` matches Gemini in
+both runs at a cost and latency close to `none`. The situation reader was not re-run (2/3 against Gemini at `none`
+earlier, a commune written as `بئر الحمام / مرحومة`).
 
-## Not decided here: data protection
+## Checks
 
-The privacy policy (`privacy_sharing_body`, four locales) says OpenRouter passes a citizen report's text to
-Google's Gemini. With `CODEX_MODEL` set, that text (category, commune, the citizen's words) goes to OpenAI under
-the consumer ChatGPT terms, which carry no data processing agreement. Flipping the flag needs an owner decision on
-that, and a policy update if the classifier is included.
+`scripts/codex-egress-check.ts`, run by the manual workflow "Codex egress check": one call from a GitHub runner
+through the route to chatgpt.com, the outcome reported to the object. It prints `ok` with the usage headers, or
+the failure reason and the pause it caused.
 
-## Blocker found: chatgpt.com refuses the Workers runtime
+## Data protection
 
-`wrangler dev --local` (workerd on the laptop, same IP and same access token): `POST /backend-api/codex/responses`
-returns Cloudflare's HTML page "Unable to load site" (HTTP 403, `server: cloudflare`), with or without a
-User-Agent. From curl and bun on the same machine the same request returns 200. `auth.openai.com/oauth/token`
-answers workerd normally. So chatgpt.com's edge blocks workerd's HTTP client, probably on its TLS fingerprint.
-
-Not verified: production Workers egress (Cloudflare's network, not the laptop) is a different path and needs one
-real call from a deployed Worker. If it is blocked too, the subscription never serves a call on Workers: each
-attempt is a 403, a 10-minute pause, one error line and OpenRouter, so it costs nothing but stays useless. The
-fix then is an egress off Workers (for example the GitHub runner Nadhir already uses for Facebook), which is a
-separate design.
-
-The same workerd run proved the object itself: the binding resolves, `lease`/`pause` work over RPC, six
-concurrent calls share one lease, and a 600 s pause survives a restart.
-
-## Evaluation (2026-10-21, gpt-6-luna vs google/gemini-2.5-flash)
-
-Run from bun (the endpoint accepts it) with each caller's own prompt, schema and validator; fixtures from
-`src/lib/__tests__/fixtures` (7 DGPC posts, 5 bulletins, 3 situation posts) plus 8 synthetic citizen reports and
-5 synthetic ITA posts. 28 Luna calls, then 8 repeats; plan usage moved 0 points (5-hour 0 %, weekly 9 %).
-
-| Task                                       | Cases | Same result | Median latency Gemini / Luna |
-| ------------------------------------------ | ----- | ----------- | ---------------------------- |
-| Report classifier (publishable, hazard)    | 8     | 8           | 0.77 s / 1.45 s              |
-| ITA extraction (disposition, kind, status) | 5     | 4           | 1.24 s / 2.02 s              |
-| DGPC situation reader                      | 3     | 2           | 1.20 s / 1.97 s              |
-| DGPC bulletin extraction (mention set)     | 12    | 6           | 1.41 s / 2.36 s              |
-
-- No call failed validation on either model, including the verbatim-evidence checks.
-- Bulletins: on the two bulletins with wilaya distribution lines, Luna dropped those lines in 3 of 6 runs (15 of
-  44 fires in one), Gemini in 0 of 6. The pipeline's totals check flags the document as incomplete and retries
-  it, so the cost is retries and degraded source health, not silent loss. Luna also labels kind `unknown` more
-  often and once kept a hashtag spelling (`سوق_أهراس`).
-- Situation: Luna wrote the commune as `بئر الحمام / مرحومة` (two communes in one field); not checked against
-  the gazetteer, likely unresolved.
-- Classifier: on the neighbour complaint Luna gave `personal_data` where Gemini gave `not_a_hazard` (both
-  unpublishable; Gemini's summary repeated the private name). On the publishable Kabyle fire report Luna returned
-  the citizen's words verbatim as the summary, which would publish raw text against the Hazard Report rule;
-  Gemini translated it to French instead of keeping the report's language.
-- Not evaluated: the civil agent (its tools query production Supabase).
-
-Read: Luna is close on the classifier and ITA (with the Kabyle summary miss), and weaker and less stable than
-Gemini 2.5 Flash on bulletin extraction. One run per case except the bulletin repeats: indicative, not a rate.
+DGPC and ITA posts are public posts by official and media accounts. They may still name people (ITA summaries are
+told not to). They would reach OpenAI under the consumer ChatGPT terms, which carry no data processing agreement.
+Citizen reports never take this path.

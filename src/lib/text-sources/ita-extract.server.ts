@@ -38,7 +38,7 @@ function complete(
     "ita_extract",
     request,
     (r) => completeWithOpenRouter(r, apiKey, signal),
-    signal,
+    { effort: "low", signal },
   );
 }
 
