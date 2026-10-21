@@ -22,7 +22,7 @@ from (values (1,'road'),(2,'fire'),(3,'weather'),(4,'other')) v(n,hazard);
 
 select enqueue_due_source_jobs(now(),'database');
 select set_config('expiry.job',id::text,true),set_config('expiry.attempt',attempt_count::text,true)
-  from claim_source_job('queue-expiry-sql-test','github','ita_website');
+  from claim_source_job('queue-expiry-sql-test','cloudflare','ita_website');
 set local role service_role;
 select count(*) from claim_civil_investigations(current_setting('expiry.job')::uuid,current_setting('expiry.attempt')::integer,0);
 reset role;

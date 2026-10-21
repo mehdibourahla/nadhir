@@ -23,7 +23,7 @@ insert into ita_reports(id,source_post_id,source_page,source_url,published_at,co
  '{"disposition":"incident_report","incidents":[{"kind":"fire","summary_fr":"Feu signalé","evidence":"حريق"}],"review_reasons":[]}');
 select enqueue_due_source_jobs(now(),'database');
 select set_config('reconcile.job',id::text,true),set_config('reconcile.attempt',attempt_count::text,true)
- from claim_source_job('reconciliation-sql-test','github','ita_website');
+ from claim_source_job('reconciliation-sql-test','cloudflare','ita_website');
 set local role service_role;
 select is((select count(*) from search_civil_official_evidence('تيبازة','18000000-0000-4000-8000-000000000010')),1::bigint,'official tool returns source evidence');
 select is((select count(*) from search_civil_official_evidence('%',null)),0::bigint,'search treats wildcard as literal');

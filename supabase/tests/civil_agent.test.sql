@@ -19,7 +19,7 @@ insert into ita_reports(id,source_post_id,source_page,source_url,published_at,co
  '{"disposition":"incident_report","incidents":[{"kind":"collision","summary_fr":"Accident","evidence":"Accident"}],"review_reasons":[]}');
 select public.enqueue_due_source_jobs(now(),'database');
 select set_config('agent.job',id::text,true),set_config('agent.attempt',attempt_count::text,true)
- from public.claim_source_job('civil-agent-sql-test','github','ita_website');
+ from public.claim_source_job('civil-agent-sql-test','cloudflare','ita_website');
 set local role service_role;
 select set_config('agent.work',id::text,true) from claim_civil_investigations(current_setting('agent.job')::uuid,current_setting('agent.attempt')::integer,2);
 select is((select attempts from civil_investigations where id=current_setting('agent.work')::uuid),1,'claim increments attempt');

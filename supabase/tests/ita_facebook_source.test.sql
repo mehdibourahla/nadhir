@@ -1,9 +1,8 @@
 begin;
 set local search_path = public, extensions;
-select plan(14);
+select plan(13);
 select is((select cadence_minutes from source_contracts where key='ita_facebook'),2,'two-minute schedule on GitHub runners');
 select is((select replay_capability from source_contracts where key='ita_facebook'),'none','no gap replay');
-select is((select array_agg(key order by key) from source_contracts where execution_target='github' and key in ('dgpc_telegram','ita_website','ita_facebook')),array['dgpc_telegram','ita_facebook','ita_website'],'model-reading text sources run on GitHub runners');
 set local role authenticated;
 select throws_ok($$select save_ita_facebook_posts(gen_random_uuid(),1,'[]')$$,'42501',null,'users cannot invoke the collector');
 reset role;
@@ -14,7 +13,7 @@ select public.enqueue_due_source_jobs(now(),'database');
 select set_config('fb.job',id::text,true),set_config('fb.attempt',attempt_count::text,true)
  from public.claim_source_job('ita-fb-test','github','ita_facebook');
 select set_config('web.job',id::text,true),set_config('web.attempt',attempt_count::text,true)
- from public.claim_source_job('ita-web-test','github','ita_website');
+ from public.claim_source_job('ita-web-test','cloudflare','ita_website');
 set local role service_role;
 select is(ita_text_key(E'#حادث_مرور #iAccident🚨🚨 \n\nحادث مرور بالطريق الاجتنابي الشمالي بلوزداد اتجاه جامع الجزائر.'),ita_text_key(E'🚨🚨 \n\nحادث مرور بالطريق الاجتنابي الشمالي بلوزداد اتجاه جامع الجزائر.'),'hashtags, emoji and spacing do not change the key');
 select is(save_ita_facebook_posts(current_setting('fb.job')::uuid,current_setting('fb.attempt')::integer,
