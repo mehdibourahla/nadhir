@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 import type { ItaFeedPost } from "./ita-feed";
 
 import { ItaExtractionSchema, type ItaExtraction } from "./ita-extraction";
+import { subscriptionFirst } from "@/lib/llm/subscription.server";
 import { llmFetchError, llmHttpError } from "./llm-unavailable";
 export type { ItaExtraction } from "./ita-extraction";
 const normalize = (text: string) => text.replace(/\s+/gu, " ").trim();
@@ -28,7 +29,20 @@ type Dependencies = {
   complete: (request: Request) => Promise<string>;
 };
 
-async function complete(
+function complete(
+  request: Request,
+  apiKey: string,
+  signal: AbortSignal,
+): Promise<string> {
+  return subscriptionFirst(
+    "ita_extract",
+    request,
+    (r) => completeWithOpenRouter(r, apiKey, signal),
+    signal,
+  );
+}
+
+async function completeWithOpenRouter(
   request: Request,
   apiKey: string,
   signal: AbortSignal,

@@ -1,4 +1,5 @@
 import { civilLeaseHours } from "./incident-lifecycle";
+import { subscriptionFirst } from "./llm/subscription.server";
 import { z } from "zod/v4";
 import {
   CivilDecisionSchema,
@@ -270,7 +271,7 @@ export async function investigateCivilReport(
 }
 
 export function civilAgentCompletion(signal: AbortSignal) {
-  return async (request: Request): Promise<string> => {
+  const openRouter = async (request: Request): Promise<string> => {
     const key = process.env["OPENROUTER_API_KEY"];
     if (!key) throw new Error("Civil agent requires OPENROUTER_API_KEY");
     const response = await fetch(
@@ -295,4 +296,6 @@ export function civilAgentCompletion(signal: AbortSignal) {
     if (!content) throw new Error("Civil agent empty completion");
     return content;
   };
+  return (request: Request) =>
+    subscriptionFirst("civil_agent", request, openRouter, signal);
 }

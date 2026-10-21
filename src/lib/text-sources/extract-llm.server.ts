@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { subscriptionFirst } from "@/lib/llm/subscription.server";
 import { llmFetchError, llmHttpError } from "./llm-unavailable";
 
 const KINDS = ["vegetation", "agricultural", "urban", "unknown"] as const;
@@ -134,12 +135,26 @@ export async function completeWithOpenRouter(
   return { content };
 }
 
+export async function completeWithSubscription(
+  purpose: string,
+  apiKey: string,
+  request: OpenRouterRequest,
+): Promise<{ content: string }> {
+  const content = await subscriptionFirst(
+    purpose,
+    request,
+    async (r) => (await completeWithOpenRouter(apiKey, r)).content,
+  );
+  return { content };
+}
+
 function defaultDependencies(): LlmExtractionDependencies {
   const apiKey = process.env["OPENROUTER_API_KEY"];
   return {
     apiKey,
     model: process.env["OPENROUTER_MODEL"] || DEFAULT_OPENROUTER_MODEL,
-    complete: (request) => completeWithOpenRouter(apiKey ?? "", request),
+    complete: (request) =>
+      completeWithSubscription("text_source_extract", apiKey ?? "", request),
   };
 }
 

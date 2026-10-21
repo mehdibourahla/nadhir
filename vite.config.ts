@@ -71,6 +71,7 @@ export default defineConfig(({ command, mode }) => ({
             cloudflare: {
               nodeCompat: true,
               deployConfig: true,
+              exports: "./src/exports.cloudflare.ts",
               wrangler: {
                 name: "nadhir",
                 compatibility_date: "2026-08-31",
@@ -87,6 +88,13 @@ export default defineConfig(({ command, mode }) => ({
                 // SSR makes several Supabase round-trips, so run near the database
                 placement: { mode: "smart" },
                 browser: { binding: "BROWSER" },
+                // the one owner of the rotating Codex login and its pause state
+                durable_objects: {
+                  bindings: [{ name: "CODEX_LOGIN", class_name: "CodexLogin" }],
+                },
+                migrations: [
+                  { tag: "codex-login-v1", new_sqlite_classes: ["CodexLogin"] },
+                ],
                 observability: { enabled: true, head_sampling_rate: 1 },
                 routes: [
                   { pattern: "nadhir.app", custom_domain: true },
