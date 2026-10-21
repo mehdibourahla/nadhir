@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 
 import {
-  completeWithOpenRouter,
+  completeWithSubscription,
   DEFAULT_OPENROUTER_MODEL,
   stripFence,
   type OpenRouterRequest,
@@ -115,7 +115,8 @@ export function defaultSituationReader(): SituationDependencies {
   return {
     apiKey,
     model: process.env["OPENROUTER_MODEL"] || DEFAULT_OPENROUTER_MODEL,
-    complete: (request) => completeWithOpenRouter(apiKey ?? "", request),
+    complete: (request) =>
+      completeWithSubscription("dgpc_situation", "low", apiKey ?? "", request),
   };
 }
 

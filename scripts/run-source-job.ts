@@ -15,12 +15,15 @@ if (target !== "github") {
   console.error("--target must be github");
   process.exit(1);
 }
-if (
-  contract !== "local_fwi" &&
-  contract !== "effis" &&
-  contract !== "ita_facebook"
-) {
-  console.error("--contract must be local_fwi, effis or ita_facebook");
+const GITHUB_CONTRACTS = [
+  "local_fwi",
+  "effis",
+  "ita_facebook",
+  "ita_website",
+  "dgpc_telegram",
+];
+if (!contract || !GITHUB_CONTRACTS.includes(contract)) {
+  console.error(`--contract must be one of ${GITHUB_CONTRACTS.join(", ")}`);
   process.exit(1);
 }
 
