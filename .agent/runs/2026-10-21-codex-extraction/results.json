@@ -27,7 +27,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -59,7 +60,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -82,7 +84,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -114,7 +117,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -155,7 +159,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 3
+   "recorded": 3,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -187,7 +192,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -210,7 +216,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -476,7 +483,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 31
+   "recorded": 31,
+   "recordedLlm": 15
   },
   {
    "task": "bulletin",
@@ -571,7 +579,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 11
+   "recorded": 11,
+   "recordedLlm": 3
   },
   {
    "task": "bulletin",
@@ -612,7 +621,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -644,7 +654,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 2
   },
   {
    "task": "bulletin",
@@ -676,7 +687,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 2
   },
   {
    "task": "ita",
@@ -908,7 +920,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -940,7 +953,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -963,7 +977,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -995,7 +1010,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -1036,7 +1052,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 3
+   "recorded": 3,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -1068,7 +1085,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -1091,7 +1109,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -1357,7 +1376,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 31
+   "recorded": 31,
+   "recordedLlm": 15
   },
   {
    "task": "bulletin",
@@ -1452,7 +1472,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 11
+   "recorded": 11,
+   "recordedLlm": 3
   },
   {
    "task": "bulletin",
@@ -1484,7 +1505,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -1516,7 +1538,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 2
   },
   {
    "task": "bulletin",
@@ -1548,7 +1571,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 2
   },
   {
    "task": "ita",
@@ -1780,7 +1804,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -1812,7 +1837,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -1835,7 +1861,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -1867,7 +1894,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -1908,7 +1936,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 3
+   "recorded": 3,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -1940,7 +1969,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -1963,7 +1993,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -2094,7 +2125,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 31
+   "recorded": 31,
+   "recordedLlm": 15
   },
   {
    "task": "bulletin",
@@ -2189,7 +2221,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 11
+   "recorded": 11,
+   "recordedLlm": 3
   },
   {
    "task": "bulletin",
@@ -2221,7 +2254,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -2253,7 +2287,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 2
   },
   {
    "task": "bulletin",
@@ -2285,7 +2320,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 2
   },
   {
    "task": "ita",
@@ -2517,7 +2553,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -2549,7 +2586,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -2572,7 +2610,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -2604,7 +2643,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -2645,7 +2685,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 3
+   "recorded": 3,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -2677,7 +2718,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -2700,7 +2742,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -2831,7 +2874,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 31
+   "recorded": 31,
+   "recordedLlm": 15
   },
   {
    "task": "bulletin",
@@ -2908,7 +2952,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 11
+   "recorded": 11,
+   "recordedLlm": 3
   },
   {
    "task": "bulletin",
@@ -2940,7 +2985,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 2
   },
   {
    "task": "bulletin",
@@ -2972,7 +3018,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 2
   },
   {
    "task": "bulletin",
@@ -3004,7 +3051,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 2
   },
   {
    "task": "ita",
@@ -3242,7 +3290,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -3274,7 +3323,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -3297,7 +3347,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -3329,7 +3380,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -3370,7 +3422,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 3
+   "recorded": 3,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -3402,7 +3455,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -3425,7 +3479,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -3691,7 +3746,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 31
+   "recorded": 31,
+   "recordedLlm": 15
   },
   {
    "task": "bulletin",
@@ -3786,7 +3842,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 11
+   "recorded": 11,
+   "recordedLlm": 3
   },
   {
    "task": "bulletin",
@@ -3827,7 +3884,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -3859,7 +3917,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 2
   },
   {
    "task": "bulletin",
@@ -3891,7 +3950,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 2
   },
   {
    "task": "ita",
@@ -4123,7 +4183,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -4155,7 +4216,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -4178,7 +4240,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -4210,7 +4273,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -4223,7 +4287,8 @@
    "covered": false,
    "mentions": [],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 3
+   "recorded": 3,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -4255,7 +4320,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -4278,7 +4344,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -4409,7 +4476,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 31
+   "recorded": 31,
+   "recordedLlm": 15
   },
   {
    "task": "bulletin",
@@ -4504,7 +4572,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 11
+   "recorded": 11,
+   "recordedLlm": 3
   },
   {
    "task": "bulletin",
@@ -4545,7 +4614,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -4577,7 +4647,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 2
   },
   {
    "task": "bulletin",
@@ -4609,7 +4680,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 2
   },
   {
    "task": "ita",
@@ -4841,7 +4913,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -4873,7 +4946,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -4896,7 +4970,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -4928,7 +5003,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -4969,7 +5045,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 3
+   "recorded": 3,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -5001,7 +5078,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -5024,7 +5102,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -5155,7 +5234,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 31
+   "recorded": 31,
+   "recordedLlm": 15
   },
   {
    "task": "bulletin",
@@ -5250,7 +5330,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 11
+   "recorded": 11,
+   "recordedLlm": 3
   },
   {
    "task": "bulletin",
@@ -5282,7 +5363,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -5314,7 +5396,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 2
   },
   {
    "task": "bulletin",
@@ -5346,7 +5429,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 2
   },
   {
    "task": "ita",
@@ -5578,7 +5662,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -5610,7 +5695,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -5633,7 +5719,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -5665,7 +5752,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -5706,7 +5794,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 3
+   "recorded": 3,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -5738,7 +5827,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 0
   },
   {
    "task": "bulletin",
@@ -5761,7 +5851,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -5964,7 +6055,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 31
+   "recorded": 31,
+   "recordedLlm": 15
   },
   {
    "task": "bulletin",
@@ -6041,7 +6133,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 11
+   "recorded": 11,
+   "recordedLlm": 3
   },
   {
    "task": "bulletin",
@@ -6073,7 +6166,8 @@
     }
    ],
    "verdict": "incomplete interpretation: distribution conflict",
-   "recorded": 1
+   "recorded": 1,
+   "recordedLlm": 1
   },
   {
    "task": "bulletin",
@@ -6105,7 +6199,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 2
   },
   {
    "task": "bulletin",
@@ -6137,7 +6232,8 @@
     }
    ],
    "verdict": "accepted",
-   "recorded": 2
+   "recorded": 2,
+   "recordedLlm": 2
   },
   {
    "task": "ita",

@@ -213,6 +213,11 @@ function complete(arm: Arm) {
       console.error(
         `plan usage at ${used}%: stopping to protect the allowance`,
       );
+      mkdirSync(OUT, { recursive: true });
+      writeFileSync(
+        `${OUT}/results.json`,
+        JSON.stringify({ lastUsage, rows }, null, 1),
+      );
       process.exit(2);
     }
     return reply.text;
@@ -223,9 +228,10 @@ async function pipelineVerdict(
   mentions: LlmMention[],
   text: string,
   at: string,
-): Promise<{ verdict: string; recorded: number }> {
+): Promise<{ verdict: string; recorded: number; recordedLlm: number }> {
   let failure: string | null = null;
   let recorded = 0;
+  let recordedLlm = 0;
   const store: TextSourceStore = {
     loadSource: async (key) => ({
       id: "eval",
@@ -243,6 +249,9 @@ async function pipelineVerdict(
     loadGazetteer: async () => gazetteer,
     insertMentions: async (rows) => {
       recorded += rows.reduce((n, r) => n + r.fire_count, 0);
+      recordedLlm += rows
+        .filter((r) => r.extractor === "llm")
+        .reduce((n, r) => n + r.fire_count, 0);
       return rows.map((r, i) => ({ id: `m-${i}`, ...r, inserted: true }));
     },
     openIncidents: async () => [],
@@ -274,7 +283,7 @@ async function pipelineVerdict(
       throw new Error("not a bulletin");
     },
   });
-  return { verdict: failure ?? "accepted", recorded };
+  return { verdict: failure ?? "accepted", recorded, recordedLlm };
 }
 
 type Row = Record<string, unknown> & {
@@ -384,7 +393,7 @@ for (const r of rows.filter((r) => r.task === "bulletin")) {
   Object.assign(
     r,
     r["error"]
-      ? { verdict: "llm error", recorded: 0 }
+      ? { verdict: "llm error", recorded: 0, recordedLlm: 0 }
       : await pipelineVerdict(r["mentions"] as LlmMention[], b.text, b.at),
   );
 }
@@ -394,8 +403,8 @@ const median = (xs: number[]) => {
   return s[Math.floor(s.length / 2)] ?? 0;
 };
 const lines = [
-  "| Arm | Run | Bulletins accepted by the pipeline | Fires the model read | Fires the pipeline records | Bulletin errors | ITA correct | ITA errors | Median s |",
-  "|---|---|---|---|---|---|---|---|---|",
+  "| Arm | Run | Bulletins accepted by the pipeline | Fires the model read | Fires the pipeline records | of which from the model | Bulletin errors | ITA correct | ITA errors | Median s |",
+  "|---|---|---|---|---|---|---|---|---|---|",
 ];
 for (const arm of ARMS)
   for (let run = 1; run <= RUNS; run++) {
@@ -406,7 +415,7 @@ for (const arm of ARMS)
       (r) => r.task === "ita" && r.arm === arm && r.run === run,
     );
     lines.push(
-      `| ${arm} | ${run} | ${b.filter((r) => r["verdict"] === "accepted").length}/${b.length} | ${b.reduce((n, r) => n + (r["fires"] as number), 0)} | ${b.reduce((n, r) => n + (r["recorded"] as number), 0)} | ${b.filter((r) => r["error"]).length} | ${i.filter((r) => r["correct"]).length}/${i.length} | ${i.filter((r) => r["error"]).length} | ${(median([...b, ...i].map((r) => r["ms"] as number)) / 1000).toFixed(1)} |`,
+      `| ${arm} | ${run} | ${b.filter((r) => r["verdict"] === "accepted").length}/${b.length} | ${b.reduce((n, r) => n + (r["fires"] as number), 0)} | ${b.reduce((n, r) => n + (r["recorded"] as number), 0)} | ${b.reduce((n, r) => n + (r["recordedLlm"] as number), 0)} | ${b.filter((r) => r["error"]).length} | ${i.filter((r) => r["correct"]).length}/${i.length} | ${i.filter((r) => r["error"]).length} | ${(median([...b, ...i].map((r) => r["ms"] as number)) / 1000).toFixed(1)} |`,
     );
   }
 mkdirSync(OUT, { recursive: true });
