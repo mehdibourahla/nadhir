@@ -21,7 +21,7 @@ const handle = createGateway({
   status: () => loginStatus(tokenFile, Date.now()),
   authorized: accessVerifier({
     clientId: env("NADHIR_GATEWAY_ACCESS_CLIENT_ID") ?? "",
-    clientSecret: env("NADHIR_GATEWAY_ACCESS_CLIENT_SECRET") ?? "",
+    clientSecret: env("NADHIR_GATEWAY_ACCESS_CLIENT_SECRET"),
     teamDomain: env("NADHIR_GATEWAY_ACCESS_TEAM_DOMAIN"),
     audience: env("NADHIR_GATEWAY_ACCESS_AUD"),
   }),

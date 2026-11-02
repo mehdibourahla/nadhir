@@ -55,11 +55,20 @@ const valid = {
   iss: `https://${TEAM}`,
   exp: NOW / 1000 + 300,
   nbf: NOW / 1000 - 10,
+  common_name: CREDS.clientId,
 };
 
 describe("service token", () => {
   it("refuses to start without one", () => {
     expect(() => accessVerifier({ clientId: "", clientSecret: "" })).toThrow();
+    expect(() => accessVerifier({ clientId: CREDS.clientId })).toThrow();
+    expect(() =>
+      accessVerifier({
+        clientId: CREDS.clientId,
+        teamDomain: TEAM,
+        audience: AUD,
+      }),
+    ).not.toThrow();
   });
 
   it.each([
@@ -85,17 +94,15 @@ describe("service token", () => {
 });
 
 describe("Access JWT", () => {
-  it("is required once a team domain and audience are configured", async () => {
+  it("alone decides once a team domain and audience are configured", async () => {
     const { fetch, sign } = await signer();
     const verify = accessVerifier(
-      { ...CREDS, teamDomain: TEAM, audience: AUD },
+      { clientId: CREDS.clientId, teamDomain: TEAM, audience: AUD },
       { fetch: fetch as never, now: () => NOW },
     );
     expect(await verify(headers(service))).toBe(false);
     expect(
-      await verify(
-        headers({ ...service, "cf-access-jwt-assertion": await sign(valid) }),
-      ),
+      await verify(headers({ "cf-access-jwt-assertion": await sign(valid) })),
     ).toBe(true);
     expect(fetch).toHaveBeenCalledTimes(1);
   });
@@ -109,6 +116,12 @@ describe("Access JWT", () => {
     ],
     ["an expired token", { ...valid, exp: NOW / 1000 - 1 }, undefined],
     ["a future token", { ...valid, nbf: NOW / 1000 + 600 }, undefined],
+    [
+      "another service token",
+      { ...valid, common_name: "id-2.access" },
+      undefined,
+    ],
+    ["a user login", { ...valid, common_name: undefined }, undefined],
     ["an unknown key", valid, { alg: "RS256", kid: "k9" }],
     ["alg none", valid, { alg: "none", kid: "k1" }],
   ])("rejects %s", async (_name, claims, header) => {
@@ -123,7 +136,7 @@ describe("Access JWT", () => {
     ).toBe(false);
   });
 
-  it("rejects a tampered payload and a valid JWT without the service token", async () => {
+  it("rejects a tampered payload", async () => {
     const { fetch, sign } = await signer();
     const verify = accessVerifier(
       { ...CREDS, teamDomain: TEAM, audience: AUD },
@@ -135,9 +148,6 @@ describe("Access JWT", () => {
     expect(
       await verify(headers({ ...service, "cf-access-jwt-assertion": forged })),
     ).toBe(false);
-    expect(await verify(headers({ "cf-access-jwt-assertion": token }))).toBe(
-      false,
-    );
   });
 
   it("fails closed when the certs cannot be fetched", async () => {

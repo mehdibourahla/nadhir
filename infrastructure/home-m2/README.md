@@ -51,8 +51,9 @@ docker compose -f infrastructure/home-m2/docker-compose.yml up -d --build
 
 `write-secrets.sh` writes `.env.gateway` (Access client ID and secret, team domain, AUD)
 and `.env.tunnel` (`TUNNEL_TOKEN`) next to the compose file, mode 600. Both names are
-git-ignored. With the team domain and AUD set, the gateway also verifies the
-`Cf-Access-Jwt-Assertion` that Access adds to every request.
+git-ignored. Access strips the service-token headers before the origin, so with the team
+domain and AUD set the gateway verifies only the `Cf-Access-Jwt-Assertion`, whose
+`common_name` must be this service token's client ID; the secret is then unused.
 
 ## 3. One-time login (owner, on home-m2)
 

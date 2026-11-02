@@ -4,8 +4,8 @@ const CERTS_TTL_MS = 3_600_000;
 
 export type AccessConfig = {
   clientId: string;
-  clientSecret: string;
-  // both set: the Cf-Access-Jwt-Assertion must also verify
+  // Access strips the service-token headers, so behind Access only the JWT can carry them
+  clientSecret?: string | undefined;
   teamDomain?: string | undefined;
   audience?: string | undefined;
 };
@@ -30,12 +30,13 @@ export function accessVerifier(
   config: AccessConfig,
   deps: { fetch?: typeof fetch; now?: () => number } = {},
 ) {
-  if (!config.clientId || !config.clientSecret)
-    throw new Error("Access service token is not configured");
   const doFetch = deps.fetch ?? fetch;
   const now = deps.now ?? Date.now;
   const team = config.teamDomain?.replace(/^https:\/\//, "").replace(/\/$/, "");
   const audience = config.audience;
+  const behindAccess = !!team && !!audience;
+  if (!config.clientId || (!behindAccess && !config.clientSecret))
+    throw new Error("Access service token is not configured");
   let certs: { keys: Map<string, CryptoKey>; at: number } | null = null;
 
   async function keys(): Promise<Map<string, CryptoKey>> {
@@ -73,6 +74,7 @@ export function accessVerifier(
       iss?: string;
       exp?: number;
       nbf?: number;
+      common_name?: string;
     };
     try {
       header = decodeSegment(head) as typeof header;
@@ -102,23 +104,25 @@ export function accessVerifier(
       claims.iss === `https://${team}` &&
       typeof claims.exp === "number" &&
       claims.exp > seconds &&
-      (claims.nbf === undefined || claims.nbf <= seconds + 60)
+      (claims.nbf === undefined || claims.nbf <= seconds + 60) &&
+      sameSecret(claims.common_name ?? null, config.clientId)
     );
   }
 
   return async function authorized(headers: Headers): Promise<boolean> {
+    if (behindAccess) {
+      try {
+        return await verifyJwt(headers.get("cf-access-jwt-assertion"));
+      } catch {
+        return false;
+      }
+    }
     // both compares always run, so a wrong id and a wrong secret take the same time
     const id = sameSecret(headers.get("cf-access-client-id"), config.clientId);
     const secret = sameSecret(
       headers.get("cf-access-client-secret"),
-      config.clientSecret,
+      config.clientSecret ?? "",
     );
-    if (!id || !secret) return false;
-    if (!team || !audience) return true;
-    try {
-      return await verifyJwt(headers.get("cf-access-jwt-assertion"));
-    } catch {
-      return false;
-    }
+    return id && secret;
   };
 }
