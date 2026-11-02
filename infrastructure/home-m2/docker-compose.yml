@@ -25,7 +25,7 @@ services:
       options: { max-size: 10m, max-file: "3" }
 
   cloudflared:
-    image: cloudflare/cloudflared:2025.4.0
+    image: cloudflare/cloudflared:2026.10.7
     command: tunnel --no-autoupdate run
     restart: unless-stopped
     env_file: .env.tunnel
