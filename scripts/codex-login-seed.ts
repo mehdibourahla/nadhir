@@ -1,7 +1,10 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync, rmSync } from "node:fs";
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { rmSync } from "node:fs";
+
+import {
+  readDeviceLogin,
+  type DeviceLogin,
+} from "../src/lib/llm/codex-device-login";
 
 const home = process.argv[2];
 if (!home) {
@@ -18,25 +21,12 @@ if (!home) {
   );
   process.exit(64);
 }
-// two holders of one grant race on refresh-token rotation and the login dies
-if (resolve(home) === resolve(homedir(), ".codex")) {
-  console.error("refusing ~/.codex: Nadhir needs its own device login");
-  process.exit(65);
-}
-
-const file = join(home, "auth.json");
-const tokens = (
-  JSON.parse(readFileSync(file, "utf8")) as {
-    tokens?: {
-      refresh_token?: string;
-      access_token?: string;
-      id_token?: string;
-      account_id?: string;
-    };
-  }
-).tokens;
-if (!tokens?.refresh_token || !tokens.account_id) {
-  console.error(`${file} holds no ChatGPT login (refresh_token, account_id)`);
+let file: string;
+let tokens: DeviceLogin;
+try {
+  ({ file, login: tokens } = readDeviceLogin(home));
+} catch (error) {
+  console.error((error as Error).message);
   process.exit(65);
 }
 

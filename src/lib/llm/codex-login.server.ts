@@ -85,6 +85,7 @@ export class CodexLogin {
   #storage: LoginStorage;
   #seed: () => string | undefined;
   #now: () => number;
+  #usageCeiling: number | undefined;
   #state: Promise<State> | null = null;
   #refreshing: Promise<Lease> | null = null;
 
@@ -92,10 +93,12 @@ export class CodexLogin {
     storage: LoginStorage;
     seed: () => string | undefined;
     now?: () => number;
+    usageCeiling?: number;
   }) {
     this.#storage = deps.storage;
     this.#seed = deps.seed;
     this.#now = deps.now ?? Date.now;
+    this.#usageCeiling = deps.usageCeiling;
   }
 
   async lease(): Promise<Lease> {
@@ -129,7 +132,7 @@ export class CodexLogin {
   ): Promise<{ pausedSeconds: number | null }> {
     const state = await this.#load();
     const pausedSeconds = outcome.ok
-      ? usagePause(outcome.usage)
+      ? usagePause(outcome.usage, this.#usageCeiling)
       : pauseFor(outcome.reason, outcome.retryAfter);
     // a late 401 from a token already replaced must not force a second refresh
     if (
