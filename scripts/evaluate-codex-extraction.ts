@@ -6,10 +6,8 @@ import {
   type CodexEffort,
 } from "../src/lib/llm/codex.server";
 import {
-  completeWithOpenRouter,
   extractMentionsWithLlm,
   type LlmMention,
-  type OpenRouterRequest,
 } from "../src/lib/text-sources/extract-llm.server";
 import { extractItaReport } from "../src/lib/text-sources/ita-extract.server";
 import type { CommuneCandidate } from "../src/lib/text-sources/normalize";
@@ -25,10 +23,9 @@ const OUT =
   ".agent/runs/2026-10-21-codex-extraction";
 const RUNS = 2;
 const STOP_AT_PERCENT = 75;
-const apiKey = process.env["OPENROUTER_API_KEY"];
 const authFile = process.env["CODEX_AUTH_FILE"];
-if (!RESCORE && (!apiKey || !authFile)) {
-  console.error("needs OPENROUTER_API_KEY and CODEX_AUTH_FILE, or --rescore");
+if (!RESCORE && !authFile) {
+  console.error("needs CODEX_AUTH_FILE, or --rescore");
   process.exit(64);
 }
 const auth = authFile
@@ -182,24 +179,13 @@ const ita: {
   },
 ];
 
+// the gemini-2.5-flash arm left with OpenRouter; its recorded rows still rescore
 type Arm = "gemini-2.5-flash" | `gpt-6-luna:${CodexEffort}`;
-const ARMS: Arm[] = [
-  "gemini-2.5-flash",
-  "gpt-6-luna:none",
-  "gpt-6-luna:low",
-  "gpt-6-luna:medium",
-];
+const ARMS: Arm[] = ["gpt-6-luna:none", "gpt-6-luna:low", "gpt-6-luna:medium"];
 let lastUsage: unknown;
 
 function complete(arm: Arm) {
   return async (request: ChatRequest): Promise<string> => {
-    if (arm === "gemini-2.5-flash")
-      return (
-        await completeWithOpenRouter(apiKey!, {
-          ...(request as OpenRouterRequest),
-          model: "google/gemini-2.5-flash",
-        })
-      ).content;
     const effort = arm.split(":")[1] as CodexEffort;
     const reply = await completeWithCodex("gpt-6-luna", request, lease!, {
       effort,
@@ -278,7 +264,7 @@ async function pipelineVerdict(
         text,
       },
     ],
-    extractLlm: async () => ({ skipped: false, mentions }),
+    extractLlm: async () => ({ mentions }),
     readSituation: async () => {
       throw new Error("not a bulletin");
     },
@@ -320,15 +306,10 @@ for (let run = 1; run <= (RESCORE ? 0 : RUNS); run++)
       const r = await timed(() =>
         extractMentionsWithLlm(
           { text: b.text, wilayaHint: null, language: "ar" },
-          {
-            apiKey,
-            model: arm,
-            complete: async (req) => ({ content: await c(req) }),
-          },
+          { model: arm, complete: c },
         ),
       );
-      const mentions =
-        "value" in r && !r.value!.skipped ? r.value!.mentions : [];
+      const mentions = "value" in r ? r.value!.mentions : [];
       rows.push({
         task: "bulletin",
         arm,
@@ -359,7 +340,7 @@ for (let run = 1; run <= (RESCORE ? 0 : RUNS); run++)
             region: p.region,
             type: [],
           },
-          { apiKey, model: arm, complete: c },
+          { complete: c },
         ),
       );
       const out = "value" in r ? r.value! : null;

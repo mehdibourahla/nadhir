@@ -1,11 +1,8 @@
 import { z } from "zod";
 
-import {
-  completeWithOpenRouter,
-  DEFAULT_OPENROUTER_MODEL,
-  stripFence,
-  type OpenRouterRequest,
-} from "@/lib/text-sources/extract-llm.server";
+import type { ChatRequest } from "@/lib/llm/codex.server";
+import { completeWithGateway, GATEWAY_MODEL } from "@/lib/llm/gateway.server";
+import { stripFence } from "@/lib/text-sources/extract-llm.server";
 
 const REPORT_HAZARDS = [
   "fire",
@@ -67,18 +64,21 @@ severity 1 is minor, 3 is a danger to people nearby, 5 is life-threatening now.`
 const PERSONAL =
   /(\+?\d[\d\s().-]{7,}\d)|([^\s@]+@[^\s@]+\.[^\s@]+)|(https?:\/\/|www\.)/i;
 
+// a citizen waits on this call: past 8 s the report takes the degrade path
+const CLASSIFY_TIMEOUT_MS = 8_000;
+
 export type ClassifierDependencies = {
-  apiKey: string | undefined;
   model: string;
-  complete: (request: OpenRouterRequest) => Promise<{ content: string }>;
+  complete: (request: ChatRequest) => Promise<string>;
 };
 
 export function defaultClassifier(): ClassifierDependencies {
-  const apiKey = process.env["OPENROUTER_API_KEY"];
   return {
-    apiKey,
-    model: process.env["OPENROUTER_MODEL"] || DEFAULT_OPENROUTER_MODEL,
-    complete: (request) => completeWithOpenRouter(apiKey ?? "", request),
+    model: GATEWAY_MODEL,
+    complete: (request) =>
+      completeWithGateway("classify_report", request, {
+        timeoutMs: CLASSIFY_TIMEOUT_MS,
+      }),
   };
 }
 
@@ -86,9 +86,7 @@ export async function classifyReport(
   input: { kind: string; note: string; place: string | null },
   deps: ClassifierDependencies,
 ): Promise<ReportDecision> {
-  if (!deps.apiKey) throw new Error("report classifier: no api key");
-  const { content } = await deps.complete({
-    model: deps.model,
+  const content = await deps.complete({
     messages: [
       { role: "system", content: SYSTEM },
       {
@@ -100,9 +98,6 @@ export async function classifyReport(
       type: "json_schema",
       json_schema: { name: "report_decision", strict: true, schema: SCHEMA },
     },
-    temperature: 0,
-    max_tokens: 512,
-    provider: { require_parameters: true },
   });
   let parsed: unknown;
   try {

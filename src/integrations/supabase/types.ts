@@ -4146,8 +4146,23 @@ export type Database = {
         };
         Returns: undefined;
       };
+      release_civil_investigation: {
+        Args: {
+          _attempt: number;
+          _delay_seconds?: number;
+          _id: string;
+          _investigation_attempt: number;
+          _job: string;
+        };
+        Returns: undefined;
+      };
       release_ita_extraction: {
-        Args: { _attempt: number; _id: string; _job: string };
+        Args: {
+          _attempt: number;
+          _delay_seconds?: number;
+          _id: string;
+          _job: string;
+        };
         Returns: undefined;
       };
       save_ita_facebook_posts: {

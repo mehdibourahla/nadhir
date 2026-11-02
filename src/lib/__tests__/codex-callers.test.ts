@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { civilAgentCompletion } from "@/lib/civil-agent.server";
-import { CODEX_RESPONSES_URL } from "@/lib/llm/codex.server";
 import {
   classifyReport,
   defaultClassifier,
@@ -13,8 +12,7 @@ import {
 import { extractItaReport } from "@/lib/text-sources/ita-extract.server";
 import { extractMentionsWithLlm } from "@/lib/text-sources/extract-llm.server";
 
-const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
-const ROUTE = "https://nadhir.app/api/internal/codex-login";
+const GATEWAY = "https://gateway.nadhir.test";
 
 const itaPost = {
   id: "808412572528916_1511278197712051",
@@ -25,31 +23,17 @@ const itaPost = {
   type: [],
 };
 
-const fetch = vi.fn(async (url: string, init?: RequestInit) => {
-  if (url === ROUTE)
-    return JSON.parse(init!.body as string).action === "lease"
-      ? Response.json({
-          status: "ready",
-          access_token: "access-1",
-          account_id: "acct-1",
-        })
-      : Response.json({ pausedSeconds: null });
-  if (url === CODEX_RESPONSES_URL)
-    return new Response(
-      'data: {"type":"response.output_text.delta","delta":"{}"}\n\ndata: {"type":"response.completed"}\n\n',
-      { status: 200, headers: { "x-codex-primary-used-percent": "1" } },
-    );
-  return Response.json({ choices: [{ message: { content: "{}" } }] });
-});
-
-const urls = () => fetch.mock.calls.map(([url]) => url);
+const fetch = vi.fn(async (_url: string, _init: RequestInit) =>
+  Response.json({ text: "{}" }),
+);
 
 beforeEach(() => {
-  vi.stubEnv("GITHUB_ACTIONS", "true");
-  vi.stubEnv("CODEX_MODEL", "gpt-6-luna");
-  vi.stubEnv("NADHIR_APP_URL", "https://nadhir.app");
-  vi.stubEnv("NADHIR_CRON_SECRET", "runtime-secret");
-  vi.stubEnv("OPENROUTER_API_KEY", "test-only");
+  vi.stubEnv("NADHIR_GATEWAY_URL", `${GATEWAY}/`);
+  vi.stubEnv("NADHIR_GATEWAY_ACCESS_CLIENT_ID", "client-id.access");
+  vi.stubEnv("NADHIR_GATEWAY_ACCESS_CLIENT_SECRET", "client-secret");
+  // the old transport's settings must no longer matter
+  vi.stubEnv("OPENROUTER_API_KEY", "");
+  vi.stubEnv("CODEX_MODEL", "");
   vi.stubGlobal("fetch", fetch);
   fetch.mockClear();
 });
@@ -59,46 +43,49 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("on a GitHub runner with CODEX_MODEL set", () => {
+describe("every model call site", () => {
   it.each([
     [
-      "DGPC bulletin extraction",
-      () =>
-        extractMentionsWithLlm({ text: "x", wilayaHint: null, language: "ar" }),
-    ],
-    ["DGPC situation", () => readSituation("x", defaultSituationReader())],
-    ["ITA extraction", () => extractItaReport(itaPost)],
-  ])("%s tries the subscription first", async (_name, call) => {
-    await call().catch(() => {});
-    expect(urls().slice(0, 2)).toEqual([ROUTE, CODEX_RESPONSES_URL]);
-  });
-
-  it.each([
-    [
-      "the citizen-report classifier",
+      "classify_report",
       () =>
         classifyReport(
           { kind: "fire", note: "smoke", place: null },
           defaultClassifier(),
         ),
     ],
+    ["extract_ita", () => extractItaReport(itaPost)],
     [
-      "the civil agent",
+      "extract_dgpc",
+      () =>
+        extractMentionsWithLlm({ text: "x", wilayaHint: null, language: "ar" }),
+    ],
+    ["dgpc_situation", () => readSituation("x", defaultSituationReader())],
+    [
+      "civil_agent_step",
       () =>
         civilAgentCompletion(new AbortController().signal)({
-          model: "m",
           messages: [{ role: "user", content: "x" }],
           response_format: {
             type: "json_schema",
             json_schema: { name: "s", strict: true, schema: {} },
           },
-          temperature: 0,
-          max_tokens: 1,
-          provider: { require_parameters: true },
         }),
     ],
-  ])("%s stays on OpenRouter", async (_name, call) => {
+  ])("calls the gateway as %s and nothing else", async (purpose, call) => {
     await call().catch(() => {});
-    expect(urls()).toEqual([OPENROUTER]);
+    const urls = fetch.mock.calls.map(([url]) => url);
+    expect(urls.length).toBeGreaterThan(0);
+    expect(new Set(urls)).toEqual(new Set([`${GATEWAY}/v1/complete`]));
+    const [, init] = fetch.mock.calls[0]!;
+    const headers = init.headers as Record<string, string>;
+    expect(headers["cf-access-client-id"]).toBe("client-id.access");
+    expect(headers["cf-access-client-secret"]).toBe("client-secret");
+    expect(init.redirect).toBe("manual");
+    const body = JSON.parse(init.body as string);
+    expect(body.purpose).toBe(purpose);
+    expect(Object.keys(body.request).sort()).toEqual([
+      "messages",
+      "response_format",
+    ]);
   });
 });

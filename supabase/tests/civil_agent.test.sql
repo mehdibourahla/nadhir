@@ -24,6 +24,14 @@ set local role service_role;
 select set_config('agent.work',id::text,true) from claim_civil_investigations(current_setting('agent.job')::uuid,current_setting('agent.attempt')::integer,2);
 select is((select attempts from civil_investigations where id=current_setting('agent.work')::uuid),1,'claim increments attempt');
 select is((select count(*) from claim_civil_investigations(current_setting('agent.job')::uuid,current_setting('agent.attempt')::integer,2)),0::bigint,'cannot claim twice while processing');
+select throws_ok($$select release_civil_investigation(current_setting('agent.job')::uuid,current_setting('agent.attempt')::integer,current_setting('agent.work')::uuid,2,600)$$,'55000','civil_investigation_claim_lost','old attempt cannot release');
+select lives_ok($$select release_civil_investigation(current_setting('agent.job')::uuid,current_setting('agent.attempt')::integer,current_setting('agent.work')::uuid,1,600)$$,'paused gateway releases the claim');
+select is((select state||':'||attempts from civil_investigations where id=current_setting('agent.work')::uuid),'pending:0','released investigation keeps its attempt');
+select is((select count(*) from claim_civil_investigations(current_setting('agent.job')::uuid,current_setting('agent.attempt')::integer,2)),0::bigint,'released investigation waits out the pause');
+reset role;
+update civil_investigations set next_attempt_at=now()-interval '1 second' where id=current_setting('agent.work')::uuid;
+set local role service_role;
+select is((select count(*) from claim_civil_investigations(current_setting('agent.job')::uuid,current_setting('agent.attempt')::integer,2)),1::bigint,'released investigation is claimed after the pause');
 select set_config('agent.result',jsonb_build_object('model','test-model','version','civil-agent-v1',
  'decision',jsonb_build_object('outcome','publish','reason','Explicit area','area_id','17000000-0000-4000-8000-000000000010','hazard','road','summary','Accident signalé à Tipaza','location_evidence','Tipaza','expires_at',now()+interval '2 hours','duplicate_id',null),
  'trace',jsonb_build_array(jsonb_build_object('action','search_areas','query','Tipaza','parent_id',null,'results',jsonb_build_array(jsonb_build_object('id','17000000-0000-4000-8000-000000000010')))))::text,true);

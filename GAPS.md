@@ -272,8 +272,8 @@ day (same-day gaps median 2.7 h), so it is not early warning and must not be sol
 Shape: per-source knowledge lives in a `text_sources` registry row (transport, authority
 tier, language, template) and a thin adapter that writes immutable `source_documents`;
 everything after is shared — classify by regex → the header's as-of and per-wilaya ongoing
-counts by regex → every fire line by one OpenRouter chat completion with a strict JSON schema
-and quoted evidence (`google/gemini-2.5-flash`; flash-lite invents fires from accident posts)
+counts by regex → every fire line by one model completion with a strict JSON schema and quoted
+evidence (gpt-6-luna on the ChatGPT plan, through the home gateway in `infrastructure/home-m2`)
 → a distribution gate (a commune the model names outside the authority's own per-wilaya count,
 or in excess of it, falls back to wilaya precision; the remainder of each count becomes a
 wilaya-level mention) → resolve against the
@@ -294,7 +294,7 @@ ever registered — and everything official beyond DGPC (wilaya directorates, Ge
 road status every 15 min, Info Trafic Algérie with ~1.9M followers, DGF) sits behind Facebook.
 
 Open: wilaya Civil Protection and forestry pages live
-on Facebook and need Meta page access or a Telegram/RSS surface; without `OPENROUTER_API_KEY` nothing is
+on Facebook and need Meta page access or a Telegram/RSS surface; without `NADHIR_GATEWAY_URL` nothing is
 extracted and every document waits in the retry queue. Official incidents now feed
 Broadcast Alerts through `relayOfficialIncidents` in `broadcast.server.ts`; public
 Telegram additionally requires the DGPC source marker (§1.3).

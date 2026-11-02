@@ -32,8 +32,6 @@ const output = {
   review_reasons: [],
 };
 const deps = (value: unknown) => ({
-  apiKey: "test",
-  model: "test",
   complete: vi.fn(async (_request: ExtractionRequest) => JSON.stringify(value)),
 });
 it("retains grounded LLM interpretation and requests strict output", async () => {
@@ -222,45 +220,60 @@ it.each(["missing review", "claimed region", "lost incident"])(
     expect(d.complete).toHaveBeenCalledTimes(3);
   },
 );
-it("shares the report deadline with its repair request", async () => {
+const gateway = () => {
+  vi.stubEnv("NADHIR_GATEWAY_URL", "https://gateway.test");
+  vi.stubEnv("NADHIR_GATEWAY_ACCESS_CLIENT_ID", "id");
+  vi.stubEnv("NADHIR_GATEWAY_ACCESS_CLIENT_SECRET", "secret");
+};
+it("shares one report deadline with its repair request", async () => {
   const invalid = {
     ...output,
     incidents: [{ ...output.incidents[0], evidence: "invented" }],
   };
   const request = vi
     .fn()
-    .mockResolvedValueOnce(
-      Response.json({
-        choices: [{ message: { content: JSON.stringify(invalid) } }],
-      }),
-    )
-    .mockResolvedValueOnce(
-      Response.json({
-        choices: [{ message: { content: JSON.stringify(output) } }],
-      }),
-    );
-  vi.stubEnv("OPENROUTER_API_KEY", "test");
+    .mockResolvedValueOnce(Response.json({ text: JSON.stringify(invalid) }))
+    .mockResolvedValueOnce(Response.json({ text: JSON.stringify(output) }));
+  gateway();
   vi.stubGlobal("fetch", request);
+  const timeout = vi.spyOn(AbortSignal, "timeout");
   try {
     expect(await extractItaReport(post)).toEqual(output);
-    expect(request.mock.calls[0]?.[1].signal).toBeInstanceOf(AbortSignal);
-    expect(request.mock.calls[1]?.[1].signal).toBe(
-      request.mock.calls[0]?.[1].signal,
-    );
+    expect(timeout.mock.calls.filter(([ms]) => ms === 45_000)).toHaveLength(1);
+    for (const [url, init] of request.mock.calls) {
+      expect(url).toBe("https://gateway.test/v1/complete");
+      expect(JSON.parse(init.body).purpose).toBe("extract_ita");
+    }
   } finally {
+    timeout.mockRestore();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
   }
 });
-it("reports exhausted credits and a dropped connection as a provider outage", async () => {
-  vi.stubEnv("OPENROUTER_API_KEY", "test");
+it("reports a paused plan, an expired login and an unreachable gateway as unavailable", async () => {
+  gateway();
   try {
-    vi.stubGlobal("fetch", async () => new Response("", { status: 402 }));
-    await expect(extractItaReport(post)).rejects.toBeInstanceOf(LlmUnavailable);
-    vi.stubGlobal("fetch", async () => {
-      throw new TypeError("fetch failed");
-    });
-    await expect(extractItaReport(post)).rejects.toBeInstanceOf(LlmUnavailable);
+    for (const reply of [
+      () =>
+        Response.json(
+          { reason: "plan_paused", retry_after: 900 },
+          { status: 429 },
+        ),
+      () => Response.json({ reason: "login_expired" }, { status: 503 }),
+      () => {
+        throw new TypeError("fetch failed");
+      },
+    ]) {
+      vi.stubGlobal("fetch", async () => reply());
+      await expect(extractItaReport(post)).rejects.toBeInstanceOf(
+        LlmUnavailable,
+      );
+    }
+    vi.stubGlobal("fetch", async () =>
+      Response.json({ reason: "upstream" }, { status: 502 }),
+    );
+    const failure = await extractItaReport(post).catch((e: unknown) => e);
+    expect(failure).not.toBeInstanceOf(LlmUnavailable);
   } finally {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
@@ -289,11 +302,14 @@ it("requires direction and location evidence separately", async () => {
     ),
   ).rejects.toThrow("direction");
 });
-it("rejects invalid JSON shape and missing key visibly", async () => {
+it("rejects an invalid JSON shape, and waits while no gateway is configured", async () => {
   await expect(extractItaReport(post, deps([]))).rejects.toThrow();
-  await expect(
-    extractItaReport(post, { ...deps(output), apiKey: undefined }),
-  ).rejects.toThrow("OPENROUTER_API_KEY");
+  vi.stubEnv("NADHIR_GATEWAY_URL", "");
+  try {
+    await expect(extractItaReport(post)).rejects.toBeInstanceOf(LlmUnavailable);
+  } finally {
+    vi.unstubAllEnvs();
+  }
 });
 it("does not silently discard incidents in irrelevant reports", async () => {
   await expect(

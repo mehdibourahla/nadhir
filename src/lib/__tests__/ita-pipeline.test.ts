@@ -4,7 +4,7 @@ import {
   runItaSourceWith,
   type ItaStore,
 } from "../text-sources/ita-pipeline.server";
-import { LlmUnavailable } from "../text-sources/llm-unavailable";
+import { GatewayFailed, GatewayPending } from "../llm/gateway.server";
 
 const post = {
   id: "808412572528916_1511278197712051",
@@ -123,35 +123,56 @@ describe("ITA pipeline", () => {
   });
   it("retains source and surfaces extraction failures", async () => {
     const deps = setup();
-    deps.extract.mockRejectedValue(new Error("OPENROUTER_API_KEY missing"));
+    deps.extract.mockRejectedValue(new Error("ITA extraction size limit"));
     deps.store.pendingCount.mockResolvedValue(1);
     const run = await runItaSourceWith(deps);
     expect(run).toMatchObject({
       stored: 1,
       failed: 1,
       pending: 1,
-      error: "OPENROUTER_API_KEY missing",
+      error: "ITA extraction size limit",
     });
     expect(deps.store.finish).toHaveBeenCalledWith(
       "revision",
       null,
-      "OPENROUTER_API_KEY missing",
+      "ITA extraction size limit",
     );
   });
-  it("returns every unread claim when the model provider is unavailable", async () => {
+  it.each([
+    [new GatewayPending("plan_paused", 900), 900],
+    [new GatewayPending("rate_limited", 6), 60],
+    [new GatewayPending("login_expired", null), 60],
+    [new GatewayPending("gateway_unreachable", 60), 60],
+  ])(
+    "returns every unread claim, without an attempt, on %s",
+    async (failure, delay) => {
+      const deps = setup();
+      deps.store.claim.mockResolvedValue([
+        { id: "first", raw: post },
+        { id: "second", raw: post },
+      ]);
+      deps.extract.mockRejectedValue(failure);
+      const run = await runItaSourceWith(deps);
+      expect(deps.extract).toHaveBeenCalledTimes(1);
+      expect(deps.store.finish).not.toHaveBeenCalled();
+      expect(deps.store.release.mock.calls).toEqual([
+        ["first", delay],
+        ["second", delay],
+      ]);
+      expect(run).toMatchObject({ failed: 0, error: failure.message });
+    },
+  );
+  it("spends an attempt on an upstream failure, like any other", async () => {
     const deps = setup();
-    deps.store.claim.mockResolvedValue([
-      { id: "first", raw: post },
-      { id: "second", raw: post },
-    ]);
-    deps.extract.mockRejectedValue(
-      new LlmUnavailable("ITA extraction HTTP 402"),
-    );
+    deps.extract.mockRejectedValue(new GatewayFailed("upstream"));
     const run = await runItaSourceWith(deps);
-    expect(deps.extract).toHaveBeenCalledTimes(1);
-    expect(deps.store.finish).not.toHaveBeenCalled();
-    expect(deps.store.release.mock.calls).toEqual([["first"], ["second"]]);
-    expect(run).toMatchObject({ failed: 0, error: "ITA extraction HTTP 402" });
+    expect(deps.store.release).not.toHaveBeenCalled();
+    expect(deps.store.finish).toHaveBeenCalledWith(
+      "revision",
+      null,
+      "model gateway upstream",
+    );
+    expect(run).toMatchObject({ failed: 1, error: "model gateway upstream" });
   });
   it("does not extract or advance after a storage failure", async () => {
     const deps = setup();

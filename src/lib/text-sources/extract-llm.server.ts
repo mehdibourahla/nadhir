@@ -1,7 +1,6 @@
 import { z } from "zod/v4";
-import type { CodexEffort } from "@/lib/llm/codex.server";
-import { subscriptionFirst } from "@/lib/llm/subscription.server";
-import { llmFetchError, llmHttpError } from "./llm-unavailable";
+import type { ChatRequest } from "@/lib/llm/codex.server";
+import { completeWithGateway, GATEWAY_MODEL } from "@/lib/llm/gateway.server";
 
 const KINDS = ["vegetation", "agricultural", "urban", "unknown"] as const;
 const STATUSES = [
@@ -60,35 +59,17 @@ const RESPONSE_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-export const DEFAULT_OPENROUTER_MODEL = "google/gemini-2.5-flash";
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-
 export type LlmExtractionInput = {
   text: string;
   wilayaHint: string | null;
   language: string;
 };
 
-export type LlmExtractionResult =
-  | { skipped: true; reason: "no_api_key" }
-  | { skipped: false; mentions: LlmMention[] };
-
-export type OpenRouterRequest = {
-  model: string;
-  messages: { role: "system" | "user"; content: string }[];
-  response_format: {
-    type: "json_schema";
-    json_schema: { name: string; strict: true; schema: object };
-  };
-  temperature: number;
-  max_tokens: number;
-  provider: { require_parameters: true };
-};
+export type LlmExtractionResult = { mentions: LlmMention[] };
 
 export type LlmExtractionDependencies = {
-  apiKey: string | undefined;
   model: string;
-  complete: (request: OpenRouterRequest) => Promise<{ content: string }>;
+  complete: (request: ChatRequest) => Promise<string>;
 };
 
 const SYSTEM = `You extract wildfire incident mentions from official Algerian civil-protection or forestry posts.
@@ -104,65 +85,15 @@ export function stripFence(content: string): string {
   return m ? m[1]! : content;
 }
 
-export async function completeWithOpenRouter(
-  apiKey: string,
-  request: OpenRouterRequest,
-): Promise<{ content: string }> {
-  const res = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    signal: AbortSignal.timeout(45_000),
-    headers: {
-      authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-      "http-referer": "https://nadhir.app",
-      "x-title": "Nadhir",
-    },
-    body: JSON.stringify(request),
-  }).catch(llmFetchError);
-  if (!res.ok)
-    throw llmHttpError(
-      `openrouter ${res.status}: ${(await res.text()).slice(0, 200)}`,
-      res.status,
-    );
-  const body = (await res.json()) as {
-    choices?: { message?: { content?: string | null } }[];
-    error?: { message?: string };
-  };
-  if (body.error)
-    throw new Error(`openrouter: ${body.error.message ?? "error"}`);
-  const content = body.choices?.[0]?.message?.content;
-  if (typeof content !== "string")
-    throw new Error("openrouter: empty completion");
-  return { content };
-}
-
-export async function completeWithSubscription(
-  purpose: string,
-  effort: CodexEffort,
-  apiKey: string,
-  request: OpenRouterRequest,
-): Promise<{ content: string }> {
-  const content = await subscriptionFirst(
-    purpose,
-    request,
-    async (r) => (await completeWithOpenRouter(apiKey, r)).content,
-    { effort },
-  );
-  return { content };
-}
+export const LLM_TIMEOUT_MS = 45_000;
 
 function defaultDependencies(): LlmExtractionDependencies {
-  const apiKey = process.env["OPENROUTER_API_KEY"];
   return {
-    apiKey,
-    model: process.env["OPENROUTER_MODEL"] || DEFAULT_OPENROUTER_MODEL,
+    model: GATEWAY_MODEL,
     complete: (request) =>
-      completeWithSubscription(
-        "text_source_extract",
-        "low",
-        apiKey ?? "",
-        request,
-      ),
+      completeWithGateway("extract_dgpc", request, {
+        timeoutMs: LLM_TIMEOUT_MS,
+      }),
   };
 }
 
@@ -170,12 +101,10 @@ export async function extractMentionsWithLlm(
   input: LlmExtractionInput,
   deps: LlmExtractionDependencies = defaultDependencies(),
 ): Promise<LlmExtractionResult> {
-  if (!deps.apiKey) return { skipped: true, reason: "no_api_key" };
   const hint = input.wilayaHint
     ? `The post is filed under wilaya "${input.wilayaHint}"; use it only when the sentence names no other wilaya.\n`
     : "";
-  const { content } = await deps.complete({
-    model: deps.model,
+  const content = await deps.complete({
     messages: [
       { role: "system", content: SYSTEM },
       {
@@ -191,9 +120,6 @@ export async function extractMentionsWithLlm(
         schema: RESPONSE_SCHEMA,
       },
     },
-    temperature: 0,
-    max_tokens: 8192,
-    provider: { require_parameters: true },
   });
   let parsed: unknown;
   try {
@@ -216,5 +142,5 @@ export async function extractMentionsWithLlm(
     ...m,
     count: Math.max(1, m.count),
   }));
-  return { skipped: false, mentions };
+  return { mentions };
 }

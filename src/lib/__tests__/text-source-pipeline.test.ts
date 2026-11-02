@@ -11,6 +11,7 @@ import { isFireKind, type OpenIncident } from "@/lib/text-sources/merge";
 import type { Situation } from "@/lib/text-sources/dgpc-situation.server";
 import type { TelegramPost } from "@/lib/text-sources/telegram-public";
 import { LlmUnavailable } from "@/lib/text-sources/llm-unavailable";
+import { GatewayFailed, GatewayPending } from "@/lib/llm/gateway.server";
 import recoveryPosts from "./fixtures/dgpc-recovery-posts.json";
 
 const SKIKDA = "w-skikda";
@@ -49,7 +50,7 @@ const mention = (over: Partial<LlmMention>): LlmMention => ({
 
 const llmWith =
   (...mentions: LlmMention[]): TextSourcePipelineDependencies["extractLlm"] =>
-  async () => ({ skipped: false, mentions });
+  async () => ({ mentions });
 
 function memoryStore() {
   const documents: { id: string; externalId: string }[] = [];
@@ -189,10 +190,9 @@ function memoryStore() {
 function deps(
   posts: TelegramPost[],
   store: TextSourceStore,
-  llm: TextSourcePipelineDependencies["extractLlm"] = async () => ({
-    skipped: true,
-    reason: "no_api_key",
-  }),
+  llm: TextSourcePipelineDependencies["extractLlm"] = async () => {
+    throw new GatewayPending("gateway_unset", null);
+  },
 ): TextSourcePipelineDependencies {
   return {
     store,
@@ -261,7 +261,7 @@ describe("runTextSource", () => {
           f.store,
           async () => {
             if (mode === "failure") throw new Error("provider unavailable");
-            return { skipped: true, reason: "no_api_key" };
+            throw new GatewayPending("gateway_unset", null);
           },
         ),
       );
@@ -312,7 +312,6 @@ describe("runTextSource", () => {
       gated: 0,
       incidentsCreated: 2,
       incidentsUpdated: 0,
-      llmSkipped: false,
     });
     expect(incidents.size).toBe(2);
     const azzaba = [...incidents.values()].find(
@@ -371,8 +370,12 @@ describe("runTextSource", () => {
     expect(only[0]).toMatchObject({ status: "extinguished", mention_count: 2 });
   });
 
-  it("keeps a document for retry when the model is skipped for lack of a key", async () => {
+  it("keeps a document pending, without spending an attempt, while no gateway is configured", async () => {
     const { store, retry, mentions } = memoryStore();
+    const recorded: string[] = [];
+    store.recordExtractionFailure = async (id) => {
+      recorded.push(id);
+    };
     const result = await runTextSourceWith(
       "dgpc_telegram",
       deps(
@@ -383,9 +386,10 @@ describe("runTextSource", () => {
     expect(result).toMatchObject({
       mentions: 0,
       unresolved: 1,
-      llmSkipped: true,
+      error: "incomplete llm extraction: model gateway gateway_unset",
     });
     expect(mentions).toHaveLength(0);
+    expect(recorded).toEqual([]);
     expect(retry.size).toBe(1);
   });
 
@@ -491,7 +495,7 @@ describe("runTextSource", () => {
         store,
         async () => {
           calls += 1;
-          return { skipped: false, mentions: [] };
+          return { mentions: [] };
         },
       ),
     );
@@ -849,7 +853,7 @@ describe("runTextSource LLM failures", () => {
       calls += 1;
       if (calls === 1)
         throw new Error("llm extraction returned non-JSON content");
-      return { skipped: false, mentions: [mention({})] };
+      return { mentions: [mention({})] };
     };
     const result = await runTextSourceWith(
       "dgpc_telegram",
@@ -878,6 +882,51 @@ describe("runTextSource LLM failures", () => {
     );
     expect(dead.error).toMatch(/incomplete llm extraction: openrouter 502/);
   });
+  it.each([
+    [new GatewayPending("plan_paused", 900), false],
+    [new GatewayPending("rate_limited", 10), false],
+    [new GatewayPending("gateway_unreachable", 60), false],
+    [new GatewayFailed("upstream"), true],
+    [new GatewayFailed("bad_request"), true],
+  ] as const)(
+    "on a gateway %s, a bulletin spends an attempt: %s",
+    async (failure, spendsAttempt) => {
+      const f = memoryStore();
+      const recorded: string[] = [];
+      f.store.recordExtractionFailure = async (id) => {
+        recorded.push(id);
+      };
+      let calls = 0;
+      const result = await runTextSourceWith(
+        "dgpc_telegram",
+        deps(
+          [
+            post(
+              "40",
+              "2026-09-02T09:00:00Z",
+              bulletin("07", skikda2, twoFires),
+            ),
+            post(
+              "41",
+              "2026-09-02T09:05:00Z",
+              bulletin("07", skikda2, twoFires),
+            ),
+          ],
+          f.store,
+          async () => {
+            calls += 1;
+            throw failure;
+          },
+        ),
+      );
+      expect(calls).toBe(spendsAttempt ? 2 : 1);
+      expect(recorded).toHaveLength(spendsAttempt ? 2 : 0);
+      expect(f.retry.size).toBe(2);
+      expect(result.error).toBe(
+        `incomplete llm extraction: model gateway ${failure.reason}`,
+      );
+    },
+  );
   it("spends no attempt and stops the pass while the model provider is unavailable", async () => {
     const f = memoryStore();
     const recorded: string[] = [];
@@ -1001,10 +1050,7 @@ describe("extraction retry", () => {
     const flaky: TextSourcePipelineDependencies["extractLlm"] = async () => {
       calls += 1;
       if (calls === 1) throw new Error("openrouter 502");
-      return {
-        skipped: false,
-        mentions: [mention({}), mention({ commune: "عين زويت" })],
-      };
+      return { mentions: [mention({}), mention({ commune: "عين زويت" })] };
     };
     const first = await runTextSourceWith(
       "dgpc_telegram",
@@ -1082,7 +1128,6 @@ describe("extraction retry", () => {
       async () => {
         calls += 1;
         return {
-          skipped: false,
           mentions: [
             mention({ commune: calls === 1 ? "قرية مجهولة" : "عين زويت" }),
           ],
@@ -1389,10 +1434,7 @@ describe("durable interpretation completion", () => {
       "dgpc_telegram",
       deps(posts, f.store, async () => {
         calls++;
-        return {
-          skipped: false,
-          mentions: [mention({}), mention({ commune: "عين زويت" })],
-        };
+        return { mentions: [mention({}), mention({ commune: "عين زويت" })] };
       }),
     );
     expect(calls).toBe(5);
@@ -1527,7 +1569,7 @@ describe("Protection Civile posts beyond fire", () => {
     const result = await runTextSourceWith("dgpc_telegram", {
       ...deps([weatherPost], memory.store, async () => {
         fireCalls += 1;
-        return { skipped: false, mentions: [] };
+        return { mentions: [] };
       }),
       readSituation: async () =>
         situation({
@@ -1647,4 +1689,39 @@ describe("Protection Civile posts beyond fire", () => {
     expect(result.llmFailed).toBe(1);
     expect(memory.retry.size).toBe(1);
   });
+  it.each([
+    ["plan_paused", new GatewayPending("plan_paused", 900), false],
+    ["rate_limited", new GatewayPending("rate_limited", 10), false],
+    ["login_expired", new GatewayPending("login_expired", 600), false],
+    ["upstream", new GatewayFailed("upstream"), true],
+  ] as const)(
+    "on %s, a situation post %s",
+    async (reason, failure, spendsAttempt) => {
+      const memory = memoryStore();
+      const recorded: string[] = [];
+      memory.store.recordExtractionFailure = async (id) => {
+        recorded.push(id);
+      };
+      let calls = 0;
+      const second = post("21", "2026-09-02T19:05:00Z", weatherPost.text);
+      const result = await runTextSourceWith("dgpc_telegram", {
+        ...deps([weatherPost, second], memory.store),
+        readSituation: async () => {
+          calls += 1;
+          throw failure;
+        },
+      });
+      expect(result.error).toBe(
+        `incomplete llm extraction: model gateway ${reason}`,
+      );
+      expect(memory.retry.size).toBe(2);
+      if (spendsAttempt) {
+        expect(calls).toBe(2);
+        expect(recorded).toHaveLength(2);
+      } else {
+        expect(calls).toBe(1);
+        expect(recorded).toEqual([]);
+      }
+    },
+  );
 });
