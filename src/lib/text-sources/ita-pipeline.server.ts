@@ -7,6 +7,9 @@ import { extractItaReport, type ItaExtraction } from "./ita-extract.server";
 import { runCivilInvestigations } from "@/lib/civil-investigation.server";
 import { LlmUnavailable } from "./llm-unavailable";
 
+// a paused plan retries no sooner than this, so a long pause does not spin the queue
+const PAUSE_RETRY_S = 60;
+
 export type Revision = {
   source_post_id: string;
   source_page: string;
@@ -29,7 +32,7 @@ export type ItaStore = {
     extraction: ItaExtraction | null,
     error: string | null,
   ) => Promise<void>;
-  release: (id: string) => Promise<void>;
+  release: (id: string, delaySeconds: number) => Promise<void>;
   pendingCount: () => Promise<number>;
 };
 export type ItaRun = {
@@ -104,8 +107,9 @@ export async function runItaSourceWith({
       result = await extract(report.raw);
     } catch (cause) {
       if (cause instanceof LlmUnavailable) {
+        const delay = Math.max(PAUSE_RETRY_S, cause.retryAfter ?? 0);
         for (const unread of pending.slice(index))
-          await store.release(unread.id);
+          await store.release(unread.id, delay);
         error ??= cause.message;
         break;
       }
@@ -184,10 +188,11 @@ export async function runItaSource(job: ClaimedSourceJob): Promise<ItaRun> {
       });
       if (error) throw new Error(`ITA extraction completion: ${error.message}`);
     },
-    async release(id) {
+    async release(id, delaySeconds) {
       const { error } = await supabaseAdmin.rpc("release_ita_extraction", {
         ...fence,
         _id: id,
+        _delay_seconds: delaySeconds,
       });
       if (error) throw new Error(`ITA extraction release: ${error.message}`);
     },
@@ -221,8 +226,10 @@ export async function runItaSource(job: ClaimedSourceJob): Promise<ItaRun> {
     ...run,
     pending: run.pending + investigations.pending,
     failed: run.failed + investigations.failed,
-    ...(investigations.failed && !run.error
-      ? { error: "Civil investigation failed; retry scheduled" }
-      : {}),
+    ...(investigations.paused && !run.error
+      ? { error: `Civil investigation waiting: ${investigations.paused}` }
+      : investigations.failed && !run.error
+        ? { error: "Civil investigation failed; retry scheduled" }
+        : {}),
   };
 }

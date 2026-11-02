@@ -6,6 +6,11 @@ import {
   investigateCivilReport,
 } from "./civil-agent.server";
 import { searchAdministrativeAreas } from "./civil-location.server";
+import { GATEWAY_MODEL } from "./llm/gateway.server";
+import { LlmUnavailable } from "./text-sources/llm-unavailable";
+
+// a paused plan retries no sooner than this, so a long pause does not spin the queue
+const PAUSE_RETRY_S = 60;
 
 export async function runCivilInvestigations(job: ClaimedSourceJob) {
   const fence = { _job: job.id, _attempt: job.attempt_count };
@@ -16,7 +21,8 @@ export async function runCivilInvestigations(job: ClaimedSourceJob) {
   if (claimed.error)
     throw new Error(`Civil investigation claim: ${claimed.error.message}`);
   let failed = 0;
-  for (const work of claimed.data) {
+  let paused: string | null = null;
+  for (const [index, work] of claimed.data.entries()) {
     let result: Awaited<ReturnType<typeof investigateCivilReport>> | null =
       null;
     let failure: string | null = null;
@@ -57,7 +63,7 @@ export async function runCivilInvestigations(job: ClaimedSourceJob) {
           ),
         },
         {
-          model: process.env["OPENROUTER_MODEL"] ?? "google/gemini-2.5-flash",
+          model: GATEWAY_MODEL,
           now: new Date(),
           complete: civilAgentCompletion(signal),
           searchAreas: (query, parentId) =>
@@ -88,6 +94,27 @@ export async function runCivilInvestigations(job: ClaimedSourceJob) {
         },
       );
     } catch (cause) {
+      if (cause instanceof LlmUnavailable) {
+        // the plan or the gateway is down, not this report: no attempt is spent
+        for (const unread of claimed.data.slice(index)) {
+          const released = await supabaseAdmin.rpc(
+            "release_civil_investigation",
+            {
+              ...fence,
+              _id: unread.id,
+              _investigation_attempt: unread.attempts,
+              _delay_seconds: Math.max(PAUSE_RETRY_S, cause.retryAfter ?? 0),
+            },
+          );
+          if (released.error)
+            throw new Error(
+              `Civil investigation release: ${released.error.message}`,
+              { cause },
+            );
+        }
+        paused = cause.message;
+        break;
+      }
       failure =
         cause instanceof Error
           ? cause.message.slice(0, 500)
@@ -133,5 +160,6 @@ export async function runCivilInvestigations(job: ClaimedSourceJob) {
   return {
     failed: Math.max(failed, failures.count ?? 0),
     pending: backlog.count ?? 0,
+    ...(paused ? { paused } : {}),
   };
 }

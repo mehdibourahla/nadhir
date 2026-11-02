@@ -12,6 +12,7 @@ vi.mock("../civil-agent.server", () => ({
   civilAgentCompletion: () => vi.fn(),
 }));
 import { runCivilInvestigations } from "../civil-investigation.server";
+import { GatewayFailed, GatewayPending } from "../llm/gateway.server";
 import type { ClaimedSourceJob } from "../source-jobs";
 const job = { id: "job", attempt_count: 3 } as ClaimedSourceJob;
 beforeEach(() => {
@@ -97,4 +98,61 @@ it("does not investigate without a source-job claim", async () => {
   rpc.mockResolvedValue({ data: null, error: { message: "lease lost" } });
   await expect(runCivilInvestigations(job)).rejects.toThrow("lease lost");
   expect(investigate).not.toHaveBeenCalled();
+});
+it.each([
+  [new GatewayPending("plan_paused", 1800), 1800],
+  [new GatewayPending("rate_limited", 5), 60],
+  [new GatewayPending("login_expired", 600), 600],
+])(
+  "puts the claim back without spending an attempt on %s",
+  async (failure, delay) => {
+    rpc.mockImplementation(async (name) => ({
+      data:
+        name === "claim_civil_investigations"
+          ? [
+              {
+                id: "work",
+                report_id: "report",
+                incident_index: 0,
+                attempts: 7,
+              },
+              {
+                id: "next",
+                report_id: "report",
+                incident_index: 1,
+                attempts: 2,
+              },
+            ]
+          : null,
+      error: null,
+    }));
+    investigate.mockRejectedValue(failure);
+    expect(await runCivilInvestigations(job)).toEqual({
+      failed: 0,
+      pending: 0,
+      paused: failure.message,
+    });
+    expect(investigate).toHaveBeenCalledTimes(1);
+    const calls = rpc.mock.calls.map(([name]) => name);
+    expect(calls).not.toContain("finish_civil_investigation");
+    expect(rpc).toHaveBeenCalledWith("release_civil_investigation", {
+      _job: "job",
+      _attempt: 3,
+      _id: "work",
+      _investigation_attempt: 7,
+      _delay_seconds: delay,
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      "release_civil_investigation",
+      expect.objectContaining({ _id: "next", _investigation_attempt: 2 }),
+    );
+  },
+);
+it("spends an attempt on an upstream failure", async () => {
+  investigate.mockRejectedValue(new GatewayFailed("upstream"));
+  expect(await runCivilInvestigations(job)).toEqual({ failed: 1, pending: 0 });
+  expect(rpc).toHaveBeenLastCalledWith(
+    "finish_civil_investigation",
+    expect.objectContaining({ _error: "model gateway upstream" }),
+  );
 });
