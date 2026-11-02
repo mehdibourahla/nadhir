@@ -199,13 +199,16 @@ export function pauseFor(reason: string, retryAfter: number | null): number {
   return transient(reason) ? TRANSIENT_PAUSE_S : LOGIN_PAUSE_S;
 }
 
-export function usagePause(usage: CodexUsage): number | null {
+export function usagePause(
+  usage: CodexUsage,
+  ceiling: number = USAGE_CEILING_PERCENT,
+): number | null {
   const windows: [number | null, number | null][] = [
     [usage.primaryUsed, usage.primaryResetAfter],
     [usage.secondaryUsed, usage.secondaryResetAfter],
   ];
   const over = windows
-    .filter(([used]) => used !== null && used >= USAGE_CEILING_PERCENT)
+    .filter(([used]) => used !== null && used >= ceiling)
     .map(([, reset]) => reset ?? USAGE_PAUSE_S);
   return over.length ? Math.max(...over) : null;
 }
