@@ -1,0 +1,47 @@
+# Nadhir's model gateway on home-m2. No host ports: the only way in is the tunnel.
+name: nadhir-gateway
+
+services:
+  gateway:
+    build:
+      context: ../..
+      dockerfile: infrastructure/home-m2/Dockerfile
+    image: nadhir-gateway:local
+    restart: unless-stopped
+    env_file: .env.gateway
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m
+    volumes:
+      # the only writable path: Nadhir's own ChatGPT grant, mode 600, never copied elsewhere
+      - token:/token
+    mem_limit: 192m
+    pids_limit: 64
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [gateway]
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+  cloudflared:
+    image: cloudflare/cloudflared:2025.4.0
+    command: tunnel --no-autoupdate run
+    restart: unless-stopped
+    env_file: .env.tunnel
+    read_only: true
+    mem_limit: 96m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [gateway]
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+networks:
+  gateway:
+    name: nadhir-gateway
+
+volumes:
+  token:
+    name: nadhir-gateway-token
