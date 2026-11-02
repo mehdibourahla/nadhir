@@ -35,6 +35,8 @@ export function accessVerifier(
   const team = config.teamDomain?.replace(/^https:\/\//, "").replace(/\/$/, "");
   const audience = config.audience;
   const behindAccess = !!team && !!audience;
+  if (!!team !== !!audience)
+    throw new Error("Access team domain and audience must be set together");
   if (!config.clientId || (!behindAccess && !config.clientSecret))
     throw new Error("Access service token is not configured");
   let certs: { keys: Map<string, CryptoKey>; at: number } | null = null;

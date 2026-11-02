@@ -69,6 +69,8 @@ describe("service token", () => {
         audience: AUD,
       }),
     ).not.toThrow();
+    expect(() => accessVerifier({ ...CREDS, teamDomain: TEAM })).toThrow();
+    expect(() => accessVerifier({ ...CREDS, audience: AUD })).toThrow();
   });
 
   it.each([
