@@ -61,11 +61,10 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           CONTRACT: ${{ matrix.contract }}
-          # model calls: OpenRouter always, the ChatGPT plan first when CODEX_MODEL is set
-          OPENROUTER_API_KEY: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.OPENROUTER_API_KEY || '' }}
-          CODEX_MODEL: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && vars.CODEX_MODEL || '' }}
-          NADHIR_APP_URL: https://nadhir.app
-          NADHIR_CRON_SECRET: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.NADHIR_CRON_SECRET || '' }}
+          # model calls go to the home gateway (gpt-6-luna on the ChatGPT plan), behind Cloudflare Access
+          NADHIR_GATEWAY_URL: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.NADHIR_GATEWAY_URL || '' }}
+          NADHIR_GATEWAY_ACCESS_CLIENT_ID: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.NADHIR_GATEWAY_ACCESS_CLIENT_ID || '' }}
+          NADHIR_GATEWAY_ACCESS_CLIENT_SECRET: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.NADHIR_GATEWAY_ACCESS_CLIENT_SECRET || '' }}
         run: |
           deadline=$((SECONDS + 1740))
           while true; do

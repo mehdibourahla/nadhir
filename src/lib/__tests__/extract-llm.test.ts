@@ -1,10 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { ChatRequest } from "@/lib/llm/codex.server";
 import {
-  DEFAULT_OPENROUTER_MODEL,
   extractMentionsWithLlm,
   type LlmExtractionDependencies,
-  type OpenRouterRequest,
 } from "@/lib/text-sources/extract-llm.server";
 import { LlmUnavailable } from "@/lib/text-sources/llm-unavailable";
 
@@ -24,72 +23,86 @@ const good = {
 function deps(
   content: string,
   over: Partial<LlmExtractionDependencies> = {},
-): LlmExtractionDependencies & { calls: OpenRouterRequest[] } {
-  const calls: OpenRouterRequest[] = [];
+): LlmExtractionDependencies & { calls: ChatRequest[] } {
+  const calls: ChatRequest[] = [];
   return {
-    apiKey: "sk-or-test",
-    model: DEFAULT_OPENROUTER_MODEL,
+    model: "gpt-6-luna",
     complete: async (request) => {
       calls.push(request);
-      return { content };
+      return content;
     },
     calls,
     ...over,
   };
 }
 
-describe("extractMentionsWithLlm over OpenRouter", () => {
-  it("bounds provider requests to45seconds", async () => {
-    vi.stubEnv("OPENROUTER_API_KEY", "test-only");
-    const request = vi.fn(async () =>
-      Response.json({ choices: [{ message: { content: '{"mentions":[]}' } }] }),
+const gateway = () => {
+  vi.stubEnv("NADHIR_GATEWAY_URL", "https://gateway.test");
+  vi.stubEnv("NADHIR_GATEWAY_ACCESS_CLIENT_ID", "id");
+  vi.stubEnv("NADHIR_GATEWAY_ACCESS_CLIENT_SECRET", "secret");
+};
+
+describe("extractMentionsWithLlm through the gateway", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("bounds gateway requests to 45 seconds", async () => {
+    gateway();
+    const request = vi.fn(async (_url: string, _init: RequestInit) =>
+      Response.json({ text: '{"mentions":[]}' }),
     );
     vi.stubGlobal("fetch", request);
     const timeout = vi.spyOn(AbortSignal, "timeout");
-    try {
-      await extractMentionsWithLlm({ text, wilayaHint: null, language: "ar" });
-      expect(timeout).toHaveBeenCalledWith(45_000);
-    } finally {
-      timeout.mockRestore();
-      vi.unstubAllGlobals();
-      vi.unstubAllEnvs();
-    }
-  });
-  it("tells a provider outage apart from a bad request", async () => {
-    vi.stubEnv("OPENROUTER_API_KEY", "test-only");
-    try {
-      for (const [status, unavailable] of [
-        [402, true],
-        [429, true],
-        [503, true],
-        [400, false],
-      ] as const) {
-        vi.stubGlobal("fetch", async () => new Response("no", { status }));
-        const failure = await extractMentionsWithLlm({
-          text,
-          wilayaHint: null,
-          language: "ar",
-        }).catch((error: unknown) => error);
-        expect(failure instanceof LlmUnavailable).toBe(unavailable);
-        expect(String(failure)).toContain(`openrouter ${status}`);
-      }
-    } finally {
-      vi.unstubAllGlobals();
-      vi.unstubAllEnvs();
-    }
-  });
-  it("skips without an API key and says so", async () => {
-    const result = await extractMentionsWithLlm(
-      { text, wilayaHint: null, language: "ar" },
-      {
-        apiKey: undefined,
-        model: DEFAULT_OPENROUTER_MODEL,
-        complete: async () => ({ content: "" }),
-      },
-    );
-    expect(result).toEqual({ skipped: true, reason: "no_api_key" });
+    await extractMentionsWithLlm({ text, wilayaHint: null, language: "ar" });
+    expect(timeout).toHaveBeenCalledWith(45_000);
+    const [url, init] = request.mock.calls[0]!;
+    expect(url).toBe("https://gateway.test/v1/complete");
+    expect(JSON.parse(init.body as string).purpose).toBe("extract_dgpc");
   });
 
+  it.each([
+    [429, { reason: "plan_paused", retry_after: 60 }, true],
+    [429, { reason: "rate_limited", retry_after: 6 }, true],
+    [503, { reason: "login_expired" }, true],
+    [401, { reason: "unauthorized" }, true],
+    [530, "<html>tunnel down</html>", true],
+    [502, { reason: "upstream" }, false],
+    [400, { reason: "bad_request" }, false],
+  ] as const)(
+    "tells a gateway %i %j apart from the document's own failure",
+    async (status, body, unavailable) => {
+      gateway();
+      vi.stubGlobal("fetch", async () =>
+        typeof body === "string"
+          ? new Response(body, { status })
+          : Response.json(body, { status }),
+      );
+      const failure = await extractMentionsWithLlm({
+        text,
+        wilayaHint: null,
+        language: "ar",
+      }).catch((error: unknown) => error);
+      expect(failure instanceof LlmUnavailable).toBe(unavailable);
+      expect(String(failure)).toMatch(/^Gateway\w+: model gateway \w+$/);
+    },
+  );
+
+  it("waits, without spending an attempt, while no gateway is configured", async () => {
+    vi.stubEnv("NADHIR_GATEWAY_URL", "");
+    const failure = await extractMentionsWithLlm({
+      text,
+      wilayaHint: null,
+      language: "ar",
+    }).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(LlmUnavailable);
+    expect(String(failure)).toContain("gateway_unset");
+  });
+});
+
+describe("extractMentionsWithLlm", () => {
   it("returns mentions whose evidence is quoted from the input", async () => {
     const d = deps(JSON.stringify({ mentions: [good] }));
     const result = await extractMentionsWithLlm(
@@ -97,7 +110,6 @@ describe("extractMentionsWithLlm over OpenRouter", () => {
       d,
     );
     expect(result).toEqual({
-      skipped: false,
       mentions: [expect.objectContaining({ commune: "الولجة بولبلوط" })],
     });
   });
@@ -120,7 +132,6 @@ describe("extractMentionsWithLlm over OpenRouter", () => {
       d,
     );
     const req = d.calls[0]!;
-    expect(req.model).toBe(DEFAULT_OPENROUTER_MODEL);
     expect(req.response_format.type).toBe("json_schema");
     expect(req.response_format.json_schema.strict).toBe(true);
     expect(req.response_format.json_schema.schema).toMatchObject({
@@ -142,16 +153,7 @@ describe("extractMentionsWithLlm over OpenRouter", () => {
       { text, wilayaHint: null, language: "ar" },
       d,
     );
-    expect(result).toMatchObject({
-      skipped: false,
-      mentions: [expect.anything()],
-    });
-  });
-
-  it("asks OpenRouter to route only to providers that honour the schema", async () => {
-    const d = deps(JSON.stringify({ mentions: [] }));
-    await extractMentionsWithLlm({ text, wilayaHint: null, language: "ar" }, d);
-    expect(d.calls[0]!.provider).toEqual({ require_parameters: true });
+    expect(result).toMatchObject({ mentions: [expect.anything()] });
   });
 
   it("fails loudly when the reply is not the expected shape", async () => {

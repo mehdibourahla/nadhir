@@ -1,4 +1,6 @@
 import { civilLeaseHours } from "./incident-lifecycle";
+import type { ChatRequest } from "./llm/codex.server";
+import { completeWithGateway } from "./llm/gateway.server";
 import { z } from "zod/v4";
 import {
   CivilDecisionSchema,
@@ -21,17 +23,7 @@ const Step = z
   })
   .strict();
 type Message = { role: "system" | "user" | "assistant"; content: string };
-type Request = {
-  model: string;
-  messages: Message[];
-  response_format: {
-    type: "json_schema";
-    json_schema: { name: string; strict: boolean; schema: unknown };
-  };
-  temperature: number;
-  max_tokens: number;
-  provider: { require_parameters: boolean };
-};
+type Request = ChatRequest & { messages: Message[] };
 export type CivilAgentInput = {
   body: string;
   publishedAt: string;
@@ -123,7 +115,6 @@ export async function investigateCivilReport(
   });
   for (let i = 0; i < 6; i++) {
     const content = await deps.complete({
-      model: deps.model,
       messages: [...messages],
       response_format: {
         type: "json_schema",
@@ -133,9 +124,6 @@ export async function investigateCivilReport(
           schema: z.toJSONSchema(Step),
         },
       },
-      temperature: 0,
-      max_tokens: 3000,
-      provider: { require_parameters: true },
     });
     const step = Step.parse(JSON.parse(content));
     messages.push({ role: "assistant", content });
@@ -270,29 +258,6 @@ export async function investigateCivilReport(
 }
 
 export function civilAgentCompletion(signal: AbortSignal) {
-  return async (request: Request): Promise<string> => {
-    const key = process.env["OPENROUTER_API_KEY"];
-    if (!key) throw new Error("Civil agent requires OPENROUTER_API_KEY");
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        signal,
-        headers: {
-          authorization: `Bearer ${key}`,
-          "content-type": "application/json",
-          "http-referer": "https://nadhir.app",
-          "x-title": "Nadhir",
-        },
-        body: JSON.stringify(request),
-      },
-    );
-    if (!response.ok) throw new Error(`Civil agent HTTP ${response.status}`);
-    const body = (await response.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const content = body.choices?.[0]?.message?.content;
-    if (!content) throw new Error("Civil agent empty completion");
-    return content;
-  };
+  return (request: Request): Promise<string> =>
+    completeWithGateway("civil_agent_step", request, { signal });
 }

@@ -1,10 +1,10 @@
 import { z } from "zod/v4";
 
+import type { ChatRequest } from "@/lib/llm/codex.server";
+import { completeWithGateway, GATEWAY_MODEL } from "@/lib/llm/gateway.server";
 import {
-  completeWithSubscription,
-  DEFAULT_OPENROUTER_MODEL,
+  LLM_TIMEOUT_MS,
   stripFence,
-  type OpenRouterRequest,
 } from "@/lib/text-sources/extract-llm.server";
 
 const SITUATION_HAZARDS = [
@@ -105,18 +105,17 @@ advice_text, only for weather_relay: the Civil Protection's own advice sentence 
 Never invent a place, a road or a sentence that is not in the post.`;
 
 export type SituationDependencies = {
-  apiKey: string | undefined;
   model: string;
-  complete: (request: OpenRouterRequest) => Promise<{ content: string }>;
+  complete: (request: ChatRequest) => Promise<string>;
 };
 
 export function defaultSituationReader(): SituationDependencies {
-  const apiKey = process.env["OPENROUTER_API_KEY"];
   return {
-    apiKey,
-    model: process.env["OPENROUTER_MODEL"] || DEFAULT_OPENROUTER_MODEL,
+    model: GATEWAY_MODEL,
     complete: (request) =>
-      completeWithSubscription("dgpc_situation", "low", apiKey ?? "", request),
+      completeWithGateway("dgpc_situation", request, {
+        timeoutMs: LLM_TIMEOUT_MS,
+      }),
   };
 }
 
@@ -139,9 +138,7 @@ export async function readSituation(
   post: string,
   deps: SituationDependencies,
 ): Promise<Situation> {
-  if (!deps.apiKey) throw new Error("situation reader: no api key");
-  const { content } = await deps.complete({
-    model: deps.model,
+  const content = await deps.complete({
     messages: [
       { role: "system", content: SYSTEM },
       { role: "user", content: `<post>\n${post}\n</post>` },
@@ -154,9 +151,6 @@ export async function readSituation(
         schema: RESPONSE_SCHEMA,
       },
     },
-    temperature: 0,
-    max_tokens: 2048,
-    provider: { require_parameters: true },
   });
   let parsed: unknown;
   try {

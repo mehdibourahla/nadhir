@@ -158,7 +158,6 @@ export type TextSourceRun = {
   gated: number;
   clustersConfirmed: number;
   retried: number;
-  llmSkipped: boolean;
   llmFailed: number;
   situationItems: number;
   adviceStored: number;
@@ -407,7 +406,6 @@ export async function runTextSourceWith(
     gated: 0,
     clustersConfirmed: 0,
     retried: 0,
-    llmSkipped: false,
     llmFailed: 0,
     situationItems: 0,
     adviceStored: 0,
@@ -562,12 +560,6 @@ export async function runTextSourceWith(
       await deps.store.recordExtractionFailure(doc.id, lastLlmError);
       continue;
     }
-    if (result.skipped) {
-      run.llmSkipped = true;
-      run.unresolved += 1;
-      await deps.store.recordExtractionFailure(doc.id, result.reason);
-      continue;
-    }
 
     let drafts: Draft[] = [];
     const unresolvedNames: string[] = [];
@@ -684,10 +676,8 @@ export async function runTextSourceWith(
     );
   }
 
-  if (run.llmFailed || run.llmSkipped || run.unresolved || run.gated)
-    run.error = run.llmSkipped
-      ? "LLM credentials missing"
-      : `incomplete llm extraction: ${lastLlmError ?? "unresolved or gated mentions"}`;
+  if (run.llmFailed || run.unresolved || run.gated)
+    run.error = `incomplete llm extraction: ${lastLlmError ?? "unresolved or gated mentions"}`;
   const rows = inserts.length ? await deps.store.insertMentions(inserts) : [];
   run.mentions = rows.filter((row) => row.inserted).length;
   run.resolved = rows.length;

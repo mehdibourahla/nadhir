@@ -5,6 +5,7 @@ import {
   type CodexOutcome,
 } from "@/lib/llm/codex-login.server";
 
+// unused since model calls moved to the home gateway; remove with its route and binding
 export class CodexLogin extends DurableObject<Record<string, unknown>> {
   #login = new CodexLoginState({
     storage: this.ctx.storage,

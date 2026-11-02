@@ -1,5 +1,11 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
+  GatewayFailed,
+  GatewayPending,
+  gatewayReason,
+  type GatewayReason,
+} from "@/lib/llm/gateway.server";
+import {
   classifyReport,
   defaultClassifier,
   type ClassifierDependencies,
@@ -68,10 +74,13 @@ export async function publishWaitingReports(
   const classifier = dependencies.classifier ?? defaultClassifier();
   const now = dependencies.now ?? Date.now;
   const tally = { published: 0, held: 0, waiting: 0 };
+  // one unavailable gateway degrades the whole batch, so the alert engine never waits 8 s a report
+  let down: GatewayReason | null = null;
   for (const report of await deps.waiting(ids)) {
     const at = new Date(now()).toISOString();
     let patch: Patch;
     try {
+      if (down) throw new GatewayPending(down, null);
       const decision = await classifyReport(
         {
           kind: report.kind,
@@ -91,7 +100,18 @@ export async function publishWaitingReports(
           : {}),
       };
     } catch (failure) {
-      console.error("report classification failed", report.id, failure);
+      if (failure instanceof GatewayPending) down = failure.reason;
+      else if (failure instanceof GatewayFailed && failure.reason === "timeout")
+        down = failure.reason;
+      // a reason code only: the error may carry the citizen's words or model text
+      console.warn(
+        JSON.stringify({
+          message: "report classification degraded",
+          report: report.id,
+          reason: gatewayReason(failure),
+          fallback: report.kind === "other" ? "waiting" : "category_only",
+        }),
+      );
       // a tapped category is safe to show without its text; "something else" has no category to show
       if (report.kind === "other") {
         tally.waiting += 1;

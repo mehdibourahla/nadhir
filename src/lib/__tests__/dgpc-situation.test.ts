@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
+  defaultSituationReader,
   readSituation,
   type SituationDependencies,
 } from "@/lib/text-sources/dgpc-situation.server";
+import { LlmUnavailable } from "@/lib/text-sources/llm-unavailable";
 
 const situationPost = `🚨🚨 الحالة العامة إثر التقلبات الجوية على الساعة 20سا00د – 19/09/2026
 ◀️◀️ ولايــــــــــــــــــــــة سيدي بلعباس
@@ -28,9 +30,8 @@ const empty = {
 
 function answering(payload: unknown): SituationDependencies {
   return {
-    apiKey: "key",
     model: "m",
-    complete: async () => ({ content: JSON.stringify(payload) }),
+    complete: async () => JSON.stringify(payload),
   };
 }
 
@@ -136,15 +137,17 @@ describe("readSituation", () => {
     expect(result.advice).toBeNull();
   });
 
-  it("fails loudly on a malformed answer and without a key", async () => {
+  it("fails loudly on a malformed answer, and waits while no gateway is configured", async () => {
     await expect(
       readSituation(situationPost, answering({ disposition: "weird" })),
     ).rejects.toThrow(/unexpected shape/);
-    await expect(
-      readSituation(situationPost, {
-        ...answering(empty),
-        apiKey: undefined,
-      }),
-    ).rejects.toThrow(/no api key/);
+    vi.stubEnv("NADHIR_GATEWAY_URL", "");
+    try {
+      await expect(
+        readSituation(situationPost, defaultSituationReader()),
+      ).rejects.toBeInstanceOf(LlmUnavailable);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
