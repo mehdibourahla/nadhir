@@ -10,6 +10,8 @@ import {
   buildAlertProvenance,
   formatProvenanceDigestLine,
   isValidObservedAt,
+  isValidRadiusKm,
+  normalizeAreaLabel,
   parseProvenancePayload,
   toProvenancePayload,
   validateProvenanceInvariants,
@@ -58,8 +60,8 @@ describe("buildAlertProvenance", () => {
     expect(validateProvenanceInvariants(built)).toEqual([]);
   });
 
-  it("rejects 'safe' and all banned status labels on authorityStatus", () => {
-    for (const banned of BANNED_STATUS_LABELS) {
+  it("rejects 'safe', Unicode NFD equivalents, and all banned status labels on authorityStatus", () => {
+    for (const banned of [...BANNED_STATUS_LABELS, "su\u0302r", "  SAFE  "]) {
       const built = buildAlertProvenance({
         triggerKind: "national_feed",
         areaLabel: "Alger",
@@ -70,6 +72,79 @@ describe("buildAlertProvenance", () => {
       });
       expect(built.authorityStatus, `banned=${banned}`).toBeUndefined();
     }
+  });
+
+  it("hardens KNOWN_SOURCE_ATTRIBUTIONS against prototype keys, case-folds lookups, and freezes constants", () => {
+    expect(Object.getPrototypeOf(KNOWN_SOURCE_ATTRIBUTIONS)).toBeNull();
+    expect(Object.isFrozen(KNOWN_SOURCE_ATTRIBUTIONS)).toBe(true);
+    expect(Object.isFrozen(ALERT_TRIGGER_KINDS)).toBe(true);
+    expect(Object.isFrozen(AUTHORITY_STATUSES)).toBe(true);
+    expect(Object.isFrozen(PROVENANCE_RULE_KEYS)).toBe(true);
+    expect(Object.isFrozen(BANNED_STATUS_LABELS)).toBe(true);
+
+    for (const protoKey of [
+      "__proto__",
+      "toString",
+      "constructor",
+      "valueOf",
+      "hasOwnProperty",
+    ]) {
+      const built = buildAlertProvenance({
+        triggerKind: "national_feed",
+        sourceKey: protoKey,
+        sourceAttribution: "",
+        observedAt: SAMPLE_ISO,
+      });
+      expect(typeof built.sourceAttribution, protoKey).toBe("string");
+      expect(built.sourceAttribution, protoKey).toBe(protoKey);
+      expect(validateProvenanceInvariants(built), protoKey).toEqual([]);
+
+      const payload = toProvenancePayload(built);
+      expect(typeof payload["provenance_source"], protoKey).toBe("string");
+      expect(payload["provenance_source"], protoKey).toBe(protoKey);
+    }
+
+    const uppercaseOnm = buildAlertProvenance({
+      triggerKind: "wilaya_warning",
+      areaLabel: "Alger",
+      sourceKey: "ONM",
+      sourceAttribution: "",
+      observedAt: SAMPLE_ISO,
+    });
+    expect(uppercaseOnm.sourceAttribution).toBe("ONM · Météo Algérie");
+    expect(validateProvenanceInvariants(uppercaseOnm)).toEqual([]);
+  });
+
+  it("closes em-dash smuggling in areaLabel and lone-em-dash sourceAttribution while keeping verbatim ONM intact", () => {
+    expect(normalizeAreaLabel("Alger \u2014 Centre")).toBe("Alger · Centre");
+    expect(normalizeAreaLabel("\u2014\u2014")).toBeNull();
+    expect(normalizeAreaLabel("  \u2014  ")).toBeNull();
+    expect(normalizeAreaLabel("\u2014 Alger")).toBe("Alger");
+    expect(normalizeAreaLabel("Alger \u2014")).toBe("Alger");
+
+    const builtArea = buildAlertProvenance({
+      triggerKind: "commune_topic",
+      areaLabel: "Alger \u2014 Centre",
+      sourceKey: "dgpc_telegram",
+      sourceAttribution: "\u2014\u2014",
+      observedAt: SAMPLE_ISO,
+    });
+    expect(builtArea.areaLabel).toBe("Alger · Centre");
+    expect(builtArea.areaLabel).not.toContain("\u2014");
+    expect(builtArea.sourceAttribution).toBe("DGPC");
+    expect(validateProvenanceInvariants(builtArea)).toEqual([]);
+
+    const verbatimOnm =
+      "ONM · Météo Algérie · BMS Pluie/Orages N°42 (Niveau 3 — Rouge)";
+    const builtOnm = buildAlertProvenance({
+      triggerKind: "wilaya_warning",
+      areaLabel: "Tizi Ouzou",
+      sourceKey: "onm",
+      sourceAttribution: verbatimOnm,
+      observedAt: SAMPLE_ISO,
+    });
+    expect(builtOnm.sourceAttribution).toBe(verbatimOnm);
+    expect(validateProvenanceInvariants(builtOnm)).toEqual([]);
   });
 });
 
@@ -98,12 +173,112 @@ describe("validateProvenanceInvariants", () => {
     expect(violations.some((v) => v.includes("radiusKm"))).toBe(true);
   });
 
-  it("validates ISO timestamps accurately via isValidObservedAt", () => {
+  it("accepts official Arabic and full French ONM attributions and rejects lone em-dash or non-string sourceAttribution", () => {
+    for (const validOnm of [
+      "ONM · Météo Algérie",
+      "الديوان الوطني للأرصاد الجوية",
+      "الديوان الوطني للأرصاد الجوية · نشرة جوية خاصة",
+      "Office National de la Météorologie",
+      "Office National de la Meteorologie",
+    ]) {
+      const built = buildAlertProvenance({
+        triggerKind: "wilaya_warning",
+        areaLabel: "Alger",
+        sourceKey: "onm",
+        sourceAttribution: validOnm,
+        ruleLabelKey: "provenance.rule.onmSevere",
+        observedAt: SAMPLE_ISO,
+        authorityStatus: "official",
+      });
+      expect(built.sourceAttribution).toBe(validOnm);
+      expect(validateProvenanceInvariants(built), validOnm).toEqual([]);
+    }
+
+    const loneEmDashSource: AlertProvenanceData = {
+      triggerKind: "national_feed",
+      areaLabel: "Alger",
+      radiusKm: null,
+      sourceKey: "dgpc_telegram",
+      sourceAttribution: "\u2014",
+      ruleLabelKey: "provenance.rule.dgpcFire",
+      observedAt: SAMPLE_ISO,
+    };
+    expect(
+      validateProvenanceInvariants(loneEmDashSource).some((v) =>
+        v.includes("sourceAttribution must be non-empty"),
+      ),
+    ).toBe(true);
+
+    const corruptedNonString: AlertProvenanceData = {
+      triggerKind: "national_feed",
+      areaLabel: "Alger",
+      radiusKm: null,
+      sourceKey: "emsc",
+      sourceAttribution: Object.prototype as unknown as string,
+      ruleLabelKey: "provenance.rule.m4Quake",
+      observedAt: SAMPLE_ISO,
+    };
+    expect(() =>
+      validateProvenanceInvariants(corruptedNonString),
+    ).not.toThrow();
+    expect(
+      validateProvenanceInvariants(corruptedNonString).some((v) =>
+        v.includes("sourceAttribution must be non-empty"),
+      ),
+    ).toBe(true);
+
+    const nfdBanned: AlertProvenanceData = {
+      triggerKind: "national_feed",
+      areaLabel: "Alger",
+      radiusKm: null,
+      sourceKey: "emsc",
+      sourceAttribution: "EMSC",
+      ruleLabelKey: "provenance.rule.m4Quake",
+      observedAt: SAMPLE_ISO,
+      authorityStatus:
+        "su\u0302r" as unknown as AlertProvenanceData["authorityStatus"],
+    };
+    expect(
+      validateProvenanceInvariants(nfdBanned).some((v) =>
+        v.includes("banned status label"),
+      ),
+    ).toBe(true);
+  });
+
+  it("validates strict ISO-8601 timestamps and real calendar dates via isValidObservedAt", () => {
     expect(isValidObservedAt(SAMPLE_ISO)).toBe(true);
+    expect(isValidObservedAt("2026-11-24T12:30:00.123456Z")).toBe(true);
     expect(isValidObservedAt("2026-11-24T12:30:00+01:00")).toBe(true);
+    expect(isValidObservedAt("2026-11-24T12:30:00+0100")).toBe(true);
+    expect(isValidObservedAt("2024-02-29T12:00:00Z")).toBe(true);
+
     expect(isValidObservedAt("")).toBe(false);
     expect(isValidObservedAt("   ")).toBe(false);
     expect(isValidObservedAt("invalid-date")).toBe(false);
+    expect(isValidObservedAt("1")).toBe(false);
+    expect(isValidObservedAt("2026")).toBe(false);
+    expect(isValidObservedAt("hello 2026")).toBe(false);
+    expect(isValidObservedAt("2026-11-24")).toBe(false);
+    expect(isValidObservedAt("2026-11-24T12:30:00")).toBe(false);
+    expect(isValidObservedAt("2026-02-29T00:00:00Z")).toBe(false);
+    expect(isValidObservedAt("2026-02-31T00:00:00Z")).toBe(false);
+    expect(isValidObservedAt("2026-04-31T00:00:00Z")).toBe(false);
+    expect(isValidObservedAt("2026-11-24T24:00:00Z")).toBe(false);
+    expect(isValidObservedAt("2026-11-24T12:00:00+25:00")).toBe(false);
+    expect(isValidObservedAt(null)).toBe(false);
+    expect(isValidObservedAt(undefined)).toBe(false);
+    expect(isValidObservedAt(12345)).toBe(false);
+  });
+
+  it("validates positive finite radius values via isValidRadiusKm", () => {
+    expect(isValidRadiusKm(25)).toBe(true);
+    expect(isValidRadiusKm(0.5)).toBe(true);
+    expect(isValidRadiusKm(0)).toBe(false);
+    expect(isValidRadiusKm(-5)).toBe(false);
+    expect(isValidRadiusKm(Number.NaN)).toBe(false);
+    expect(isValidRadiusKm(Number.POSITIVE_INFINITY)).toBe(false);
+    expect(isValidRadiusKm("25")).toBe(false);
+    expect(isValidRadiusKm(null)).toBe(false);
   });
 });
 
@@ -186,6 +361,23 @@ describe("toProvenancePayload and parseProvenancePayload", () => {
     expect(sanitized).not.toBeNull();
     expect(sanitized?.areaLabel).toBeNull();
     expect(sanitized?.authorityStatus).toBeUndefined();
+
+    const protoSource = parseProvenancePayload({
+      provenance_trigger: "national_feed",
+      provenance_source_key: "__proto__",
+      provenance_observed_at: SAMPLE_ISO,
+    });
+    expect(protoSource).not.toBeNull();
+    expect(typeof protoSource?.sourceAttribution).toBe("string");
+    expect(protoSource?.sourceAttribution).toBe("__proto__");
+    expect(validateProvenanceInvariants(protoSource!)).toEqual([]);
+
+    const inherited = Object.create({
+      provenance_trigger: "national_feed",
+      provenance_source_key: "onm",
+      provenance_observed_at: SAMPLE_ISO,
+    });
+    expect(parseProvenancePayload(inherited)).toBeNull();
   });
 });
 
@@ -230,6 +422,34 @@ describe("formatProvenanceDigestLine", () => {
     expect(degradedLine).toContain("ONM · Météo Algérie");
     expect(degradedLine).toContain("Not recorded");
     expect(degradedLine).not.toContain("\u2014");
+
+    for (const badRadius of [0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const hostile: AlertProvenanceData = {
+        triggerKind: "watch_zone",
+        areaLabel: "Alger \u2014 Centre",
+        radiusKm: badRadius,
+        sourceKey: "dgpc_telegram",
+        sourceAttribution: "DGPC",
+        ruleLabelKey: "provenance.rule.dgpcFire",
+        observedAt: SAMPLE_ISO,
+      };
+      const hostileLine = formatProvenanceDigestLine(hostile, {
+        trigger: "Your watch zone",
+        rule: "Official Civil Protection fire incident",
+        areaFallback: "Not recorded",
+        timeLabel: "24/11 13:30",
+        radiusLabel: `within ${String(badRadius)} km`,
+      });
+      expect(hostileLine, `radius=${String(badRadius)}`).not.toContain(
+        "within",
+      );
+      expect(hostileLine, `radius=${String(badRadius)}`).toContain(
+        "Alger · Centre",
+      );
+      expect(hostileLine, `radius=${String(badRadius)}`).not.toContain(
+        "\u2014",
+      );
+    }
   });
 });
 

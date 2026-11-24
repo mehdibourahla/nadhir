@@ -4,10 +4,29 @@ import { useTranslation } from "react-i18next";
 
 import type { AnyLocale } from "@/i18n";
 import {
+  isAlertTriggerKind,
+  isAuthorityStatus,
   isValidObservedAt,
+  isValidRadiusKm,
+  normalizeAreaLabel,
   type AlertProvenanceData,
 } from "@/lib/alert-provenance";
 import { algiersTime, relativeTime } from "@/lib/nadhir";
+
+const BLANK_OR_EM_DASH_ONLY = /^[\s\u2014]+$/;
+
+function normalizeLocale(language: string | undefined): AnyLocale {
+  const prefix = (language ?? "ar").trim().toLowerCase().split(/[-_]/)[0];
+  if (
+    prefix === "ar" ||
+    prefix === "fr" ||
+    prefix === "en" ||
+    prefix === "kab"
+  ) {
+    return prefix;
+  }
+  return "ar";
+}
 
 export type AlertProvenanceProps = {
   provenance: AlertProvenanceData;
@@ -27,17 +46,40 @@ export function AlertProvenance({
   const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(Boolean(defaultExpanded));
   const panelId = useId();
-  const locale = (i18n.language || "ar") as AnyLocale;
+  const locale = normalizeLocale(i18n.language);
+  const notRecorded = t("common.notRecorded");
 
-  const triggerText = t(`provenance.trigger.${provenance.triggerKind}`);
-  const ruleText = t(provenance.ruleLabelKey, {
-    defaultValue: t("provenance.rule.generic"),
-  });
-  const authorityText = provenance.authorityStatus
+  const safeTriggerKind = isAlertTriggerKind(provenance.triggerKind)
+    ? provenance.triggerKind
+    : "national_feed";
+  const triggerText = t(`provenance.trigger.${safeTriggerKind}`);
+
+  const rawRuleKey =
+    typeof provenance.ruleLabelKey === "string"
+      ? provenance.ruleLabelKey.trim()
+      : "";
+  const resolvedRule: unknown =
+    rawRuleKey.length > 0
+      ? t(rawRuleKey, { returnObjects: true, defaultValue: "" })
+      : "";
+  const ruleText =
+    typeof resolvedRule === "string" && resolvedRule.trim().length > 0
+      ? resolvedRule
+      : t("provenance.rule.generic");
+
+  const authorityText = isAuthorityStatus(provenance.authorityStatus)
     ? t(`provenance.authority.${provenance.authorityStatus}`)
     : null;
+
+  const safeAreaLabel = normalizeAreaLabel(provenance.areaLabel);
+  const safeSourceAttribution =
+    typeof provenance.sourceAttribution === "string" &&
+    provenance.sourceAttribution.trim().length > 0 &&
+    !BLANK_OR_EM_DASH_ONLY.test(provenance.sourceAttribution)
+      ? provenance.sourceAttribution.trim()
+      : notRecorded;
   const hasValidTime = isValidObservedAt(provenance.observedAt);
-  const notRecorded = t("common.notRecorded");
+  const hasValidRadius = isValidRadiusKm(provenance.radiusKm);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key === "Escape" && open) {
@@ -59,7 +101,7 @@ export function AlertProvenance({
         {!compact && (
           <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
             <span className="font-medium text-foreground" dir="auto">
-              {provenance.sourceAttribution}
+              {safeSourceAttribution}
             </span>
             <span aria-hidden>·</span>
             <span>{triggerText}</span>
@@ -112,20 +154,19 @@ export function AlertProvenance({
               {t("provenance.areaLabel")}
             </dt>
             <dd className="text-muted-foreground">
-              {provenance.areaLabel ? (
-                <span dir="auto">{provenance.areaLabel}</span>
+              {safeAreaLabel ? (
+                <span dir="auto">{safeAreaLabel}</span>
               ) : (
                 <span>{notRecorded}</span>
               )}
-              {provenance.triggerKind === "watch_zone" &&
-                provenance.radiusKm != null && (
-                  <>
-                    <span aria-hidden> · </span>
-                    <span>
-                      {t("provenance.radiusKm", { km: provenance.radiusKm })}
-                    </span>
-                  </>
-                )}
+              {safeTriggerKind === "watch_zone" && hasValidRadius && (
+                <>
+                  <span aria-hidden> · </span>
+                  <span>
+                    {t("provenance.radiusKm", { km: provenance.radiusKm })}
+                  </span>
+                </>
+              )}
             </dd>
 
             <dt className="font-medium text-foreground">
@@ -138,7 +179,7 @@ export function AlertProvenance({
             </dt>
             <dd className="text-muted-foreground">
               <span className="font-medium text-foreground" dir="auto">
-                {provenance.sourceAttribution}
+                {safeSourceAttribution}
               </span>
               {authorityText && (
                 <>

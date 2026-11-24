@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import i18n, { type AnyLocale } from "@/i18n";
 import {
   buildAlertProvenance,
+  parseProvenancePayload,
   type AlertProvenanceData,
 } from "@/lib/alert-provenance";
 
@@ -130,6 +131,112 @@ describe("AlertProvenance component (SSR)", () => {
       expect(html.toLowerCase(), `${locale}: no 'safe' status`).not.toMatch(
         />\s*safe\s*</,
       );
+    }
+  });
+
+  it("defensively sanitizes direct hostile AlertProvenanceData across all 4 locales", () => {
+    const hostile: AlertProvenanceData = {
+      triggerKind:
+        "unknown_trigger" as unknown as AlertProvenanceData["triggerKind"],
+      areaLabel: "\u2014",
+      radiusKm: Number.NaN,
+      sourceKey: "emsc",
+      sourceAttribution: "\u2014",
+      ruleLabelKey: "provenance.rule",
+      observedAt: "2026-02-31T00:00:00Z",
+      authorityStatus:
+        "safe" as unknown as AlertProvenanceData["authorityStatus"],
+    };
+
+    for (const locale of ["ar", "fr", "en", "kab"] as const) {
+      const t = i18n.getFixedT(locale);
+      const html = renderInLocale(locale, hostile, { defaultExpanded: true });
+
+      expect(html, `${locale}: no object-key error`).not.toContain(
+        "returned an object",
+      );
+      expect(html, `${locale}: falls back to generic rule`).toContain(
+        t("provenance.rule.generic"),
+      );
+      expect(html, `${locale}: falls back to national_feed trigger`).toContain(
+        t("provenance.trigger.national_feed"),
+      );
+      expect(html, `${locale}: omits banned authority status`).not.toContain(
+        "provenance.authority.safe",
+      );
+      expect(html, `${locale}: omits NaN radius`).not.toContain("NaN");
+      expect(html, `${locale}: renders Not recorded`).toContain(
+        t("common.notRecorded"),
+      );
+      expect(html, `${locale}: rejects invalid calendar date`).not.toContain(
+        "<time",
+      );
+      expect(html, `${locale}: zero em dashes`).not.toContain("\u2014");
+    }
+
+    const genericRuleEn = i18n.getFixedT("en")("provenance.rule.generic");
+
+    for (const badRadius of [0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const watchWithBadRadius: AlertProvenanceData = {
+        triggerKind: "watch_zone",
+        areaLabel: "Alger \u2014 Centre",
+        radiusKm: badRadius,
+        sourceKey: "dgpc_telegram",
+        sourceAttribution: "DGPC",
+        ruleLabelKey: "provenance",
+        observedAt: "1",
+      };
+      const html = renderInLocale("en", watchWithBadRadius, {
+        defaultExpanded: true,
+      });
+      expect(html, `radius=${String(badRadius)}`).not.toContain("within");
+      expect(html, `radius=${String(badRadius)}`).toContain("Alger · Centre");
+      expect(html, `radius=${String(badRadius)}`).not.toContain("\u2014");
+      expect(html, `radius=${String(badRadius)}`).not.toContain("<time");
+      expect(html, `radius=${String(badRadius)}`).toContain(genericRuleEn);
+    }
+
+    const nonStringSource: AlertProvenanceData = {
+      triggerKind: "national_feed",
+      areaLabel: "   ",
+      radiusKm: null,
+      sourceKey: "emsc",
+      sourceAttribution: Object.prototype as unknown as string,
+      ruleLabelKey: "   ",
+      observedAt: OBSERVED_ISO,
+    };
+    const nonStringHtml = renderInLocale("en", nonStringSource, {
+      defaultExpanded: true,
+    });
+    expect(nonStringHtml).toContain("Not recorded");
+    expect(nonStringHtml).toContain(genericRuleEn);
+
+    const protoParsed = parseProvenancePayload({
+      provenance_trigger: "national_feed",
+      provenance_source_key: "__proto__",
+      provenance_observed_at: OBSERVED_ISO,
+    });
+    expect(protoParsed).not.toBeNull();
+    const protoHtml = renderInLocale("en", protoParsed!, {
+      defaultExpanded: true,
+    });
+    expect(protoHtml).toContain("__proto__");
+  });
+
+  it("normalizes regional i18n language tags (kab-DZ, ar-DZ, fr-FR, en-US) cleanly", () => {
+    for (const lng of ["kab-DZ", "ar-DZ", "fr-FR", "en-US"]) {
+      const instance = i18n.cloneInstance({ lng });
+      const html = renderToStaticMarkup(
+        <I18nextProvider i18n={instance}>
+          <AlertProvenance
+            provenance={onmProvenance}
+            now={FIXED_NOW}
+            defaultExpanded
+          />
+        </I18nextProvider>,
+      );
+      expect(html, `lng=${lng}`).toContain(`dateTime="${OBSERVED_ISO}"`);
+      expect(html, `lng=${lng}`).not.toContain("\u2014");
     }
   });
 });
