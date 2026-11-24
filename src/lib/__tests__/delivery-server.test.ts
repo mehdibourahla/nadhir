@@ -611,6 +611,14 @@ it("delivers earthquake broadcasts to FCM commune topics only (zero Telegram) an
     }),
   );
   expect(sendTelegram).not.toHaveBeenCalled();
+  expect(rpc).toHaveBeenCalledWith("finish_broadcast_delivery", {
+    _broadcast_id: "b-onm-cancelled",
+    _channel: "fcm",
+    _lease_token: "lease-onm",
+    _count: null,
+    _error: "cap_cancelled",
+  });
+  expect(result.rows).toBe(1);
   expect(result.sent).toBe(1);
   expect(result.telegramSent).toBe(0);
 });

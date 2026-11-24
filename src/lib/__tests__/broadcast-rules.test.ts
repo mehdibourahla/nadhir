@@ -795,6 +795,95 @@ describe("evaluateOfficialIncidentBroadcast (F8)", () => {
     ).toEqual({ action: "suppress", reason: "retrospective_or_summary" });
   });
 
+  it("blocks retrospective headers in documentBody (clean evidence), Arabic tatweel/diacritics/Eastern numerals, and unlisted/NaN asOf on cleared", () => {
+    // Recap header in documentBody while evidence is a clean bullet line (both initial & end)
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          evidence: "امتصاص مياه الأمطار المتراكمة ببلدية باب الوادي",
+          documentBody:
+            "حصيلة تدخلات الحماية المدنية خلال 24 ساعة:\n- امتصاص مياه الأمطار المتراكمة ببلدية باب الوادي",
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "retrospective_or_summary" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          status: "cleared",
+          hasInitialBroadcast: true,
+          initialDelivered: true,
+          evidence: "امتصاص مياه الأمطار المتراكمة ببلدية باب الوادي",
+          documentBody:
+            "Bilan des interventions durant les 24 dernières heures : امتصاص مياه الأمطار المتراكمة ببلدية باب الوادي",
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "retrospective_or_summary" });
+
+    // Arabic tatweel
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          evidence: "حـصـيـلـة تدخلات ببلدية باب الوادي",
+          documentBody: "حـصـيـلـة تدخلات ببلدية باب الوادي",
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "retrospective_or_summary" });
+
+    // Arabic diacritics
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          evidence: "حَصِيلَة تدخلات ببلدية باب الوادي",
+          documentBody: "حَصِيلَة تدخلات ببلدية باب الوادي",
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "retrospective_or_summary" });
+
+    // Eastern Arabic numerals (٢٤) and Extended Arabic-Indic numerals (۲۴)
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          evidence: "تدخلات الحماية المدنية خلال ٢٤ ساعة ببلدية باب الوادي",
+          documentBody: "تدخلات الحماية المدنية خلال ٢٤ ساعة ببلدية باب الوادي",
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "retrospective_or_summary" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          evidence: "تدخلات الحماية المدنية خلال ۲۴ ساعة ببلدية باب الوادي",
+          documentBody: "تدخلات الحماية المدنية خلال ۲۴ ساعة ببلدية باب الوادي",
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "retrospective_or_summary" });
+
+    // Unlisted incident marked cleared must NEVER emit end
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          status: "cleared",
+          hasInitialBroadcast: true,
+          initialDelivered: true,
+          unlistedAt: "2026-11-24T11:30:00Z",
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "unlisted_incident" });
+
+    // Invalid/NaN asOfMs on cleared must suppress cleanly (never crash buildOfficialCap)
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          status: "cleared",
+          hasInitialBroadcast: true,
+          initialDelivered: true,
+          asOfMs: Number.NaN,
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "invalid_timestamp" });
+  });
+
   it("emits end on cleared ONLY when initial was delivered, stays silent if cleared before delivery, and never infers cleared from silence", () => {
     expect(
       evaluateOfficialIncidentBroadcast(

@@ -59,6 +59,7 @@ vi.mock("@/lib/source-archive.server", () => ({
 import {
   onmRelayPlan,
   onmUpdateMaterialChange,
+  onmUpdatePriors,
   onmWarningIsCurrent,
   type OnmWarning,
 } from "@/lib/broadcast-rules";
@@ -129,6 +130,24 @@ describe("CAP 1.2 msgType & references parsing (ReDoS-safe)", () => {
     const elapsedMs = performance.now() - start;
     expect(result).toEqual([]);
     expect(elapsedMs).toBeLessThan(50);
+  });
+
+  it("enforces strict CAP 1.2 ISO-8601 calendar validation and rejects rollovers or bare numbers", () => {
+    const invalid = [
+      "onm@meteo.dz,id-feb30,2026-02-30T10:00:00+01:00",
+      "onm@meteo.dz,id-apr31,2026-04-31T10:00:00+01:00",
+      "onm@meteo.dz,id-nonleap,2026-02-29T10:00:00+01:00",
+      "onm@meteo.dz,id-dateonly,2026-02-30",
+      "onm@meteo.dz,id-digit,1",
+      "onm@meteo.dz,id-yearonly,2026",
+    ].join(" ");
+    expect(parseCapReferences(invalid)).toEqual([]);
+
+    const valid = [
+      "onm@meteo.dz,id-leap,2024-02-29T10:00:00+01:00",
+      "onm@meteo.dz,id-utc,2026-11-24T10:00:00Z",
+    ].join(" ");
+    expect(parseCapReferenceIds(valid)).toEqual(["id-leap", "id-utc"]);
   });
 });
 
@@ -296,6 +315,93 @@ describe("ONM Atom & CAP detail chain parsing + ingestion", () => {
       _cap_ids: ["urn:oid:onm.detail.2"],
     });
   });
+
+  it("handles 100 KB of repeated unclosed <entry> tags in linear time (< 50 ms) and supports XML attributes & boilerplate casing", () => {
+    const adversarialAtom =
+      '<feed xmlns:cap="urn:oasis:names:tc:emergency:cap:1.2">' +
+      "<entry>".repeat(15_000) +
+      "</feed>";
+    const start = performance.now();
+    const entries = parseOnmFeed(adversarialAtom);
+    const elapsedMs = performance.now() - start;
+    expect(entries).toEqual([]);
+    expect(elapsedMs).toBeLessThan(50);
+
+    const attrFeed = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:cap="urn:oasis:names:tc:emergency:cap:1.2">
+  <entry xml:lang="fr">
+    <id>urn:oid:onm.attr.1</id>
+    <title>Rain Cancel for ALGER</title>
+    <cap:msgType xml:lang="en">Cancel</cap:msgType>
+    <cap:sent>2026-11-24T12:00:00Z</cap:sent>
+    <cap:areaDesc>ALGER</cap:areaDesc>
+  </entry>
+</feed>`;
+    const parsedFeed = parseOnmFeed(attrFeed);
+    expect(parsedFeed).toHaveLength(1);
+    expect(parsedFeed[0]!.msg_type).toBe("Cancel");
+
+    const attrDetail = `<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+  <msgType xml:lang="en">Cancel</msgType>
+  <references xml:lang="en">onm@meteo.dz,urn:oid:onm.attr.0,2026-11-24T10:00:00+01:00</references>
+  <info xml:lang="fr">
+    <headline>Annulation</headline>
+    <instruction>  no   additional information.  </instruction>
+  </info>
+</alert>`;
+    const detail = parseCapDetail(attrDetail)!;
+    expect(detail.msg_type).toBe("Cancel");
+    expect(detail.referenced_cap_ids).toEqual(["urn:oid:onm.attr.0"]);
+    expect(detail.instruction_fr).toBeNull();
+  });
+
+  it("preserves CAP-detail-enriched fields across two Atom polls by omitting cap_detail_fetched_at from upserts", async () => {
+    const atomWithoutDetailFields = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:cap="urn:oasis:names:tc:emergency:cap:1.2">
+  <entry>
+    <id>urn:oid:onm.two.poll</id>
+    <title>Rain Severe warning for ALGER</title>
+    <cap:sent>2026-11-24T11:00:00Z</cap:sent>
+    <cap:severity>Severe</cap:severity>
+    <cap:areaDesc>ALGER</cap:areaDesc>
+    <link href="https://ametvigilance.meteo.dz/CAPs/two-poll.xml" />
+  </entry>
+</feed>`;
+
+    // Poll 1: Atom upsert followed by CAP detail fetch (returns Cancel + refs + geocodes)
+    state.detailRows = [
+      {
+        id: "row-two-poll",
+        cap_id: "urn:oid:onm.two.poll",
+        cap_url: "https://ametvigilance.meteo.dz/CAPs/two-poll.xml",
+      },
+    ];
+    state.fetch
+      .mockResolvedValueOnce(new Response(atomWithoutDetailFields))
+      .mockResolvedValueOnce(
+        new Response(`<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+          <msgType>Cancel</msgType>
+          <references>onm@meteo.dz,urn:oid:onm.root,2026-11-24T09:00:00+01:00</references>
+          <info>
+            <headline>Annulation</headline>
+            <area><areaDesc>ALGER</areaDesc><geocode><valueName>DZ</valueName><value>1601</value></geocode></area>
+          </info>
+        </alert>`),
+      );
+    await ingestOnm();
+
+    // Poll 2: Atom re-poll with same summary XML (detail already fetched, so detailRows is empty)
+    state.upserts = [];
+    state.detailRows = [];
+    state.fetch.mockResolvedValueOnce(new Response(atomWithoutDetailFields));
+    await ingestOnm();
+
+    expect(state.upserts).toHaveLength(1);
+    // Omitting cap_detail_fetched_at guarantees preserve_onm_cap_detail_fields BEFORE UPDATE trigger keeps detail-enriched fields
+    expect("cap_detail_fetched_at" in state.upserts[0]!).toBe(false);
+    expect("superseded_at" in state.upserts[0]!).toBe(false);
+    expect("cancelled_at" in state.upserts[0]!).toBe(false);
+  });
 });
 
 describe("ONM CAP Update/Cancel material change & relay rules", () => {
@@ -413,6 +519,85 @@ describe("ONM CAP Update/Cancel material change & relay rules", () => {
       severity: "Extreme",
     };
     expect(onmRelayPlan([deescalated], [extremePrior]).relay).toEqual([]);
+  });
+
+  it("avoids false-positive area_expansion on geocode backfill or case differences, and suppresses chained de-escalations referencing root Alert", () => {
+    const priorNoGeocodes: OnmWarning = {
+      ...baseAlert,
+      id: "w-legacy",
+      capId: "urn:oid:legacy",
+      geocodes: [],
+    };
+    const backfillReissue: OnmWarning = {
+      ...baseAlert,
+      id: "w-backfill",
+      capId: "urn:oid:backfill",
+      msgType: "Update",
+      sentMs: t("2026-11-24T11:00:00Z"),
+      referencedCapIds: ["urn:oid:legacy"],
+      geocodes: ["DZ-16"],
+    };
+    expect(onmUpdateMaterialChange(backfillReissue, [priorNoGeocodes])).toEqual(
+      {
+        material: false,
+        reasons: [],
+      },
+    );
+    expect(onmRelayPlan([backfillReissue], [priorNoGeocodes]).relay).toEqual(
+      [],
+    );
+
+    const upperPrior: OnmWarning = {
+      ...baseAlert,
+      id: "w-upper",
+      capId: "urn:oid:upper",
+      geocodes: ["DZ-16", "DZ-09"],
+    };
+    const lowerUpdate: OnmWarning = {
+      ...baseAlert,
+      id: "w-lower",
+      capId: "urn:oid:lower",
+      msgType: "Update",
+      sentMs: t("2026-11-24T11:05:00Z"),
+      referencedCapIds: ["urn:oid:upper"],
+      geocodes: ["dz-16", "dz-09"],
+    };
+    expect(onmUpdateMaterialChange(lowerUpdate, [upperPrior])).toEqual({
+      material: false,
+      reasons: [],
+    });
+
+    // Chained de-escalation: Alert(Moderate) -> Update1(Extreme) -> Update2(Severe, refs=[Alert])
+    const rootModerate: OnmWarning = {
+      ...baseAlert,
+      id: "chain-1",
+      capId: "urn:oid:chain-1",
+      severity: "Moderate",
+    };
+    const midExtreme: OnmWarning = {
+      ...baseAlert,
+      id: "chain-2",
+      capId: "urn:oid:chain-2",
+      msgType: "Update",
+      severity: "Extreme",
+      sentMs: t("2026-11-24T10:30:00Z"),
+      referencedCapIds: ["urn:oid:chain-1"],
+    };
+    const downSevere: OnmWarning = {
+      ...baseAlert,
+      id: "chain-3",
+      capId: "urn:oid:chain-3",
+      msgType: "Update",
+      severity: "Severe",
+      sentMs: t("2026-11-24T11:00:00Z"),
+      referencedCapIds: ["urn:oid:chain-1"],
+    };
+    expect(
+      onmUpdatePriors(downSevere, [rootModerate, midExtreme]).map((w) => w.id),
+    ).toEqual(["chain-1", "chain-2"]);
+    const chainPlan = onmRelayPlan([downSevere], [rootModerate, midExtreme]);
+    expect(chainPlan.relay).toEqual([]);
+    expect(chainPlan.suppressed.map((w) => w.id)).toEqual(["chain-3"]);
   });
 
   it("excludes Cancel, cancelled, and superseded warnings from current and relay plans without fabricating all-clear", () => {

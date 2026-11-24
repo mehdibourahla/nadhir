@@ -257,7 +257,7 @@ describe("weather warning query producer", () => {
     expect(source.calls).toHaveLength(1);
   });
 
-  it("excludes Cancel records and cancelled/superseded warnings from current warnings", async () => {
+  it("excludes Cancel records and cancelled/superseded warnings from both current and history bounds queries", async () => {
     source.rows = [
       bulletin(
         "active",
@@ -270,6 +270,7 @@ describe("weather warning query producer", () => {
           "2026-09-15T09:00:00.000Z",
           "2026-09-15T13:00:00.000Z",
         ),
+        event: "Wind",
         cancelled_at: "2026-09-15T10:30:00.000Z",
       },
       {
@@ -282,21 +283,16 @@ describe("weather warning query producer", () => {
       },
     ];
     const result = await fetchWarnings();
-    expect(source.calls[0]!.filters).toContainEqual([
-      "is",
-      "cancelled_at",
-      "null",
-    ]);
+    expect(source.calls).toHaveLength(2);
+    for (const call of source.calls) {
+      expect(call.filters).toContainEqual(["is", "cancelled_at", "null"]);
+      expect(call.filters).toContainEqual(["neq", "msg_type", "Cancel"]);
+    }
     expect(source.calls[0]!.filters).toContainEqual([
       "is",
       "superseded_by",
       "null",
     ]);
-    expect(source.calls[0]!.filters).toContainEqual([
-      "neq",
-      "msg_type",
-      "Cancel",
-    ]);
-    expect(result.warnings.map((row) => row.id)).not.toContain("cancel-record");
+    expect(result.warnings.map((row) => row.id)).toEqual(["active"]);
   });
 });

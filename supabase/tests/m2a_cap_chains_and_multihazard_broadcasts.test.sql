@@ -159,6 +159,101 @@ select throws_ok(
   'store_onm_detail rejects invalid _msg_type'
 );
 
+-- Atom feed re-poll must NEVER clobber CAP-detail-enriched fields (Finding 1)
+insert into public.onm_vigilance (
+  id, cap_id, title, event, severity, urgency, certainty,
+  onset, expires, sent, area_desc, wilaya_id
+)
+values (
+  'a2a20000-0000-4000-8000-000000000020',
+  'urn:oid:m2a.repoll.cancel',
+  'Rain Cancel for the wilaya: Wilaya M2A',
+  'Rain', 'Severe', 'Expected', 'Likely',
+  now() - interval '10 minutes', now() + interval '6 hours', now() - interval '5 minutes',
+  'Wilaya M2A', 'a2a00000-0000-4000-8000-000000000001'
+);
+
+select lives_ok(
+  $$select public.store_onm_detail(
+      'a2a20000-0000-4000-8000-000000000020'::uuid,
+      'Annulation Pluie',
+      null,
+      null::jsonb,
+      'Cancel',
+      'onm@meteo.dz,urn:oid:m2a.alert.1,2026-11-24T10:00:00Z',
+      array['urn:oid:m2a.alert.1'],
+      array['9801', '9802']
+    )$$,
+  'store_onm_detail enriches Atom row with Cancel msg_type, references, and geocodes'
+);
+
+-- Simulate Poll 2 Atom feed upsert with defaulted Alert / null / {} / {}
+insert into public.onm_vigilance (
+  cap_id, title, event, severity, urgency, certainty,
+  onset, expires, sent, area_desc, wilaya_id,
+  msg_type, cap_references, referenced_cap_ids, geocodes
+)
+values (
+  'urn:oid:m2a.repoll.cancel',
+  'Rain Cancel for the wilaya: Wilaya M2A (poll 2)',
+  'Rain', 'Severe', 'Expected', 'Likely',
+  now() - interval '10 minutes', now() + interval '6 hours', now() - interval '5 minutes',
+  'Wilaya M2A', 'a2a00000-0000-4000-8000-000000000001',
+  'Alert', null, '{}'::text[], '{}'::text[]
+)
+on conflict (cap_id) do update set
+  title = excluded.title,
+  msg_type = excluded.msg_type,
+  cap_references = excluded.cap_references,
+  referenced_cap_ids = excluded.referenced_cap_ids,
+  geocodes = excluded.geocodes;
+
+select is(
+  (select msg_type from public.onm_vigilance where id = 'a2a20000-0000-4000-8000-000000000020'),
+  'Cancel',
+  'Atom re-poll preserves CAP-detail-enriched msg_type=Cancel'
+);
+select is(
+  (select cap_references from public.onm_vigilance where id = 'a2a20000-0000-4000-8000-000000000020'),
+  'onm@meteo.dz,urn:oid:m2a.alert.1,2026-11-24T10:00:00Z',
+  'Atom re-poll preserves CAP-detail-enriched cap_references'
+);
+select is(
+  (select referenced_cap_ids from public.onm_vigilance where id = 'a2a20000-0000-4000-8000-000000000020'),
+  array['urn:oid:m2a.alert.1']::text[],
+  'Atom re-poll preserves CAP-detail-enriched referenced_cap_ids'
+);
+select is(
+  (select geocodes from public.onm_vigilance where id = 'a2a20000-0000-4000-8000-000000000020'),
+  array['9801', '9802']::text[],
+  'Atom re-poll preserves CAP-detail-enriched geocodes'
+);
+
+-- Explicit store_onm_detail update still updates fields cleanly even inside the same transaction
+select lives_ok(
+  $$select public.store_onm_detail(
+      'a2a20000-0000-4000-8000-000000000020'::uuid,
+      'Annulation Pluie Maj',
+      null,
+      null::jsonb,
+      'Update',
+      'onm@meteo.dz,urn:oid:m2a.alert.1,2026-11-24T10:05:00Z',
+      array['urn:oid:m2a.alert.1'],
+      array['9801', '9803']
+    )$$,
+  'explicit store_onm_detail call updates fields cleanly on an already-detailed row'
+);
+select is(
+  (select msg_type from public.onm_vigilance where id = 'a2a20000-0000-4000-8000-000000000020'),
+  'Update',
+  'explicit store_onm_detail call updates msg_type'
+);
+select is(
+  (select geocodes from public.onm_vigilance where id = 'a2a20000-0000-4000-8000-000000000020'),
+  array['9801', '9803']::text[],
+  'explicit store_onm_detail call updates geocodes'
+);
+
 -- ============================================================================
 -- 2. Broadcasts: earthquake kind & official multi-phase idempotency
 -- ============================================================================
@@ -566,6 +661,325 @@ select ok(
 );
 
 -- ============================================================================
+-- 5b. Retry-with-non-null-last_error cancellation (ONM CAP Cancel & official cleared)
+--     AND out-of-order pre-cancel Update arriving after Cancel (Findings 2 & 9)
+-- ============================================================================
+-- Case A: ONM CAP Cancel against pending-in-retry (fcm 503) and leased-on-retry-2 (tg 502)
+insert into public.onm_vigilance (
+  id, cap_id, title, event, severity, urgency, certainty,
+  onset, expires, sent, area_desc, wilaya_id
+)
+values (
+  'a2a20000-0000-4000-8000-000000000030',
+  'urn:oid:m2a.retry.alert',
+  'Rain Severe retry test',
+  'Rain', 'Severe', 'Expected', 'Likely',
+  now() - interval '1 hour', now() + interval '5 hours', now() - interval '1 hour',
+  'Wilaya M2A', 'a2a00000-0000-4000-8000-000000000001'
+);
+
+insert into public.broadcasts (
+  id, kind, phase, onm_vigilance_id, severity, commune_codes, push_codes, hazard, source_key
+)
+values (
+  'a2a30000-0000-4000-8000-000000000020',
+  'onm', 'initial', 'a2a20000-0000-4000-8000-000000000030', 'Severe',
+  array['9801'], array['9801'], 'weather', 'onm'
+);
+
+update public.broadcast_delivery_queue
+   set state = 'pending',
+       attempts = 1,
+       last_error = 'fcm 503'
+ where broadcast_id = 'a2a30000-0000-4000-8000-000000000020'
+   and channel = 'fcm';
+
+update public.broadcast_delivery_queue
+   set state = 'leased',
+       attempts = 2,
+       last_error = 'tg 502',
+       lease_token = 'a2a90000-0000-4000-8000-000000000020'::uuid,
+       lease_until = now() + interval '90 seconds'
+ where broadcast_id = 'a2a30000-0000-4000-8000-000000000020'
+   and channel = 'telegram';
+
+insert into public.onm_vigilance (
+  id, cap_id, title, event, severity, urgency, certainty,
+  sent, area_desc, wilaya_id, msg_type, cap_references, referenced_cap_ids
+)
+values (
+  'a2a20000-0000-4000-8000-000000000031',
+  'urn:oid:m2a.retry.cancel',
+  'Rain Cancel retry test',
+  'Rain', 'Severe', 'Past', 'Observed',
+  now() - interval '5 minutes', 'Wilaya M2A', 'a2a00000-0000-4000-8000-000000000001',
+  'Cancel', 'onm@meteo.dz,urn:oid:m2a.retry.alert,2026-11-24T09:00:00Z', array['urn:oid:m2a.retry.alert']
+);
+
+select is(
+  (public.apply_onm_cap_chain(array['urn:oid:m2a.retry.cancel'])->>'invalidated_deliveries')::integer,
+  2,
+  'CAP Cancel against retried rows with non-null last_error reports exact invalidated_deliveries=2'
+);
+select is(
+  (select state || ':' || coalesce(last_error, '') from public.broadcast_delivery_queue
+    where broadcast_id = 'a2a30000-0000-4000-8000-000000000020' and channel = 'fcm'),
+  'cancelled:cap_cancelled',
+  'pending-in-retry ONM row overwrites prior error with cap_cancelled and transitions to cancelled'
+);
+select is(
+  public.renew_broadcast_delivery(
+    'a2a30000-0000-4000-8000-000000000020'::uuid,
+    'telegram',
+    'a2a90000-0000-4000-8000-000000000020'::uuid
+  ),
+  false,
+  'leased-on-retry-2 ONM row cannot renew after CAP Cancel'
+);
+select is(
+  public.finish_broadcast_delivery(
+    'a2a30000-0000-4000-8000-000000000020'::uuid,
+    'telegram',
+    'a2a90000-0000-4000-8000-000000000020'::uuid,
+    null,
+    'telegram delivery lease lost'
+  ),
+  true,
+  'finish_broadcast_delivery closes leased-on-retry-2 cancelled ONM row'
+);
+select is(
+  (select state || ':' || coalesce(last_error, '') from public.broadcast_delivery_queue
+    where broadcast_id = 'a2a30000-0000-4000-8000-000000000020' and channel = 'telegram'),
+  'cancelled:cap_cancelled',
+  'leased-on-retry-2 cancelled ONM row finalizes to cancelled:cap_cancelled (never expired)'
+);
+select ok(
+  (select fcm_delivered_at is null and telegram_delivered_at is null
+     from public.broadcasts where id = 'a2a30000-0000-4000-8000-000000000020'),
+  'cancelled ONM broadcast never stamps fcm_delivered_at or telegram_delivered_at'
+);
+
+-- Also verify finish_broadcast_delivery with _count=0 or _error='cap_cancelled' on cancelled leased row never marks delivered
+insert into public.onm_vigilance (
+  id, cap_id, title, event, severity, urgency, certainty,
+  onset, expires, sent, area_desc, wilaya_id
+)
+values (
+  'a2a20000-0000-4000-8000-000000000032',
+  'urn:oid:m2a.fcmrace.alert',
+  'Wind Severe race test',
+  'Wind', 'Severe', 'Expected', 'Likely',
+  now() - interval '1 hour', now() + interval '5 hours', now() - interval '1 hour',
+  'Wilaya M2A', 'a2a00000-0000-4000-8000-000000000001'
+);
+insert into public.broadcasts (
+  id, kind, phase, onm_vigilance_id, severity, commune_codes, push_codes, hazard, source_key
+)
+values (
+  'a2a30000-0000-4000-8000-000000000022',
+  'onm', 'initial', 'a2a20000-0000-4000-8000-000000000032', 'Severe',
+  array['9801'], array['9801'], 'weather', 'onm'
+);
+update public.broadcast_delivery_queue
+   set state = 'leased',
+       attempts = 1,
+       lease_token = 'a2a90000-0000-4000-8000-000000000022'::uuid,
+       lease_until = now() + interval '90 seconds'
+ where broadcast_id = 'a2a30000-0000-4000-8000-000000000022'
+   and channel = 'fcm';
+update public.broadcast_delivery_queue
+   set state = 'leased',
+       attempts = 1,
+       lease_token = 'a2a90000-0000-4000-8000-000000000023'::uuid,
+       lease_until = now() + interval '90 seconds'
+ where broadcast_id = 'a2a30000-0000-4000-8000-000000000022'
+   and channel = 'telegram';
+update public.onm_vigilance
+   set cancelled_at = now()
+ where id = 'a2a20000-0000-4000-8000-000000000032';
+
+select is(
+  public.finish_broadcast_delivery(
+    'a2a30000-0000-4000-8000-000000000022'::uuid,
+    'fcm',
+    'a2a90000-0000-4000-8000-000000000022'::uuid,
+    null,
+    'cap_cancelled'
+  ),
+  true,
+  'finish_broadcast_delivery accepts worker-reported _error=cap_cancelled cleanly'
+);
+select is(
+  public.finish_broadcast_delivery(
+    'a2a30000-0000-4000-8000-000000000022'::uuid,
+    'telegram',
+    'a2a90000-0000-4000-8000-000000000023'::uuid,
+    0,
+    null
+  ),
+  true,
+  'finish_broadcast_delivery guards _count=0 on already-cap_cancelled row'
+);
+select is(
+  (select state from public.broadcast_delivery_queue
+    where broadcast_id = 'a2a30000-0000-4000-8000-000000000022' and channel = 'fcm'),
+  'cancelled',
+  'worker-reported cap_cancelled finalizes to cancelled'
+);
+select is(
+  (select state from public.broadcast_delivery_queue
+    where broadcast_id = 'a2a30000-0000-4000-8000-000000000022' and channel = 'telegram'),
+  'cancelled',
+  '_count=0 on cap_cancelled row finalizes to cancelled, never delivered'
+);
+select ok(
+  (select fcm_delivered_at is null and telegram_delivered_at is null
+     from public.broadcasts where id = 'a2a30000-0000-4000-8000-000000000022'),
+  'neither fcm_delivered_at nor telegram_delivered_at is stamped when finalized to cancelled'
+);
+
+-- Case B: Official incident cleared against pending-in-retry (fcm 503) and leased-on-retry-2 (tg 502)
+insert into public.official_incidents (
+  id, wilaya_id, commune_id, kind, status, precision, authority_tier,
+  first_reported_at, last_reported_at, as_of, evidence, place_text
+)
+values (
+  'a2a10000-0000-4000-8000-000000000021',
+  'a2a00000-0000-4000-8000-000000000001',
+  'a2a00000-0000-4000-8000-000000000002',
+  'storm', 'ongoing', 'commune', 'national',
+  now() - interval '1 hour', now() - interval '20 minutes', now() - interval '20 minutes',
+  'تدخل متواصل بسبب الرياح القوية في بلدية اختبار',
+  'وسط المدينة'
+);
+insert into public.broadcasts (
+  id, kind, phase, official_incident_id, severity, commune_codes, push_codes, hazard, source_key
+)
+values (
+  'a2a30000-0000-4000-8000-000000000021',
+  'official', 'initial', 'a2a10000-0000-4000-8000-000000000021', 'Severe',
+  array['9801'], array['9801'], 'storm', 'dgpc_telegram'
+);
+update public.broadcast_delivery_queue
+   set state = 'pending',
+       attempts = 1,
+       last_error = 'fcm 503'
+ where broadcast_id = 'a2a30000-0000-4000-8000-000000000021'
+   and channel = 'fcm';
+update public.broadcast_delivery_queue
+   set state = 'leased',
+       attempts = 2,
+       last_error = 'tg 502',
+       lease_token = 'a2a90000-0000-4000-8000-000000000021'::uuid,
+       lease_until = now() + interval '90 seconds'
+ where broadcast_id = 'a2a30000-0000-4000-8000-000000000021'
+   and channel = 'telegram';
+
+update public.official_incidents
+   set status = 'cleared'
+ where id = 'a2a10000-0000-4000-8000-000000000021';
+
+select is(
+  (select state || ':' || coalesce(last_error, '') from public.broadcast_delivery_queue
+    where broadcast_id = 'a2a30000-0000-4000-8000-000000000021' and channel = 'fcm'),
+  'cancelled:official_cleared',
+  'pending-in-retry official delivery transitions to cancelled:official_cleared'
+);
+select is(
+  public.renew_broadcast_delivery(
+    'a2a30000-0000-4000-8000-000000000021'::uuid,
+    'telegram',
+    'a2a90000-0000-4000-8000-000000000021'::uuid
+  ),
+  false,
+  'leased-on-retry-2 official delivery cannot renew after cleared'
+);
+select is(
+  public.finish_broadcast_delivery(
+    'a2a30000-0000-4000-8000-000000000021'::uuid,
+    'telegram',
+    'a2a90000-0000-4000-8000-000000000021'::uuid,
+    null,
+    'telegram delivery lease lost'
+  ),
+  true,
+  'finish_broadcast_delivery closes leased-on-retry-2 cleared official delivery'
+);
+select is(
+  (select state || ':' || coalesce(last_error, '') from public.broadcast_delivery_queue
+    where broadcast_id = 'a2a30000-0000-4000-8000-000000000021' and channel = 'telegram'),
+  'cancelled:official_cleared',
+  'leased-on-retry-2 cleared official delivery finalizes to cancelled:official_cleared (never expired)'
+);
+select ok(
+  (select fcm_delivered_at is null and telegram_delivered_at is null
+     from public.broadcasts where id = 'a2a30000-0000-4000-8000-000000000021'),
+  'cleared official broadcast never stamps delivered_at when cancelled'
+);
+select is(
+  (select count(*)::integer from public.source_watchdog
+    where issue_code = 'delivery_expired'),
+  0,
+  'zero source_watchdog delivery_expired alerts across both ONM Cancel and official cleared retry cancellations'
+);
+
+-- Case C: Out-of-order pre-cancel Update arriving after Cancel already cancelled parent Alert (Finding 9)
+insert into public.onm_vigilance (
+  id, cap_id, title, event, severity, urgency, certainty,
+  onset, expires, sent, area_desc, wilaya_id
+)
+values (
+  'a2a20000-0000-4000-8000-000000000040',
+  'urn:oid:m2a.ooo.alert',
+  'Snow Severe OOO Alert',
+  'Snow', 'Severe', 'Expected', 'Likely',
+  now() - interval '3 hours', now() + interval '6 hours', now() - interval '3 hours',
+  'Wilaya M2A', 'a2a00000-0000-4000-8000-000000000001'
+);
+insert into public.onm_vigilance (
+  id, cap_id, title, event, severity, urgency, certainty,
+  sent, area_desc, wilaya_id, msg_type, cap_references, referenced_cap_ids
+)
+values (
+  'a2a20000-0000-4000-8000-000000000041',
+  'urn:oid:m2a.ooo.cancel',
+  'Snow Cancel OOO',
+  'Snow', 'Severe', 'Past', 'Observed',
+  now() - interval '1 hour', 'Wilaya M2A', 'a2a00000-0000-4000-8000-000000000001',
+  'Cancel', 'onm@meteo.dz,urn:oid:m2a.ooo.alert,2026-11-24T08:00:00Z', array['urn:oid:m2a.ooo.alert']
+);
+select is(
+  (public.apply_onm_cap_chain(array['urn:oid:m2a.ooo.cancel'])->>'cancelled_warnings')::integer,
+  1,
+  'OOO Cancel cancels parent Alert first'
+);
+-- Late pre-cancel Update (-2h, referencing already-cancelled Alert)
+insert into public.onm_vigilance (
+  id, cap_id, title, event, severity, urgency, certainty,
+  onset, expires, sent, area_desc, wilaya_id,
+  msg_type, cap_references, referenced_cap_ids
+)
+values (
+  'a2a20000-0000-4000-8000-000000000042',
+  'urn:oid:m2a.ooo.update',
+  'Snow Extreme OOO Late Update',
+  'Snow', 'Extreme', 'Immediate', 'Observed',
+  now() - interval '2 hours', now() + interval '6 hours', now() - interval '2 hours',
+  'Wilaya M2A', 'a2a00000-0000-4000-8000-000000000001',
+  'Update', 'onm@meteo.dz,urn:oid:m2a.ooo.alert,2026-11-24T08:00:00Z', array['urn:oid:m2a.ooo.alert']
+);
+select is(
+  (public.apply_onm_cap_chain(array['urn:oid:m2a.ooo.update'])->>'cancelled_warnings')::integer,
+  1,
+  'out-of-order pre-cancel Update referencing already-cancelled Alert is cancelled cleanly'
+);
+select ok(
+  (select cancelled_at is not null and cancelled_by = 'a2a20000-0000-4000-8000-000000000041'::uuid
+     from public.onm_vigilance where id = 'a2a20000-0000-4000-8000-000000000042'),
+  'late pre-cancel Update inherits cancelled_at and cancelled_by from cancelled parent'
+);
+
+-- ============================================================================
 -- 6. 5-Role Privilege & RLS Matrix (public, anon, authenticated, service_role, cold_reader)
 -- ============================================================================
 do $$
@@ -581,6 +995,7 @@ declare
     'public.finish_broadcast_delivery(uuid, text, uuid, integer, text)'
   ];
   _triggers text[] := array[
+    'public.preserve_onm_cap_detail_fields()',
     'public.clamp_cancelled_onm_delivery()',
     'public.invalidate_cancelled_onm_deliveries()',
     'public.clamp_cleared_official_delivery()',
@@ -607,7 +1022,7 @@ begin
   end loop;
 end;
 $$;
-select pass('5-role least-privilege execute matrix passes for all 10 new/altered M2A functions');
+select pass('5-role least-privilege execute matrix passes for all 11 new/altered M2A functions');
 
 -- Verify service_role can insert into onm_vigilance (exercises assign_onm_episode -> onm_episode_of)
 set local role service_role;

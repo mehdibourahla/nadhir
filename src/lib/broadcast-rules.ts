@@ -437,7 +437,7 @@ function normalizeAreaTokens(areaDesc: string | null | undefined): string[] {
 
 function normalizeGeocodes(geocodes: readonly string[] | undefined): string[] {
   if (!geocodes?.length) return [];
-  return geocodes.map((g) => g.trim()).filter(Boolean);
+  return geocodes.map((g) => g.trim().toUpperCase()).filter(Boolean);
 }
 
 /**
@@ -471,9 +471,9 @@ export function onmUpdateMaterialChange(
     priors.flatMap((p) => normalizeGeocodes(p.geocodes)),
   );
   let areaExpanded = !priorWilayas.has(next.wilayaId);
-  if (!areaExpanded && nextGeocodes.length > 0) {
+  if (!areaExpanded && priorGeocodes.size > 0 && nextGeocodes.length > 0) {
     areaExpanded = nextGeocodes.some((code) => !priorGeocodes.has(code));
-  } else if (!areaExpanded && priorGeocodes.size === 0) {
+  } else if (!areaExpanded) {
     const nextTokens = normalizeAreaTokens(next.areaDesc);
     const priorTokens = new Set(
       priors.flatMap((p) => normalizeAreaTokens(p.areaDesc)),
@@ -496,6 +496,34 @@ export function onmUpdateMaterialChange(
   }
 
   return { material: reasons.length > 0, reasons };
+}
+
+/**
+ * Deduplicated union of CAP-referenced priors and overlapping same-(wilaya, event)
+ * already-relayed warnings, so chained de-escalations referencing an earlier root
+ * Alert still see intermediate Extreme Updates.
+ */
+export function onmUpdatePriors(
+  warning: OnmWarning,
+  seen: readonly OnmWarning[],
+): OnmWarning[] {
+  const refIds = new Set(warning.referencedCapIds ?? []);
+  const wv = validity(warning);
+  const priors: OnmWarning[] = [];
+  const added = new Set<string>();
+  for (const p of seen) {
+    const matchesRef = p.capId != null && refIds.has(p.capId);
+    let overlapsSame = false;
+    if (p.wilayaId === warning.wilayaId && p.event === warning.event) {
+      const pv = validity(p);
+      overlapsSame = pv.start <= wv.end && wv.start <= pv.end;
+    }
+    if ((matchesRef || overlapsSame) && !added.has(p.id)) {
+      added.add(p.id);
+      priors.push(p);
+    }
+  }
+  return priors;
 }
 
 function covers(previous: OnmWarning, next: OnmWarning): boolean {
@@ -535,19 +563,7 @@ export function onmRelayPlan(
 
   for (const warning of candidates) {
     if (warning.msgType === "Update") {
-      const refIds = new Set(warning.referencedCapIds ?? []);
-      let priors = refIds.size
-        ? seen.filter((p) => p.capId != null && refIds.has(p.capId))
-        : [];
-      if (!priors.length) {
-        const wv = validity(warning);
-        priors = seen.filter((p) => {
-          if (p.wilayaId !== warning.wilayaId || p.event !== warning.event)
-            return false;
-          const pv = validity(p);
-          return pv.start <= wv.end && wv.start <= pv.end;
-        });
-      }
+      const priors = onmUpdatePriors(warning, seen);
       if (priors.length > 0) {
         const change = onmUpdateMaterialChange(warning, priors);
         if (!change.material) {
@@ -626,15 +642,31 @@ const RETROSPECTIVE_SUMMARY_PATTERNS: readonly RegExp[] = [
   /\b(?:retrospective|weekly\s+summary|daily\s+tally|activity\s+summary)\b/i,
   /حصيلة/,
   /ملخص\s+التدخلات/,
-  /خلال\s+(?:الـ?\s*)?24\s*ساعة/,
+  /خلال\s+(?:ال\s*)?24\s*ساعة/,
   /الإحصائيات\s+الأسبوعية/,
 ];
+
+function normalizeForSummaryCheck(text: string): string {
+  return text
+    .normalize("NFKC")
+    .replace(/\u0640/g, "")
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[\u0660-\u0669]/g, (ch) =>
+      String.fromCharCode(ch.charCodeAt(0) - 0x0660 + 48),
+    )
+    .replace(/[\u06F0-\u06F9]/g, (ch) =>
+      String.fromCharCode(ch.charCodeAt(0) - 0x06f0 + 48),
+    );
+}
 
 export function looksRetrospectiveOrSummary(
   text: string | null | undefined,
 ): boolean {
   if (!text) return false;
-  return RETROSPECTIVE_SUMMARY_PATTERNS.some((pattern) => pattern.test(text));
+  const normalized = normalizeForSummaryCheck(text);
+  return RETROSPECTIVE_SUMMARY_PATTERNS.some((pattern) =>
+    pattern.test(normalized),
+  );
 }
 
 export type OfficialIncidentBroadcastInput = {
@@ -685,6 +717,13 @@ export function evaluateOfficialIncidentBroadcast(
     return { action: "suppress", reason: "missing_commune" };
   }
 
+  if (input.unlistedAt !== null) {
+    return { action: "suppress", reason: "unlisted_incident" };
+  }
+  if (!Number.isFinite(input.asOfMs) || !Number.isFinite(input.nowMs)) {
+    return { action: "suppress", reason: "invalid_timestamp" };
+  }
+
   const ended = ENDED_OFFICIAL_STATUSES.has(input.status);
 
   if (input.hasInitialBroadcast) {
@@ -699,7 +738,10 @@ export function evaluateOfficialIncidentBroadcast(
         if (!hasVerbatimOfficialEvidence(input.evidence, input.documentBody)) {
           return { action: "suppress", reason: "missing_verbatim_evidence" };
         }
-        if (looksRetrospectiveOrSummary(input.evidence)) {
+        if (
+          looksRetrospectiveOrSummary(input.evidence) ||
+          looksRetrospectiveOrSummary(input.documentBody)
+        ) {
           return { action: "suppress", reason: "retrospective_or_summary" };
         }
       }
@@ -708,9 +750,6 @@ export function evaluateOfficialIncidentBroadcast(
     return { action: "suppress", reason: "already_broadcast" };
   }
 
-  if (input.unlistedAt !== null) {
-    return { action: "suppress", reason: "unlisted_incident" };
-  }
   if (ended) {
     return { action: "suppress", reason: "incident_already_ended" };
   }
@@ -718,9 +757,6 @@ export function evaluateOfficialIncidentBroadcast(
     return { action: "suppress", reason: "non_fire_not_ongoing" };
   }
 
-  if (!Number.isFinite(input.asOfMs) || !Number.isFinite(input.nowMs)) {
-    return { action: "suppress", reason: "invalid_timestamp" };
-  }
   if (input.asOfMs > input.nowMs) {
     return { action: "suppress", reason: "future_as_of" };
   }
@@ -735,7 +771,10 @@ export function evaluateOfficialIncidentBroadcast(
     if (!hasVerbatimOfficialEvidence(input.evidence, input.documentBody)) {
       return { action: "suppress", reason: "missing_verbatim_evidence" };
     }
-    if (looksRetrospectiveOrSummary(input.evidence)) {
+    if (
+      looksRetrospectiveOrSummary(input.evidence) ||
+      looksRetrospectiveOrSummary(input.documentBody)
+    ) {
       return { action: "suppress", reason: "retrospective_or_summary" };
     }
   } else if (!input.evidence || !input.evidence.trim()) {

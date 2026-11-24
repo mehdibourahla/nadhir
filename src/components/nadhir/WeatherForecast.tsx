@@ -98,8 +98,17 @@ export function WeatherForecast({ communeId }: { communeId?: string } = {}) {
       hour.weatherCode !== null && [95, 96, 99].includes(hour.weatherCode),
   );
   const warnings = useMemo(() => {
+    const isLiveWarning = (warning: OnmVigilance) =>
+      !warning.superseded_at &&
+      !warning.cancelled_at &&
+      !warning.superseded_by &&
+      warning.msg_type !== "Cancel" &&
+      (!warning.expires || Date.parse(warning.expires) > now);
     const visible = (onm.data?.warnings ?? []).filter(
-      (warning) => warning.wilaya_id === selected?.parent_id,
+      (warning) =>
+        warning.wilaya_id === selected?.parent_id &&
+        !warning.cancelled_at &&
+        warning.msg_type !== "Cancel",
     );
     const groups: {
       event: string;
@@ -139,15 +148,13 @@ export function WeatherForecast({ communeId }: { communeId?: string } = {}) {
       }
     }
     return groups
-      .filter((group) =>
-        group.bulletins.some(
-          (warning) =>
-            !warning.superseded_at &&
-            (!warning.expires || Date.parse(warning.expires) > now),
-        ),
-      )
+      .filter((group) => group.bulletins.some(isLiveWarning))
       .map((group) =>
-        group.bulletins.sort((a, b) => Date.parse(b.sent) - Date.parse(a.sent)),
+        group.bulletins.sort(
+          (a, b) =>
+            Number(isLiveWarning(b)) - Number(isLiveWarning(a)) ||
+            Date.parse(b.sent) - Date.parse(a.sent),
+        ),
       )
       .sort((a, b) => Date.parse(b[0]!.sent) - Date.parse(a[0]!.sent));
   }, [onm.data, selected?.parent_id, now]);

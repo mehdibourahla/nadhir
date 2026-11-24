@@ -171,11 +171,46 @@ begin
              then _geocodes
            else geocodes
          end,
-         cap_detail_fetched_at = now()
+         cap_detail_fetched_at = greatest(
+           clock_timestamp(),
+           coalesce(cap_detail_fetched_at + interval '1 microsecond', clock_timestamp())
+         )
    where id = _id;
   if not found then raise exception 'onm_warning_not_found' using errcode = 'P0002'; end if;
 end;
 $$;
+
+-- Prevent Atom feed re-poll upserts from clobbering CAP-detail-enriched fields
+create function public.preserve_onm_cap_detail_fields() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if old.cap_detail_fetched_at is not null
+    and new.cap_detail_fetched_at is not distinct from old.cap_detail_fetched_at
+  then
+    if new.msg_type = 'Alert' and old.msg_type in ('Update', 'Cancel') then
+      new.msg_type := old.msg_type;
+    end if;
+    if new.cap_references is null and old.cap_references is not null then
+      new.cap_references := old.cap_references;
+    end if;
+    if coalesce(cardinality(new.referenced_cap_ids), 0) = 0
+      and coalesce(cardinality(old.referenced_cap_ids), 0) > 0
+    then
+      new.referenced_cap_ids := old.referenced_cap_ids;
+    end if;
+    if coalesce(cardinality(new.geocodes), 0) = 0
+      and coalesce(cardinality(old.geocodes), 0) > 0
+    then
+      new.geocodes := old.geocodes;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger preserve_onm_cap_detail_fields
+  before update on public.onm_vigilance
+  for each row execute function public.preserve_onm_cap_detail_fields();
 
 -- 2. Extend public.broadcasts for 'earthquake', F8 non-fire end phases, and M2A->M2B metadata
 alter table public.broadcasts
@@ -234,7 +269,7 @@ begin
   where b.id = new.broadcast_id and b.kind = 'onm';
   if coalesce(_cancelled, false) then
     new.expires_at := '-infinity'::timestamptz;
-    new.last_error := coalesce(new.last_error, 'cap_cancelled');
+    new.last_error := 'cap_cancelled';
     if new.state = 'pending' then
       new.state := 'cancelled';
       new.lease_token := null;
@@ -261,7 +296,7 @@ begin
          expires_at = least(q.expires_at, '-infinity'::timestamptz),
          lease_token = null,
          lease_until = null,
-         last_error = coalesce(q.last_error, 'cap_cancelled')
+         last_error = 'cap_cancelled'
     from public.broadcasts b
    where b.id = q.broadcast_id
      and b.kind = 'onm'
@@ -271,7 +306,7 @@ begin
   -- forces the next renew_broadcast_delivery to return false and stop remaining unsent topics
   update public.broadcast_delivery_queue q
      set expires_at = least(q.expires_at, '-infinity'::timestamptz),
-         last_error = coalesce(q.last_error, 'cap_cancelled')
+         last_error = 'cap_cancelled'
     from public.broadcasts b
    where b.id = q.broadcast_id
      and b.kind = 'onm'
@@ -302,7 +337,7 @@ begin
     and b.phase = 'initial';
   if coalesce(_cleared, false) then
     new.expires_at := '-infinity'::timestamptz;
-    new.last_error := coalesce(new.last_error, 'official_cleared');
+    new.last_error := 'official_cleared';
     if new.state = 'pending' then
       new.state := 'cancelled';
       new.lease_token := null;
@@ -328,7 +363,7 @@ begin
          expires_at = least(q.expires_at, '-infinity'::timestamptz),
          lease_token = null,
          lease_until = null,
-         last_error = coalesce(q.last_error, 'official_cleared')
+         last_error = 'official_cleared'
     from public.broadcasts b
    where b.id = q.broadcast_id
      and b.kind = 'official'
@@ -337,7 +372,7 @@ begin
      and q.state = 'pending';
   update public.broadcast_delivery_queue q
      set expires_at = least(q.expires_at, '-infinity'::timestamptz),
-         last_error = coalesce(q.last_error, 'official_cleared')
+         last_error = 'official_cleared'
     from public.broadcasts b
    where b.id = q.broadcast_id
      and b.kind = 'official'
@@ -389,12 +424,16 @@ create or replace function public.finish_broadcast_delivery(
   _broadcast_id uuid, _channel text, _lease_token uuid, _count integer, _error text default null
 )
 returns boolean language plpgsql security definer set search_path = '' as $$
+declare
+  _final_state text;
 begin
   if _count < 0 then raise exception 'invalid_delivery_count'; end if;
   update public.broadcast_delivery_queue q set
     state = case
+      when (q.last_error in ('cap_cancelled', 'official_cleared') and coalesce(_count, 0) = 0)
+        or (_count is null and _error in ('cap_cancelled', 'official_cleared'))
+        then 'cancelled'
       when _count is not null then 'delivered'
-      when q.last_error in ('cap_cancelled', 'official_cleared') then 'cancelled'
       when q.expires_at<=now() or (q.attempts>=8 and _error is distinct from 'budget_exhausted') then 'expired'
       else 'pending'
     end,
@@ -403,16 +442,20 @@ begin
     lease_token = null,
     lease_until = null,
     last_error = case
-      when _count is null then coalesce(
-        case when q.last_error in ('cap_cancelled', 'official_cleared') then q.last_error end,
-        left(_error,1000)
-      )
+      when (q.last_error in ('cap_cancelled', 'official_cleared') and coalesce(_count, 0) = 0)
+        or (_count is null and _error in ('cap_cancelled', 'official_cleared'))
+        then case
+          when q.last_error in ('cap_cancelled', 'official_cleared') then q.last_error
+          else _error
+        end
+      when _count is null then left(_error,1000)
       else null
     end
   where q.broadcast_id=_broadcast_id and q.channel=_channel and q.lease_token=_lease_token
-    and q.state='leased' and q.lease_until>now();
+    and q.state='leased' and q.lease_until>now()
+  returning q.state into _final_state;
   if not found then return false; end if;
-  if _count is not null then
+  if _final_state = 'delivered' then
     if _channel='fcm' then
       update public.broadcasts set fcm_delivered_at=now(), fcm_topics=_count where id=_broadcast_id;
     else
@@ -522,6 +565,23 @@ begin
     where target.cap_id = any(_cap_ids)
       and target.msg_type <> 'Cancel'
       and canceller.msg_type = 'Cancel'
+    union all
+    -- Out-of-order pre-cancel Update: incoming Update referencing an already-cancelled row
+    -- sent at or before that parent's cancellation timestamp inherits the cancellation
+    select target.id as target_id,
+           coalesce(parent.cancelled_by, parent.id) as canceller_id,
+           parent.cancelled_at as cancel_ts,
+           0 as depth,
+           array[target.id] as visited
+    from public.onm_vigilance target
+    join public.onm_vigilance parent
+      on parent.cap_id = any(target.referenced_cap_ids)
+     and parent.id <> target.id
+    where target.cap_id = any(_cap_ids)
+      and target.msg_type = 'Update'
+      and cardinality(target.referenced_cap_ids) > 0
+      and parent.cancelled_at is not null
+      and target.sent <= parent.cancelled_at
   ), chain as (
     select target_id, canceller_id, cancel_ts, depth, visited from seed
     union all
@@ -605,6 +665,8 @@ grant execute on function public.claim_broadcast_delivery(text, integer),
   to service_role;
 
 -- Trigger functions: ZERO execute grants to any non-owner role
+revoke all on function public.preserve_onm_cap_detail_fields()
+  from public, anon, authenticated, service_role;
 revoke all on function public.clamp_cancelled_onm_delivery()
   from public, anon, authenticated, service_role;
 revoke all on function public.invalidate_cancelled_onm_deliveries()

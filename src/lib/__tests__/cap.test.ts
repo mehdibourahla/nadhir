@@ -258,12 +258,12 @@ describe("capToXml", () => {
         texts: [
           {
             ...input.texts[0]!,
-            headline: 'Fire <near> "Béjaïa" & Sétif',
+            headline: `Fire <near> "Béjaïa" & M'Sila`,
           },
         ],
       }),
     );
-    expect(xml).toContain("&lt;near&gt; &quot;Béjaïa&quot; &amp; Sétif");
+    expect(xml).toContain("&lt;near&gt; &quot;Béjaïa&quot; &amp; M&apos;Sila");
     expect(xml).not.toContain("<near>");
   });
 });

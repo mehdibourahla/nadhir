@@ -276,7 +276,8 @@ function escape(value: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 const tag = (name: string, value: string) =>
@@ -324,6 +325,38 @@ export function capToXml(alert: CapAlert): string {
 
 const MAX_CAP_REFERENCES_LEN = 32_768;
 
+const CAP_ISO_DATETIME_RE =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(Z|([+-])(\d{2}):(\d{2}))$/;
+
+function isValidCapTimestamp(ts: string): boolean {
+  const match = CAP_ISO_DATETIME_RE.exec(ts);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+  if (hour > 23 || minute > 59 || second > 59) return false;
+  if (match[8] !== undefined) {
+    const tzHour = Number(match[9]);
+    const tzMinute = Number(match[10]);
+    if (tzHour > 23 || tzMinute > 59) return false;
+  }
+  // Verify real calendar date without JS Date rollover (rejects 2026-02-30, 2026-04-31)
+  const checkDate = new Date(0);
+  checkDate.setUTCFullYear(year, month - 1, day);
+  if (
+    checkDate.getUTCFullYear() !== year ||
+    checkDate.getUTCMonth() !== month - 1 ||
+    checkDate.getUTCDate() !== day
+  ) {
+    return false;
+  }
+  return Number.isFinite(Date.parse(ts));
+}
+
 /** Parse a CAP 1.2 <msgType> value into Alert | Update | Cancel, or null for Ack/Error/unknown. */
 export function parseCapMsgType(
   raw: string | null | undefined,
@@ -364,7 +397,7 @@ export function parseCapReferences(
     const id = identifier.trim();
     const ts = sent.trim();
     if (!s || !id || !ts) return;
-    if (!Number.isFinite(Date.parse(ts))) return;
+    if (!isValidCapTimestamp(ts)) return;
     if (seen.has(id)) return;
     seen.add(id);
     out.push({ sender: s, identifier: id, sent: ts });

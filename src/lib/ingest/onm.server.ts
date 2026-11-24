@@ -32,10 +32,72 @@ export type OnmEntry = {
   geocodes: string[];
 };
 
-const tag = (entry: string, name: string): string | null => {
-  const m = entry.match(new RegExp(`<${name}>([^<]*)</${name}>`));
-  return m ? m[1]!.trim() : null;
+const isXmlTagBoundary = (ch: string | undefined): boolean =>
+  ch === ">" ||
+  ch === " " ||
+  ch === "\t" ||
+  ch === "\n" ||
+  ch === "\r" ||
+  ch === "/";
+
+/** Linear O(n), ReDoS-free XML leaf tag reader supporting optional attributes. */
+const tag = (xml: string, name: string): string | null => {
+  const openPrefix = `<${name}`;
+  const closeTag = `</${name}>`;
+  let pos = 0;
+  while (pos < xml.length) {
+    const start = xml.indexOf(openPrefix, pos);
+    if (start === -1) return null;
+    const afterName = start + openPrefix.length;
+    if (!isXmlTagBoundary(xml[afterName])) {
+      pos = afterName;
+      continue;
+    }
+    const openEnd = xml.indexOf(">", afterName);
+    if (openEnd === -1) return null;
+    if (xml[openEnd - 1] === "/") {
+      pos = openEnd + 1;
+      continue;
+    }
+    const closeStart = xml.indexOf(closeTag, openEnd + 1);
+    if (closeStart === -1) return null;
+    const content = xml.slice(openEnd + 1, closeStart);
+    if (content.includes("<")) {
+      pos = openEnd + 1;
+      continue;
+    }
+    return content.trim();
+  }
+  return null;
 };
+
+/** Linear O(n), ReDoS-free extraction of Atom <entry>...</entry> blocks (with optional attributes). */
+function extractEntries(xml: string): string[] {
+  const entries: string[] = [];
+  const openPrefix = "<entry";
+  const closeTag = "</entry>";
+  let pos = 0;
+  while (pos < xml.length) {
+    const start = xml.indexOf(openPrefix, pos);
+    if (start === -1) break;
+    const afterName = start + openPrefix.length;
+    if (!isXmlTagBoundary(xml[afterName])) {
+      pos = afterName;
+      continue;
+    }
+    const openEnd = xml.indexOf(">", afterName);
+    if (openEnd === -1) break;
+    if (xml[openEnd - 1] === "/") {
+      pos = openEnd + 1;
+      continue;
+    }
+    const closeStart = xml.indexOf(closeTag, openEnd + 1);
+    if (closeStart === -1) break;
+    entries.push(xml.slice(start, closeStart + closeTag.length));
+    pos = closeStart + closeTag.length;
+  }
+  return entries;
+}
 
 /** Linear O(n) extraction of <geocode><value>...</value></geocode> (and cap:-prefixed forms). */
 function extractGeocodes(xml: string): string[] {
@@ -43,27 +105,30 @@ function extractGeocodes(xml: string): string[] {
   const seen = new Set<string>();
   const prefixes = ["cap:", ""];
   for (const prefix of prefixes) {
-    const openGeo = `<${prefix}geocode>`;
+    const openGeo = `<${prefix}geocode`;
     const closeGeo = `</${prefix}geocode>`;
-    const openVal = `<${prefix}value>`;
-    const closeVal = `</${prefix}value>`;
     let pos = 0;
     while (pos < xml.length) {
       const start = xml.indexOf(openGeo, pos);
       if (start === -1) break;
-      const end = xml.indexOf(closeGeo, start + openGeo.length);
+      const afterName = start + openGeo.length;
+      if (!isXmlTagBoundary(xml[afterName])) {
+        pos = afterName;
+        continue;
+      }
+      const openEnd = xml.indexOf(">", afterName);
+      if (openEnd === -1) break;
+      if (xml[openEnd - 1] === "/") {
+        pos = openEnd + 1;
+        continue;
+      }
+      const end = xml.indexOf(closeGeo, openEnd + 1);
       if (end === -1) break;
-      const block = xml.slice(start + openGeo.length, end);
-      const valStart = block.indexOf(openVal);
-      if (valStart !== -1) {
-        const valEnd = block.indexOf(closeVal, valStart + openVal.length);
-        if (valEnd !== -1) {
-          const val = block.slice(valStart + openVal.length, valEnd).trim();
-          if (val && !seen.has(val)) {
-            seen.add(val);
-            out.push(val);
-          }
-        }
+      const block = xml.slice(openEnd + 1, end);
+      const val = tag(block, `${prefix}value`);
+      if (val && !seen.has(val)) {
+        seen.add(val);
+        out.push(val);
       }
       pos = end + closeGeo.length;
     }
@@ -74,7 +139,7 @@ function extractGeocodes(xml: string): string[] {
 export function parseOnmFeed(xml: string): OnmEntry[] {
   if (!xml.includes("urn:oasis:names:tc:emergency:cap:1.2")) return [];
   const out: OnmEntry[] = [];
-  for (const entry of xml.match(/<entry>[\s\S]*?<\/entry>/g) ?? []) {
+  for (const entry of extractEntries(xml)) {
     const cap_id = tag(entry, "id");
     const title = tag(entry, "title");
     const sent = tag(entry, "cap:sent");
@@ -146,11 +211,15 @@ export type CapDetail = {
   geocodes: string[];
 };
 
-const BOILERPLATE = "No additional information.";
+const BOILERPLATE = "no additional information.";
+
+const isBoilerplateInstruction = (value: string): boolean =>
+  value.trim().replace(/\s+/g, " ").toLowerCase() === BOILERPLATE;
 
 export function parseCapDetail(xml: string): CapDetail | null {
   if (!xml.includes("urn:oasis:names:tc:emergency:cap:1.2")) return null;
-  const infoStart = xml.indexOf("<info>");
+  const infoMatch = /<info(?:\s|>)/.exec(xml);
+  const infoStart = infoMatch ? infoMatch.index : -1;
   const headerXml = infoStart === -1 ? xml : xml.slice(0, infoStart);
   const msg_type = parseCapMsgType(
     tag(headerXml, "msgType") ?? tag(headerXml, "cap:msgType"),
@@ -177,7 +246,9 @@ export function parseCapDetail(xml: string): CapDetail | null {
   return {
     headline_fr: headline,
     instruction_fr:
-      instruction && instruction !== BOILERPLATE ? instruction : null,
+      instruction && !isBoilerplateInstruction(instruction)
+        ? instruction
+        : null,
     polygon: polygon?.length ? polygon : null,
     msg_type,
     cap_references,

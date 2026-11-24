@@ -30,6 +30,7 @@ import {
   isNonFireBroadcastKind,
   onmRelayPlan,
   onmUpdateMaterialChange,
+  onmUpdatePriors,
   onmWarningIsCurrent,
   planFireBroadcast,
   pushCodesFor,
@@ -1359,12 +1360,7 @@ async function relayOnmWarnings(
     const severity = warning.severity as "Extreme" | "Severe";
     const phase: BroadcastPhase =
       warning.msgType === "Update" ? "update" : "initial";
-    const refIds = new Set(warning.referencedCapIds ?? []);
-    const priors = refIds.size
-      ? seenForReasons.filter((p) => p.capId != null && refIds.has(p.capId))
-      : seenForReasons.filter(
-          (p) => p.wilayaId === warning.wilayaId && p.event === warning.event,
-        );
+    const priors = onmUpdatePriors(warning, seenForReasons);
     const changeReasons =
       phase === "update"
         ? onmUpdateMaterialChange(warning, priors).reasons

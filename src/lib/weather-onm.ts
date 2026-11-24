@@ -23,13 +23,13 @@ export const weatherOnmQuery = (wilayaId: string | null | undefined) =>
             .select(fields)
             .eq("wilaya_id", wilayaId)
             .lte("sent", capturedAt)
-            .neq("msg_type", "Cancel");
+            .neq("msg_type", "Cancel")
+            .is("cancelled_at", null);
           query = bounds
             ? query.gt("expires", bounds.start).lt("onset", bounds.end)
             : query
                 .gt("expires", capturedAt)
                 .is("superseded_at", null)
-                .is("cancelled_at", null)
                 .is("superseded_by", null);
           const { data, error } = await query
             .order("sent", { ascending: false })

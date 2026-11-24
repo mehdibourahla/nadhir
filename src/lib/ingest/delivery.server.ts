@@ -338,6 +338,15 @@ async function deliverFcm(errors: string[]): Promise<{
     if (!row) break;
     try {
       const context = await loadContext([row]);
+      if (row.kind === "onm") {
+        const onm = row.onm_vigilance_id
+          ? context.onmById.get(row.onm_vigilance_id)
+          : null;
+        if (onm && (Boolean(onm.cancelled_at) || onm.msg_type === "Cancel")) {
+          await finishDelivery(row, "fcm", null, "cap_cancelled");
+          continue;
+        }
+      }
       const messages = fcmMessagesFor(row, context);
       if (messages === null) throw new Error("fcm delivery context missing");
       const delivered = await deliveryReceipts(row.id, "fcm");
