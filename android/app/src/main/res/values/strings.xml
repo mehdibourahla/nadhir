@@ -4,4 +4,16 @@
     <string name="title_activity_main">Nadhir</string>
     <string name="package_name">app.nadhir</string>
     <string name="custom_url_scheme">app.nadhir</string>
+    <string name="notification_channel_urgent_name">Urgent safety alerts</string>
+    <string name="notification_channel_urgent_description">Extreme ONM warnings, active civil protection incidents, M5+ earthquakes and probable fires.</string>
+    <string name="notification_channel_official_name">Official bulletins</string>
+    <string name="notification_channel_official_description">Severe ONM weather warnings and official flood, storm or road updates.</string>
+    <string name="notification_channel_earthquakes_name">Earthquakes</string>
+    <string name="notification_channel_earthquakes_description">M4.0 to M4.9 earthquakes recorded near your followed communes.</string>
+    <string name="notification_channel_civil_name">Civil updates and digests</string>
+    <string name="notification_channel_civil_description">General civil updates, road notices and alert lifecycle summaries.</string>
+    <string name="notification_channel_test_name">Notification tests</string>
+    <string name="notification_channel_test_description">Self-test notifications you trigger to verify delivery on this device.</string>
+    <string name="notification_channel_legacy_name">Nadhir alerts</string>
+    <string name="notification_channel_legacy_description">Legacy fallback channel kept for compatibility with earlier app versions.</string>
 </resources>

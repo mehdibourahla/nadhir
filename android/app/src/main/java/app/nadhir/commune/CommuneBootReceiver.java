@@ -6,11 +6,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import androidx.core.content.ContextCompat;
+import app.nadhir.NotificationChannels;
 
 public class CommuneBootReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
+        NotificationChannels.ensureAll(context);
         // location requests do not survive a reboot or an app update
         if (!CommuneTracker.enabled(context)) return;
         if (

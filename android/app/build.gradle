@@ -1,5 +1,21 @@
 apply plugin: 'com.android.application'
 
+def rawVersionCode = (System.getenv("NADHIR_ANDROID_VERSION_CODE") ?: findProperty("nadhirVersionCode")?.toString() ?: "4").trim()
+def resolvedVersionCode
+try {
+    resolvedVersionCode = Integer.parseInt(rawVersionCode)
+} catch (NumberFormatException ignored) {
+    throw new GradleException("Invalid Android versionCode '${rawVersionCode}': must be a positive integer.")
+}
+if (resolvedVersionCode < 1) {
+    throw new GradleException("Invalid Android versionCode '${resolvedVersionCode}': must be >= 1.")
+}
+
+def resolvedVersionName = (System.getenv("NADHIR_ANDROID_VERSION_NAME") ?: findProperty("nadhirVersionName")?.toString() ?: "1.1.0").trim()
+if (!resolvedVersionName) {
+    throw new GradleException("Android versionName must be non-empty.")
+}
+
 android {
     namespace = "app.nadhir"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +23,8 @@ android {
         applicationId "app.nadhir"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "1.0"
+        versionCode resolvedVersionCode
+        versionName resolvedVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -18,20 +34,48 @@ android {
     }
     signingConfigs {
         release {
-            def store = System.getenv("NADHIR_UPLOAD_STORE")
+            def store = System.getenv("NADHIR_UPLOAD_STORE")?.trim()
             if (store) {
+                def storePasswordEnv = System.getenv("NADHIR_UPLOAD_PASSWORD")
+                if (!storePasswordEnv || !storePasswordEnv.trim()) {
+                    throw new GradleException("NADHIR_UPLOAD_PASSWORD must be set when NADHIR_UPLOAD_STORE is provided.")
+                }
+                def keyAliasEnv = System.getenv("NADHIR_UPLOAD_KEY_ALIAS")?.trim()
+                def keyPasswordEnv = System.getenv("NADHIR_UPLOAD_KEY_PASSWORD")
                 storeFile file(store)
-                storePassword System.getenv("NADHIR_UPLOAD_PASSWORD")
-                keyAlias "upload"
-                keyPassword System.getenv("NADHIR_UPLOAD_PASSWORD")
+                storePassword storePasswordEnv
+                keyAlias(keyAliasEnv ?: "upload")
+                keyPassword(keyPasswordEnv?.trim() ? keyPasswordEnv : storePasswordEnv)
             }
         }
     }
     buildTypes {
         release {
-            if (System.getenv("NADHIR_UPLOAD_STORE")) signingConfig signingConfigs.release
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (System.getenv("NADHIR_UPLOAD_STORE")?.trim()) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+gradle.taskGraph.whenReady { taskGraph ->
+    def packagingRelease = taskGraph.allTasks.any { task ->
+        task.project == project && (task.name == 'assembleRelease' || task.name == 'bundleRelease')
+    }
+    if (packagingRelease) {
+        def store = System.getenv("NADHIR_UPLOAD_STORE")?.trim()
+        def storePasswordEnv = System.getenv("NADHIR_UPLOAD_PASSWORD")
+        if (!store) {
+            throw new GradleException("NADHIR_UPLOAD_STORE must be set for release packaging (assembleRelease / bundleRelease).")
+        }
+        if (!file(store).isFile()) {
+            throw new GradleException("NADHIR_UPLOAD_STORE file does not exist: ${store}")
+        }
+        if (!storePasswordEnv || !storePasswordEnv.trim()) {
+            throw new GradleException("NADHIR_UPLOAD_PASSWORD must be set for release packaging (assembleRelease / bundleRelease).")
         }
     }
 }
