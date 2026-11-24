@@ -1420,6 +1420,55 @@ async function verifyUploadedManifests(
   }
 }
 
+async function restoreColdReaderPassword(
+  sql: SQL,
+  options: {
+    readerHadNullPassword: boolean;
+    previousReaderPasswordHash: string | null;
+    rethrow: boolean;
+  },
+): Promise<void> {
+  let failureDetail: string | null = null;
+  try {
+    if (options.readerHadNullPassword) {
+      await sql.unsafe("alter role cold_reader with password null");
+    } else if (options.previousReaderPasswordHash) {
+      const [row] = await sql<{ stmt: string }[]>`
+        select pg_catalog.format('alter role cold_reader with password %L', ${options.previousReaderPasswordHash}::text) as stmt
+      `;
+      if (!row?.stmt) {
+        failureDetail =
+          "pg_catalog.format returned an empty ALTER ROLE statement";
+      } else {
+        await sql.unsafe(row.stmt);
+      }
+    }
+  } catch (err) {
+    const code =
+      typeof err === "object" && err !== null && "errno" in err
+        ? String((err as { errno?: unknown }).errno ?? "")
+        : typeof err === "object" && err !== null && "code" in err
+          ? String((err as { code?: unknown }).code ?? "")
+          : "";
+    const rawMessage = err instanceof Error ? err.message : String(err);
+    const safeMessage = options.previousReaderPasswordHash
+      ? rawMessage.replaceAll(options.previousReaderPasswordHash, "[REDACTED]")
+      : rawMessage;
+    failureDetail = code ? `[${code}] ${safeMessage}` : safeMessage;
+  }
+
+  if (failureDetail !== null) {
+    console.error(
+      `[verify-cold-archive] Failed to restore cold_reader password state: ${failureDetail}`,
+    );
+    if (options.rethrow) {
+      throw new Error(
+        `Failed to restore cold_reader password state: ${failureDetail}`,
+      );
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const args = parseVerifyColdArchiveArgs(process.argv.slice(2));
   if (args.help) {
@@ -1507,6 +1556,7 @@ async function main(): Promise<void> {
   let temporaryReaderPasswordSet = false;
   let readerHadNullPassword = false;
   let previousReaderPasswordHash: string | null = null;
+  let hasPriorError = false;
 
   try {
     const [clockRow] = await sql<{ db_today: string }[]>`
@@ -2292,7 +2342,11 @@ async function main(): Promise<void> {
       );
       console.log("ALL COLD-ARCHIVE VERIFICATION CHECKS PASSED");
     }
+  } catch (err) {
+    hasPriorError = true;
+    throw err;
   } finally {
+    let cleanupSucceeded = false;
     try {
       if (didMutateDb || tracker.uploadedPaths.size > 0) {
         await cleanupFixtures(
@@ -2304,29 +2358,27 @@ async function main(): Promise<void> {
           { snapshotsCaptured, didMutateDb },
         );
       }
+      cleanupSucceeded = true;
     } finally {
       if (readerSql) {
         await readerSql.close().catch(() => {});
       }
-      if (temporaryReaderPasswordSet) {
-        if (readerHadNullPassword) {
-          await sql
-            .unsafe("alter role cold_reader with password null")
-            .catch(() => {});
-        } else if (previousReaderPasswordHash) {
-          await sql<{ stmt: string }[]>`
-            select pg_catalog.format('alter role cold_reader with password %L', ${previousReaderPasswordHash}) as stmt
-          `
-            .then(([row]) => (row?.stmt ? sql.unsafe(row.stmt) : undefined))
-            .catch(() => {});
+      try {
+        if (temporaryReaderPasswordSet) {
+          await restoreColdReaderPassword(sql, {
+            readerHadNullPassword,
+            previousReaderPasswordHash,
+            rethrow: !hasPriorError && cleanupSucceeded,
+          });
         }
+      } finally {
+        if (duckdbWorkDir) {
+          await rm(duckdbWorkDir, { recursive: true, force: true }).catch(
+            () => {},
+          );
+        }
+        await sql.close();
       }
-      if (duckdbWorkDir) {
-        await rm(duckdbWorkDir, { recursive: true, force: true }).catch(
-          () => {},
-        );
-      }
-      await sql.close();
     }
   }
 }
