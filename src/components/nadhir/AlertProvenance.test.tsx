@@ -239,4 +239,58 @@ describe("AlertProvenance component (SSR)", () => {
       expect(html, `lng=${lng}`).not.toContain("\u2014");
     }
   });
+
+  it("renders whitespace-padded valid ISO observedAt without throwing and emits trimmed dateTime", () => {
+    const trimmedIso = "2026-11-24T12:00:00Z";
+    for (const paddedIso of [`  ${trimmedIso}  `, `\n${trimmedIso}\t`]) {
+      const paddedProvenance: AlertProvenanceData = {
+        triggerKind: "wilaya_warning",
+        areaLabel: "Alger",
+        radiusKm: null,
+        sourceKey: "onm",
+        sourceAttribution: "ONM · Météo Algérie",
+        ruleLabelKey: "provenance.rule.onmSevere",
+        observedAt: paddedIso,
+        authorityStatus: "official",
+      };
+
+      const collapsedHtml = renderInLocale("en", paddedProvenance);
+      expect(collapsedHtml).toContain(`dateTime="${trimmedIso}"`);
+      expect(collapsedHtml).not.toContain("\u2014");
+
+      const expandedHtml = renderInLocale("en", paddedProvenance, {
+        defaultExpanded: true,
+      });
+      expect(expandedHtml).toContain(`dateTime="${trimmedIso}"`);
+      expect(expandedHtml).not.toContain(`dateTime="${paddedIso}"`);
+      expect(expandedHtml).not.toContain("\u2014");
+    }
+  });
+
+  it("rejects ruleLabelKey templates with uninterpolated {{...}} tokens and falls back to generic rule", () => {
+    const templateRuleProvenance: AlertProvenanceData = {
+      triggerKind: "watch_zone",
+      areaLabel: "Azazga",
+      radiusKm: 20,
+      sourceKey: "dgpc_telegram",
+      sourceAttribution: "DGPC",
+      ruleLabelKey: "provenance.radiusKm",
+      observedAt: OBSERVED_ISO,
+      authorityStatus: "official",
+    };
+
+    for (const locale of ["ar", "fr", "en", "kab"] as const) {
+      const t = i18n.getFixedT(locale);
+      const html = renderInLocale(locale, templateRuleProvenance, {
+        defaultExpanded: true,
+      });
+      expect(html, `${locale}: no uninterpolated {{km}}`).not.toContain(
+        "{{km}}",
+      );
+      expect(html, `${locale}: no raw template braces`).not.toContain("{{");
+      expect(html, `${locale}: falls back to generic rule`).toContain(
+        t("provenance.rule.generic"),
+      );
+    }
+  });
 });

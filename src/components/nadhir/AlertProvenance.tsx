@@ -14,6 +14,7 @@ import {
 import { algiersTime, relativeTime } from "@/lib/nadhir";
 
 const BLANK_OR_EM_DASH_ONLY = /^[\s\u2014]+$/;
+const UNINTERPOLATED_TOKEN = /\{\{[^}]+\}\}/;
 
 function normalizeLocale(language: string | undefined): AnyLocale {
   const prefix = (language ?? "ar").trim().toLowerCase().split(/[-_]/)[0];
@@ -63,7 +64,9 @@ export function AlertProvenance({
       ? t(rawRuleKey, { returnObjects: true, defaultValue: "" })
       : "";
   const ruleText =
-    typeof resolvedRule === "string" && resolvedRule.trim().length > 0
+    typeof resolvedRule === "string" &&
+    resolvedRule.trim().length > 0 &&
+    !UNINTERPOLATED_TOKEN.test(resolvedRule)
       ? resolvedRule
       : t("provenance.rule.generic");
 
@@ -78,7 +81,11 @@ export function AlertProvenance({
     !BLANK_OR_EM_DASH_ONLY.test(provenance.sourceAttribution)
       ? provenance.sourceAttribution.trim()
       : notRecorded;
-  const hasValidTime = isValidObservedAt(provenance.observedAt);
+  const safeObservedAt =
+    typeof provenance.observedAt === "string"
+      ? provenance.observedAt.trim()
+      : "";
+  const hasValidTime = isValidObservedAt(safeObservedAt);
   const hasValidRadius = isValidRadiusKm(provenance.radiusKm);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -107,8 +114,8 @@ export function AlertProvenance({
             <span>{triggerText}</span>
             <span aria-hidden>·</span>
             {hasValidTime ? (
-              <time dateTime={provenance.observedAt}>
-                {relativeTime(provenance.observedAt, locale, now)}
+              <time dateTime={safeObservedAt}>
+                {relativeTime(safeObservedAt, locale, now)}
               </time>
             ) : (
               <span>{notRecorded}</span>
@@ -194,9 +201,9 @@ export function AlertProvenance({
             </dt>
             <dd className="text-muted-foreground">
               {hasValidTime ? (
-                <time dateTime={provenance.observedAt}>
-                  {algiersTime(provenance.observedAt)} ·{" "}
-                  {relativeTime(provenance.observedAt, locale, now)}
+                <time dateTime={safeObservedAt}>
+                  {algiersTime(safeObservedAt)} ·{" "}
+                  {relativeTime(safeObservedAt, locale, now)}
                 </time>
               ) : (
                 <span>{notRecorded}</span>

@@ -74,8 +74,6 @@ export const BANNED_STATUS_LABELS = Object.freeze([
 
 const EM_DASH = "\u2014";
 const BLANK_OR_EM_DASH_ONLY = /^[\s\u2014]+$/;
-const EMBEDDED_EM_DASH = /\s*\u2014+\s*/g;
-const EDGE_MIDDOTS = /^(?:\s*·\s*)+|(?:\s*·\s*)+$/g;
 const ISO_8601_WITH_TZ_RE =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?(?:[Zz]|([+-])(\d{2}):?(\d{2}))$/;
 const ONM_ATTRIBUTION_PATTERNS: readonly RegExp[] = [
@@ -170,15 +168,12 @@ export function isValidObservedAt(iso: unknown): boolean {
 
 export function normalizeAreaLabel(value: unknown): string | null {
   if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  if (trimmed.length === 0 || BLANK_OR_EM_DASH_ONLY.test(trimmed)) {
-    return null;
-  }
-  const cleaned = trimmed
-    .replace(EMBEDDED_EM_DASH, " · ")
-    .replace(EDGE_MIDDOTS, "")
-    .trim();
-  return cleaned.length > 0 ? cleaned : null;
+  const segments = value
+    .replace(/\u2014/g, "·")
+    .split("·")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  return segments.length > 0 ? segments.join(" · ") : null;
 }
 
 function normalizeRadiusKm(value: number | null | undefined): number | null {
@@ -195,7 +190,8 @@ function normalizeAuthorityStatus(
 }
 
 function hasValidOnmAttribution(attribution: string): boolean {
-  return ONM_ATTRIBUTION_PATTERNS.some((pattern) => pattern.test(attribution));
+  const normalized = attribution.normalize("NFC");
+  return ONM_ATTRIBUTION_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
 function ownProp(record: Record<string, unknown>, key: string): unknown {

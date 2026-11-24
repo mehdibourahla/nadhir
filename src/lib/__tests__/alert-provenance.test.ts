@@ -121,6 +121,11 @@ describe("buildAlertProvenance", () => {
     expect(normalizeAreaLabel("  \u2014  ")).toBeNull();
     expect(normalizeAreaLabel("\u2014 Alger")).toBe("Alger");
     expect(normalizeAreaLabel("Alger \u2014")).toBe("Alger");
+    expect(normalizeAreaLabel("\u2014 Alger \u2014")).toBe("Alger");
+    expect(normalizeAreaLabel("·")).toBeNull();
+    expect(normalizeAreaLabel(" · \u2014 · ")).toBeNull();
+    expect(normalizeAreaLabel("Alger \u2014 \u2014 Oran")).toBe("Alger · Oran");
+    expect(normalizeAreaLabel("Alger · \u2014 · Oran")).toBe("Alger · Oran");
 
     const builtArea = buildAlertProvenance({
       triggerKind: "commune_topic",
@@ -145,6 +150,36 @@ describe("buildAlertProvenance", () => {
     });
     expect(builtOnm.sourceAttribution).toBe(verbatimOnm);
     expect(validateProvenanceInvariants(builtOnm)).toEqual([]);
+  });
+
+  it("normalizes adversarial repeated middot, em-dash, and whitespace areaLabels in strictly linear time", () => {
+    const middotAttack = `x${"  ·  ".repeat(500)}y`;
+    const emDashAttack = `x${" \u2014 ".repeat(500)}y`;
+    const spaceAttack = `x${" ".repeat(10_000)}y`;
+
+    const start = performance.now();
+    expect(normalizeAreaLabel(middotAttack)).toBe("x · y");
+    expect(normalizeAreaLabel(emDashAttack)).toBe("x · y");
+    expect(normalizeAreaLabel(spaceAttack)).toBe(spaceAttack);
+
+    const parsedMiddot = parseProvenancePayload({
+      provenance_trigger: "commune_topic",
+      provenance_area: middotAttack,
+      provenance_source_key: "dgpc_telegram",
+      provenance_observed_at: SAMPLE_ISO,
+    });
+    const parsedEmDash = parseProvenancePayload({
+      provenance_trigger: "commune_topic",
+      provenance_area: emDashAttack,
+      provenance_source_key: "dgpc_telegram",
+      provenance_observed_at: SAMPLE_ISO,
+    });
+    const elapsedMs = performance.now() - start;
+
+    expect(parsedMiddot?.areaLabel).toBe("x · y");
+    expect(parsedEmDash?.areaLabel).toBe("x · y");
+    expect(parsedEmDash?.areaLabel).not.toContain("\u2014");
+    expect(elapsedMs).toBeLessThan(50);
   });
 });
 
@@ -177,8 +212,10 @@ describe("validateProvenanceInvariants", () => {
     for (const validOnm of [
       "ONM · Météo Algérie",
       "الديوان الوطني للأرصاد الجوية",
+      "الديوان الوطني للأرصاد الجوية".normalize("NFD"),
       "الديوان الوطني للأرصاد الجوية · نشرة جوية خاصة",
       "Office National de la Météorologie",
+      "Office National de la Me\u0301te\u0301orologie",
       "Office National de la Meteorologie",
     ]) {
       const built = buildAlertProvenance({
