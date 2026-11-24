@@ -1,5 +1,5 @@
 import http from "node:http";
-import type { AddressInfo } from "node:net";
+import type { AddressInfo, Socket } from "node:net";
 
 import type { SourceExecutionTarget } from "@/lib/source-jobs";
 
@@ -14,17 +14,29 @@ export type WorkerHealthSnapshot = {
   lastSchedulerTickAt: string | null;
 };
 
+export type HealthServerOptions = {
+  host: string;
+  port: number;
+  getSnapshot: () => WorkerHealthSnapshot;
+  checkDb: () => Promise<boolean>;
+  dbCheckTimeoutMs?: number | undefined;
+};
+
 export type HealthServerHandle = {
   port: number;
   host: string;
-  close: () => Promise<void>;
+  close: (timeoutMs?: number) => Promise<void>;
 };
+
+const DEFAULT_DB_CHECK_TIMEOUT_MS = 3_000;
+const DEFAULT_CLOSE_TIMEOUT_MS = 2_000;
 
 function sendJson(
   res: http.ServerResponse,
   statusCode: number,
   body: Record<string, unknown>,
 ): void {
+  if (res.writableEnded || res.destroyed) return;
   const payload = JSON.stringify(body);
   res.writeHead(statusCode, {
     "content-type": "application/json; charset=utf-8",
@@ -34,12 +46,33 @@ function sendJson(
   res.end(payload);
 }
 
-export async function startHealthServer(options: {
-  host: string;
-  port: number;
-  getSnapshot: () => WorkerHealthSnapshot;
-  checkDb: () => Promise<boolean>;
-}): Promise<HealthServerHandle> {
+function runBoundedDbCheck(
+  checkDb: () => Promise<boolean>,
+  timeoutMs: number,
+): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    Promise.resolve()
+      .then(() => checkDb())
+      .then((healthy) => Boolean(healthy))
+      .catch(() => false),
+    new Promise<boolean>((resolve) => {
+      timer = setTimeout(() => resolve(false), timeoutMs);
+    }),
+  ]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer);
+  });
+}
+
+export async function startHealthServer(
+  options: HealthServerOptions,
+): Promise<HealthServerHandle> {
+  const dbCheckTimeoutMs = Math.max(
+    50,
+    options.dbCheckTimeoutMs ?? DEFAULT_DB_CHECK_TIMEOUT_MS,
+  );
+  const sockets = new Set<Socket>();
+
   const server = http.createServer((req, res) => {
     const method = req.method ?? "GET";
     const pathname = (req.url ?? "/").split("?")[0] ?? "/";
@@ -79,9 +112,8 @@ export async function startHealthServer(options: {
       return;
     }
 
-    void options
-      .checkDb()
-      .then((dbHealthy) => {
+    void runBoundedDbCheck(options.checkDb, dbCheckTimeoutMs).then(
+      (dbHealthy) => {
         if (!dbHealthy) {
           sendJson(res, 503, {
             ready: false,
@@ -95,13 +127,13 @@ export async function startHealthServer(options: {
           activeJobs: snapshot.activeJobs,
           lastSchedulerTickAt: snapshot.lastSchedulerTickAt,
         });
-      })
-      .catch(() => {
-        sendJson(res, 503, {
-          ready: false,
-          reason: "db_unavailable",
-        });
-      });
+      },
+    );
+  });
+
+  server.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.once("close", () => sockets.delete(socket));
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -119,12 +151,34 @@ export async function startHealthServer(options: {
   return {
     port: boundPort,
     host: boundHost,
-    close: () =>
-      new Promise<void>((resolve, reject) => {
-        server.close((error) => {
-          if (error) reject(error);
-          else resolve();
+    close: (timeoutMs: number = DEFAULT_CLOSE_TIMEOUT_MS) =>
+      new Promise<void>((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(forceTimer);
+          resolve();
+        };
+
+        const forceTimer = setTimeout(
+          () => {
+            server.closeAllConnections?.();
+            for (const socket of sockets) {
+              socket.destroy();
+            }
+            finish();
+          },
+          Math.max(0, timeoutMs),
+        );
+        if (typeof forceTimer === "object" && "unref" in forceTimer) {
+          forceTimer.unref();
+        }
+
+        server.close(() => {
+          finish();
         });
+        server.closeIdleConnections?.();
       }),
   };
 }

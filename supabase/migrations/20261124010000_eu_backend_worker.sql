@@ -527,11 +527,13 @@ begin
 
   if _lease.job_id is null
     or _job.id is null
-    or _lease.worker_id <> _worker_id
-    or _lease.attempt <> _attempt
+    or _attempt is null
+    or _now is null
+    or _lease.worker_id is distinct from _worker_id
+    or _lease.attempt is distinct from _attempt
     or _lease.lease_expires_at <= _now
-    or _job.state <> 'running'
-    or _job.attempt_count <> _attempt
+    or _job.state is distinct from 'running'
+    or _job.attempt_count is distinct from _attempt
   then
     raise exception 'source job lease does not match renewal';
   end if;

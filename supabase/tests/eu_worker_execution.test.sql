@@ -149,6 +149,36 @@ select throws_ok(
   select public.renew_source_job_lease(
     current_setting('eu.job')::uuid,
     'eu-worker-1',
+    null::integer,
+    300,
+    '2026-11-24T12:00:40Z'::timestamptz
+  )
+  $$,
+  'P0001',
+  'source job lease does not match renewal',
+  'renew_source_job_lease rejects NULL attempt'
+);
+
+select throws_ok(
+  $$
+  select public.renew_source_job_lease(
+    current_setting('eu.job')::uuid,
+    'eu-worker-1',
+    current_setting('eu.attempt')::integer,
+    300,
+    null::timestamptz
+  )
+  $$,
+  'P0001',
+  'source job lease does not match renewal',
+  'renew_source_job_lease rejects NULL now timestamp'
+);
+
+select throws_ok(
+  $$
+  select public.renew_source_job_lease(
+    current_setting('eu.job')::uuid,
+    'eu-worker-1',
     current_setting('eu.attempt')::integer,
     10,
     '2026-11-24T12:00:40Z'::timestamptz

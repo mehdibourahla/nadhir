@@ -15,11 +15,11 @@ on:
       target:
         description: Queue execution target to drain manually
         required: false
-        default: github
+        default: worker
         type: choice
         options:
-          - github
           - worker
+          - github
 
 permissions: {}
 
@@ -34,10 +34,10 @@ jobs:
       - id: pick
         env:
           MANUAL: ${{ inputs.contract }}
-          TARGET: ${{ inputs.target || 'github' }}
+          TARGET: ${{ inputs.target || 'worker' }}
         run: |
           if [ -n "$MANUAL" ]; then
-            echo "contracts=[\"$MANUAL\"]" >> "$GITHUB_OUTPUT"
+            echo "contracts=$(jq -nc --arg c "$MANUAL" '[$c]')" >> "$GITHUB_OUTPUT"
           else
             echo 'contracts=["local_fwi","effis","ita_facebook","ita_website","dgpc_telegram"]' >> "$GITHUB_OUTPUT"
           fi
@@ -78,6 +78,10 @@ jobs:
           LLM_FALLBACK_API_URL: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_API_URL || '' }}
           LLM_FALLBACK_API_KEY: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_API_KEY || '' }}
           LLM_FALLBACK_MODEL: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_MODEL || '' }}
+          LLM_FALLBACK_CHAIN: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_CHAIN || '' }}
+          LLM_FALLBACK_HEADERS: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_HEADERS || '' }}
+          LLM_FALLBACK_TIMEOUT_MS: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_TIMEOUT_MS || '' }}
+          LLM_FALLBACK_MAX_RETRIES: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_MAX_RETRIES || '' }}
         run: |
           deadline=$((SECONDS + 1740))
           while true; do

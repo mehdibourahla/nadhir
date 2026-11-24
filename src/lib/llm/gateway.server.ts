@@ -5,6 +5,7 @@ import {
   defaultLlmCircuitBreaker,
   fallbackConfig,
   logFallbackUsed,
+  PURPOSE_POLICIES,
   validatePurposeRequest,
   type FallbackProviderConfig,
   type GatewayFailureKind,
@@ -26,6 +27,10 @@ export {
 // the gateway serves this model on the owner's ChatGPT plan; stored decisions name it
 export const GATEWAY_MODEL = "gpt-6-luna";
 const DEFAULT_TIMEOUT_MS = 50_000;
+// When fallbacks are configured and the caller did not specify timeoutMs, cap the
+// primary attempt below caller-level AbortSignals (e.g. 45s extract_ita, 60s civil_agent)
+// so a silent primary hang fails over cleanly instead of aborting the whole call.
+export const PRIMARY_FAILOVER_TIMEOUT_MS = 20_000;
 const UNREACHABLE_RETRY_S = 60;
 
 export type GatewayPurpose =
@@ -322,8 +327,14 @@ export async function completeWithGatewayResult(
       );
     } else {
       attempts += 1;
+      const primaryTimeoutMs =
+        options.timeoutMs ??
+        Math.min(
+          PURPOSE_POLICIES[purpose].defaultTimeoutMs,
+          PRIMARY_FAILOVER_TIMEOUT_MS,
+        );
       const primary = await callPrimaryGateway(purpose, request, config, {
-        timeoutMs: options.timeoutMs,
+        timeoutMs: primaryTimeoutMs,
         signal: options.signal,
       });
       if (primary.ok) {

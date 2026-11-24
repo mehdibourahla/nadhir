@@ -34,6 +34,9 @@ function parseHttpUrl(raw: string | undefined, name: string): string {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error(`${name} must use http or https`);
   }
+  if (parsed.username || parsed.password) {
+    throw new Error(`${name} must not contain embedded credentials`);
+  }
   return value.replace(/\/+$/, "");
 }
 

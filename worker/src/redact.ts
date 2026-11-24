@@ -15,6 +15,14 @@ export function redactText(
   }
   out = out
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [REDACTED]")
+    .replace(
+      /\bAuthorization\s*:\s*Basic\s+[A-Za-z0-9+/=]+/gi,
+      "Authorization: Basic [REDACTED]",
+    )
+    .replace(
+      /\b(x-api-key|cf-access-client-secret)\s*:\s*\S+/gi,
+      "$1: [REDACTED]",
+    )
     .replace(/\bsb_secret_[A-Za-z0-9_-]+/g, "[REDACTED]")
     .replace(/\bsb_publishable_[A-Za-z0-9_-]+/g, "[REDACTED]")
     .replace(/\bsk-ant-[A-Za-z0-9_-]+/g, "[REDACTED]")
@@ -24,7 +32,7 @@ export function redactText(
       "[REDACTED_JWT]",
     )
     .replace(/(https?:\/\/)[^/\s:@]+:[^/\s@]+@/gi, "$1[REDACTED]@")
-    .replace(/\b(Set-Cookie|Cookie)\s*:\s*[^\r\n;]+/gi, "$1: [REDACTED]");
+    .replace(/\b(Set-Cookie|Cookie)\s*:\s*[^\r\n]+/gi, "$1: [REDACTED]");
   if (out.length > MAX_STRING_LEN) {
     return `${out.slice(0, MAX_STRING_LEN)}...`;
   }

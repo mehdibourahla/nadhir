@@ -6,6 +6,7 @@ import {
 } from "@/lib/civil-agent.server";
 import type { ChatRequest } from "@/lib/llm/codex.server";
 import {
+  completeWithFallbackProvider,
   fallbackConfig,
   LlmCircuitBreaker,
   PURPOSE_POLICIES,
@@ -19,6 +20,7 @@ import {
   GATEWAY_MODEL,
   GatewayFailed,
   GatewayPending,
+  PRIMARY_FAILOVER_TIMEOUT_MS,
   type GatewayProvenance,
 } from "@/lib/llm/gateway.server";
 import { publishWaitingReports } from "@/lib/report-publication.server";
@@ -202,7 +204,9 @@ describe("completeWithGatewayResult automatic failover", () => {
   it("uses primary gateway without invoking fallback when primary succeeds", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(Response.json({ text: '{"mentions":[]}' }));
+      .mockImplementation(async () =>
+        Response.json({ text: '{"mentions":[]}' }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const seenProvenance: GatewayProvenance[] = [];
@@ -1107,5 +1111,393 @@ describe("real caller end-to-end failover integration", () => {
     );
     expect(anthropicBody.messages).toHaveLength(1);
     expect(anthropicBody.messages[0].role).toBe("user");
+  });
+
+  it("extractItaReport fails over cleanly when primary hangs silently before 45s caller AbortSignal expires", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("NADHIR_GATEWAY_URL", PRIMARY_CONFIG.url);
+    vi.stubEnv("NADHIR_GATEWAY_ACCESS_CLIENT_ID", PRIMARY_CONFIG.clientId);
+    vi.stubEnv(
+      "NADHIR_GATEWAY_ACCESS_CLIENT_SECRET",
+      PRIMARY_CONFIG.clientSecret,
+    );
+    vi.stubEnv("LLM_FALLBACK_PROVIDER", "mistral");
+    vi.stubEnv("LLM_FALLBACK_API_KEY", MISTRAL_FALLBACK.apiKey);
+    vi.stubEnv("LLM_FALLBACK_MODEL", MISTRAL_FALLBACK.model);
+
+    const observedTimeouts: number[] = [];
+    const realTimeout = AbortSignal.timeout.bind(AbortSignal);
+    vi.spyOn(AbortSignal, "timeout").mockImplementation((ms: number) => {
+      observedTimeouts.push(ms);
+      // Scale timeouts proportionally so real AbortSignal.any races deterministically in <100ms
+      const scaled = Math.max(15, Math.round(ms / 500));
+      return realTimeout(scaled);
+    });
+
+    const post = {
+      id: "post-hang",
+      uri: "traficalg",
+      created_time: "2026-11-24T10:00:00Z",
+      message: "Accident route nationale 5 a Bouira circulation bloquee",
+      region: "Bouira",
+      type: ["iAccident"],
+    };
+
+    const extractionPayload = {
+      disposition: "incident_report",
+      incidents: [
+        {
+          kind: "collision",
+          summary_fr: "Accident signale sur la RN5 a Bouira.",
+          evidence: "Accident route nationale 5 a Bouira",
+          location_text: "route nationale 5 a Bouira",
+          location_evidence: "route nationale 5 a Bouira",
+          direction_text: null,
+          direction_evidence: null,
+          current_status: "ongoing",
+          status_evidence: "circulation bloquee",
+          region_assessment: "consistent",
+          review_reasons: [],
+        },
+      ],
+      review_reasons: [],
+    };
+
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(
+        (_url: string | URL, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            const sig = init?.signal;
+            if (!sig) return;
+            if (sig.aborted) {
+              reject(sig.reason);
+              return;
+            }
+            sig.addEventListener("abort", () => reject(sig.reason), {
+              once: true,
+            });
+          }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          choices: [
+            { message: { content: JSON.stringify(extractionPayload) } },
+          ],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const extracted = await extractItaReport(post);
+    expect(extracted.disposition).toBe("incident_report");
+    expect(extracted.incidents).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // Caller set 45_000ms signal; primary must cap at PRIMARY_FAILOVER_TIMEOUT_MS (20_000ms < 45_000ms)
+    expect(observedTimeouts[0]).toBe(45_000);
+    expect(observedTimeouts[1]).toBe(PRIMARY_FAILOVER_TIMEOUT_MS);
+    expect(PRIMARY_FAILOVER_TIMEOUT_MS).toBeLessThan(45_000);
+  });
+
+  it("caps primary timeout to purpose policy (8s for classify_report) when fallbacks exist and preserves 50s legacy timeout without fallbacks", async () => {
+    const observedTimeouts: number[] = [];
+    const realTimeout = AbortSignal.timeout.bind(AbortSignal);
+    vi.spyOn(AbortSignal, "timeout").mockImplementation((ms: number) => {
+      observedTimeouts.push(ms);
+      return realTimeout(ms);
+    });
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async () =>
+        Response.json({ text: '{"mentions":[]}' }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await completeWithGateway("classify_report", BASE_REQUEST, {
+      config: PRIMARY_CONFIG,
+      fallback: [MISTRAL_FALLBACK],
+    });
+    expect(observedTimeouts[0]).toBe(
+      PURPOSE_POLICIES.classify_report.defaultTimeoutMs,
+    );
+
+    await completeWithGateway("extract_ita", BASE_REQUEST, {
+      config: PRIMARY_CONFIG,
+      fallback: [],
+    });
+    expect(observedTimeouts[1]).toBe(50_000);
+  });
+});
+
+describe("adversarial hardening regressions", () => {
+  it("handles huge unclosed markdown fences in linear time without ReDoS and fails over in chain", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const hostileContent = "```json" + " ".repeat(50_000) + "x";
+    const fetchSingle = vi.fn().mockResolvedValue(
+      Response.json({
+        choices: [{ message: { content: hostileContent } }],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchSingle);
+
+    const t0 = performance.now();
+    const outcome = await completeWithFallbackProvider(
+      "classify_report",
+      BASE_REQUEST,
+      MISTRAL_FALLBACK,
+    );
+    const elapsedMs = performance.now() - t0;
+
+    expect(outcome).toEqual({
+      ok: false,
+      kind: "malformed",
+      retryAfter: null,
+    });
+    expect(elapsedMs).toBeLessThan(100);
+
+    // Also verify chain fails over cleanly to healthy second provider
+    const fetchChain = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          choices: [{ message: { content: hostileContent } }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          content: [
+            {
+              type: "tool_use",
+              name: "fire_mentions",
+              input: { mentions: ["Bejaia"] },
+            },
+          ],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchChain);
+
+    const chainResult = await completeWithGatewayResult(
+      "classify_report",
+      BASE_REQUEST,
+      {
+        config: null,
+        fallback: [MISTRAL_FALLBACK, ANTHROPIC_FALLBACK],
+      },
+    );
+    expect(JSON.parse(chainResult.text)).toEqual({ mentions: ["Bejaia"] });
+    expect(chainResult.provenance.providerId).toBe(ANTHROPIC_FALLBACK.id);
+  });
+
+  it("deduplicates provider IDs in LLM_FALLBACK_CHAIN so circuit breakers stay isolated", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const chain = fallbackConfig({
+      LLM_FALLBACK_CHAIN: JSON.stringify([
+        {
+          provider: "mistral",
+          apiKey: "sk-mistral-1",
+          model: "mistral-large-latest",
+        },
+        {
+          provider: "mistral",
+          apiKey: "sk-mistral-2",
+          model: "mistral-small-latest",
+        },
+        {
+          provider: "mistral",
+          apiKey: "sk-mistral-3",
+          model: "open-mistral-nemo",
+        },
+      ]),
+    });
+
+    expect(chain.map((p) => p.id)).toEqual([
+      "mistral",
+      "mistral-2",
+      "mistral-3",
+    ]);
+
+    const breaker = new LlmCircuitBreaker({ failureThreshold: 1 });
+    let entry0Hits = 0;
+    let entry1Hits = 0;
+    const fetchMock = vi.fn(async (_url: string | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      if (body.model === "mistral-large-latest") {
+        entry0Hits += 1;
+        return new Response("down", { status: 502 });
+      }
+      entry1Hits += 1;
+      return Response.json({
+        choices: [{ message: { content: '{"mentions":[]}' } }],
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    // First call: entry 0 fails (trips breaker for "fallback:mistral"), entry 1 succeeds
+    const first = await completeWithGatewayResult(
+      "extract_dgpc",
+      BASE_REQUEST,
+      {
+        config: null,
+        fallback: chain.slice(0, 2),
+        circuitBreaker: breaker,
+      },
+    );
+    expect(first.provenance.providerId).toBe("mistral-2");
+
+    // Second call: entry 0 is circuit-open, entry 1 ("fallback:mistral-2") MUST still run and succeed!
+    const second = await completeWithGatewayResult(
+      "extract_dgpc",
+      BASE_REQUEST,
+      {
+        config: null,
+        fallback: chain.slice(0, 2),
+        circuitBreaker: breaker,
+      },
+    );
+    expect(second.provenance.providerId).toBe("mistral-2");
+    expect(entry0Hits).toBe(1);
+    expect(entry1Hits).toBe(2);
+  });
+
+  it("rejects JSON primitives for object schemas and Anthropic tool_use input: null, triggering chain failover", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    for (const primitive of ["null", "42", '"ok"', "[1,2]", "true"]) {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          Response.json({
+            choices: [{ message: { content: primitive } }],
+          }),
+        ),
+      );
+      const res = await completeWithFallbackProvider(
+        "extract_dgpc",
+        BASE_REQUEST,
+        MISTRAL_FALLBACK,
+      );
+      expect(res).toEqual({ ok: false, kind: "malformed", retryAfter: null });
+    }
+
+    // Anthropic tool_use with input: null must be treated as malformed and fail over
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          content: [{ type: "tool_use", name: "fire_mentions", input: null }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          choices: [{ message: { content: '{"mentions":["Setif"]}' } }],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await completeWithGatewayResult(
+      "extract_dgpc",
+      BASE_REQUEST,
+      {
+        config: null,
+        fallback: [ANTHROPIC_FALLBACK, MISTRAL_FALLBACK],
+      },
+    );
+    expect(JSON.parse(result.text)).toEqual({ mentions: ["Setif"] });
+    expect(result.provenance.providerId).toBe(MISTRAL_FALLBACK.id);
+  });
+
+  it("enforces RFC 7230 header names, rejects ASCII control chars, and validates anthropicVersion", async () => {
+    const parsed = fallbackConfig({
+      LLM_FALLBACK_PROVIDER: "anthropic",
+      LLM_FALLBACK_API_KEY: "sk-ant-test",
+      LLM_FALLBACK_MODEL: "claude-3-5-haiku-latest",
+      LLM_FALLBACK_ANTHROPIC_VERSION: "2023-06-01\r\nX-Injected: evil",
+      LLM_FALLBACK_HEADERS: JSON.stringify({
+        "Bad Header With Spaces": "v",
+        "X-Tab\tName": "v",
+        "X-Null": "abc\u0000def",
+        "X-Ctrl": "abc\u0007def",
+        "X-Valid-Header": "ok-value",
+      }),
+    });
+
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.headers).toEqual({ "X-Valid-Header": "ok-value" });
+    expect(parsed[0]?.anthropicVersion).toBeUndefined();
+
+    // Even if an invalid anthropicVersion is passed programmatically, request falls back to default
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        content: [
+          {
+            type: "tool_use",
+            name: "fire_mentions",
+            input: { mentions: [] },
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await completeWithFallbackProvider(
+      "extract_dgpc",
+      BASE_REQUEST,
+      {
+        ...ANTHROPIC_FALLBACK,
+        anthropicVersion: "2023-06-01\r\nX-Injected: evil",
+        headers: {
+          "Bad Header": "drop-me",
+          "X-Null": "a\u0000b",
+          "X-Clean": "keep-me",
+        },
+      },
+    );
+    expect(res.ok).toBe(true);
+    const sentHeaders = fetchMock.mock.calls[0]?.[1]?.headers as Record<
+      string,
+      string
+    >;
+    expect(sentHeaders["anthropic-version"]).toBe("2023-06-01");
+    expect(sentHeaders["X-Clean"]).toBe("keep-me");
+    expect(sentHeaders["Bad Header"]).toBeUndefined();
+    expect(sentHeaders["X-Null"]).toBeUndefined();
+  });
+
+  it("rejects negative Retry-After, malformed int env vars, and empty message content", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response("rate limited", {
+          status: 429,
+          headers: { "retry-after": "-10" },
+        }),
+      ),
+    );
+    const res = await completeWithFallbackProvider(
+      "classify_report",
+      BASE_REQUEST,
+      MISTRAL_FALLBACK,
+    );
+    expect(res).toEqual({
+      ok: false,
+      kind: "rate_limited",
+      retryAfter: null,
+    });
+
+    const parsed = fallbackConfig({
+      LLM_FALLBACK_PROVIDER: "mistral",
+      LLM_FALLBACK_API_KEY: "sk-test",
+      LLM_FALLBACK_MODEL: "mistral-small-latest",
+      LLM_FALLBACK_TIMEOUT_MS: "-500",
+      LLM_FALLBACK_MAX_RETRIES: "100abc",
+    });
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.timeoutMs).toBeUndefined();
+    expect(parsed[0]?.maxRetries).toBeUndefined();
+
+    expect(
+      validatePurposeRequest("classify_report", {
+        ...BASE_REQUEST,
+        messages: [{ role: "user", content: "" }],
+      }),
+    ).toBe(false);
   });
 });

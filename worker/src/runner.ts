@@ -53,6 +53,14 @@ export type StopResult = {
 };
 
 const MAX_ERROR_BACKOFF_MS = 30_000;
+const MAX_DEFAULT_RENEW_INTERVAL_MS = 30_000;
+
+export function computeLeaseRenewIntervalMs(leaseSeconds: number): number {
+  return Math.min(
+    MAX_DEFAULT_RENEW_INTERVAL_MS,
+    Math.max(5_000, Math.floor((leaseSeconds * 1_000) / 3)),
+  );
+}
 
 function interruptibleSleep(ms: number, signal: AbortSignal): Promise<void> {
   if (ms <= 0 || signal.aborted) return Promise.resolve();
@@ -322,6 +330,15 @@ export class EUWorker {
       this.inFlightJobs.set(claimed.id, execution);
       try {
         await execution;
+      } catch (error) {
+        this.failedJobs += 1;
+        this.logger("error", "unexpected worker job processing error", {
+          slotIndex,
+          jobId: claimed.id,
+          contract: claimed.contract_key,
+          attempt: claimed.attempt_count,
+          error,
+        });
       } finally {
         this.inFlightJobs.delete(claimed.id);
       }
@@ -334,7 +351,7 @@ export class EUWorker {
   ): Promise<void> {
     const renewIntervalMs =
       this.options.leaseRenewIntervalMs ??
-      Math.max(5_000, Math.floor((this.options.leaseSeconds * 1_000) / 3));
+      computeLeaseRenewIntervalMs(this.options.leaseSeconds);
 
     let heartbeatStopped = false;
     let renewing = false;
@@ -374,8 +391,8 @@ export class EUWorker {
         }, this.options.jobTimeoutMs);
       });
 
-      const runPromise = this.deps
-        .execute(job)
+      const runPromise = Promise.resolve()
+        .then(() => this.deps.execute(job))
         .catch((error) => unexpectedFailure(job, error));
 
       result = await Promise.race([runPromise, timeoutPromise]);

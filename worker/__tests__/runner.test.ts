@@ -6,7 +6,7 @@ import type {
   SourceJobResult,
 } from "@/lib/source-jobs";
 
-import { EUWorker } from "../src/runner";
+import { computeLeaseRenewIntervalMs, EUWorker } from "../src/runner";
 
 function makeJob(
   id: string,
@@ -243,5 +243,80 @@ describe("EUWorker", () => {
       retryDisposition: "transient",
     });
     expect(worker.getSnapshot().failedJobs).toBe(1);
+  });
+
+  it("survives synchronous throws in execute(), completes as internal_error, and keeps the consumer slot alive", async () => {
+    const queue = [
+      makeJob("job-sync-throw", "ita_facebook", "worker"),
+      makeJob("job-after-throw", "ita_website", "worker"),
+    ];
+    const completed: Array<{ id: string; result: SourceJobResult }> = [];
+
+    const worker = new EUWorker(
+      {
+        workerId: "eu-worker-sync-throw",
+        executionTargets: ["worker"],
+        concurrency: 1,
+        pollIntervalMs: 15,
+        schedulerEnabled: false,
+        schedulerIntervalMs: 1_000,
+        leaseSeconds: 60,
+        leaseRenewIntervalMs: 1_000,
+        jobTimeoutMs: 2_000,
+        drainTimeoutMs: 2_000,
+      },
+      {
+        claim: async () => queue.shift() ?? null,
+        execute: (job) => {
+          if (job.id === "job-sync-throw") {
+            throw new Error("synchronous adapter crash");
+          }
+          return Promise.resolve(okResult(job));
+        },
+        complete: async (job, _workerId, result) => {
+          completed.push({ id: job.id, result });
+          return {
+            ...job,
+            state: result.outcome === "succeeded" ? "succeeded" : "retry_wait",
+          };
+        },
+        enqueueDue: vi.fn().mockResolvedValue(0),
+        requeueExpired: vi.fn().mockResolvedValue(0),
+        renewLease: vi.fn().mockResolvedValue("2026-11-24T12:10:00.000Z"),
+        logger: () => {},
+      },
+    );
+
+    worker.start();
+    const deadline = Date.now() + 2_000;
+    while (completed.length < 2 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 15));
+    }
+    const stopped = await worker.stop(1_000);
+
+    expect(stopped).toEqual({ drained: true, remaining: 0 });
+    expect(completed).toHaveLength(2);
+    expect(completed[0]?.id).toBe("job-sync-throw");
+    expect(completed[0]?.result).toMatchObject({
+      outcome: "failed",
+      publicReasonCode: "internal_error",
+      retryDisposition: "transient",
+      privateDiagnostic: "synchronous adapter crash",
+    });
+    expect(completed[1]?.id).toBe("job-after-throw");
+    expect(completed[1]?.result.outcome).toBe("succeeded");
+    expect(worker.getSnapshot()).toMatchObject({
+      completedJobs: 1,
+      failedJobs: 1,
+    });
+  });
+
+  it("caps default lease renewal heartbeat at 30s so short contracts (120s) never expire under large WORKER_LEASE_SECONDS", () => {
+    expect(computeLeaseRenewIntervalMs(12)).toBe(5_000);
+    expect(computeLeaseRenewIntervalMs(30)).toBe(10_000);
+    expect(computeLeaseRenewIntervalMs(60)).toBe(20_000);
+    expect(computeLeaseRenewIntervalMs(180)).toBe(30_000);
+    expect(computeLeaseRenewIntervalMs(600)).toBe(30_000);
+    expect(computeLeaseRenewIntervalMs(3_600)).toBe(30_000);
   });
 });

@@ -64,6 +64,18 @@ describe("loadWorkerConfig", () => {
       }),
     ).toThrow("http or https");
     expect(() =>
+      loadWorkerConfig({
+        SUPABASE_URL: "https://admin:supersecret@example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "key",
+      }),
+    ).toThrow("embedded credentials");
+    expect(() =>
+      loadWorkerConfig({
+        SUPABASE_URL: "https://admin@example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "key",
+      }),
+    ).toThrow("embedded credentials");
+    expect(() =>
       loadWorkerConfig({ SUPABASE_URL: "https://example.supabase.co" }),
     ).toThrow("SUPABASE_SERVICE_ROLE_KEY is required");
     expect(() =>

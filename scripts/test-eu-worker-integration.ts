@@ -103,7 +103,31 @@ const workerId = `eu-worker-int:${testRunId}`;
 const testContractKey = `test_eu_worker_${testRunId}`;
 const drainContractKey = `test_eu_drain_${testRunId}`;
 const fixturePostId = `eu_worker_fb_${testRunId}`;
-const createdJobIds: string[] = [];
+const createdJobIds = new Set<string>();
+
+type CheckpointSnapshotRow = {
+  contract_key: string;
+  last_scheduled_for: string | null;
+  last_attempt_at: string | null;
+  last_success_at: string | null;
+  upstream_published_at: string | null;
+  data_from: string | null;
+  data_through: string | null;
+  validated_at: string | null;
+  published_at: string | null;
+  replay_cursor: Json | null;
+  consecutive_failures: number;
+  schema_fingerprint: string | null;
+  records_accepted: number;
+  records_expected: number | null;
+  coverage_status: string;
+  fallback_contract_key: string | null;
+  last_public_reason_code: string | null;
+  updated_at: string;
+};
+
+let testStartedAt: string | null = null;
+let initialCheckpoints: CheckpointSnapshotRow[] = [];
 
 async function waitFor<T>(
   predicate: () => Promise<T | null | undefined | false>,
@@ -125,6 +149,32 @@ let mockPrimaryServer: http.Server | null = null;
 let mockFallbackServer: http.Server | null = null;
 
 try {
+  // Capture Postgres start timestamp & pre-existing checkpoints BEFORE any writes or worker startup
+  const [tsRow] = await sql<{ ts: string }[]>`select now()::text as ts`;
+  testStartedAt = tsRow!.ts;
+  initialCheckpoints = await sql<CheckpointSnapshotRow[]>`
+    select
+      contract_key,
+      last_scheduled_for::text,
+      last_attempt_at::text,
+      last_success_at::text,
+      upstream_published_at::text,
+      data_from::text,
+      data_through::text,
+      validated_at::text,
+      published_at::text,
+      replay_cursor,
+      consecutive_failures,
+      schema_fingerprint,
+      records_accepted,
+      records_expected,
+      coverage_status,
+      fallback_contract_key,
+      last_public_reason_code,
+      updated_at::text
+    from public.source_checkpoints
+  `;
+
   // Isolate from any stale pre-existing worker leases/jobs in local DB
   await sql`delete from public.source_job_leases where contract_key in ('ita_facebook', ${testContractKey}, ${drainContractKey})`;
   await sql`delete from public.source_runs where contract_key in (${testContractKey}, ${drainContractKey})`;
@@ -166,6 +216,7 @@ try {
   const executeJob = async (
     job: ClaimedSourceJob,
   ): Promise<SourceJobResult> => {
+    createdJobIds.add(job.id);
     if (job.contract_key === "ita_facebook") {
       const fbRun = await runItaFacebookSourceWith({
         fetchPosts: async () => [
@@ -282,7 +333,7 @@ try {
     )
     returning id
   `;
-  createdJobIds.push(leaseTestRow!.id);
+  createdJobIds.add(leaseTestRow!.id);
 
   const leaseClaimed = await claimSourceJob(supabase, {
     workerId,
@@ -416,7 +467,7 @@ try {
     `;
     return row ?? null;
   }, 10_000);
-  createdJobIds.push(fbJob.id);
+  createdJobIds.add(fbJob.id);
 
   const [savedReport] = await sql<{ id: string; body: string }[]>`
     select id, body from public.ita_reports where source_post_id = ${fixturePostId}
@@ -453,7 +504,7 @@ try {
     )
     returning id
   `;
-  createdJobIds.push(retryJob!.id);
+  createdJobIds.add(retryJob!.id);
 
   // Wait for attempt 1 -> retry_wait, then automatic re-claim -> attempt 2 succeeded
   await waitFor(async () => {
@@ -492,7 +543,7 @@ try {
     )
     returning id
   `;
-  createdJobIds.push(drainJob!.id);
+  createdJobIds.add(drainJob!.id);
 
   await drainStarted.promise;
 
@@ -516,7 +567,7 @@ try {
     )
     returning id
   `;
-  createdJobIds.push(mustStayQueued!.id);
+  createdJobIds.add(mustStayQueued!.id);
   await Bun.sleep(200);
 
   drainRelease.resolve();
@@ -615,6 +666,7 @@ try {
   );
   console.log("ALL EU WORKER + LLM FALLBACK INTEGRATION SCENARIOS PASSED");
 } finally {
+  // 1. Stop EUWorker & close health/mock HTTP servers first so no background tick writes after cleanup starts.
   if (worker) await worker.stop(2_000).catch(() => {});
   if (healthServer) await healthServer.close().catch(() => {});
   if (mockPrimaryServer) {
@@ -629,20 +681,183 @@ try {
   }
   resetLlmCircuitBreakers();
 
+  // 2. Delete fixture ita_reports row.
   await sql`delete from public.ita_reports where source_post_id = ${fixturePostId}`;
-  await sql`delete from public.source_job_leases where contract_key in (${testContractKey}, ${drainContractKey}) or worker_id = ${workerId}`;
-  await sql`update public.source_jobs set gap_id = null where contract_key in (${testContractKey}, ${drainContractKey})`;
-  await sql`update public.source_gaps set resolved_by_run_id = null where contract_key in (${testContractKey}, ${drainContractKey})`;
+
+  // 3. Delete source_job_leases touched by test contracts, workerId, or since testStartedAt.
+  if (testStartedAt) {
+    await sql`
+      delete from public.source_job_leases
+      where contract_key in (${testContractKey}, ${drainContractKey})
+        or worker_id = ${workerId}
+        or leased_at >= ${testStartedAt}::timestamptz
+    `;
+  } else {
+    await sql`
+      delete from public.source_job_leases
+      where contract_key in (${testContractKey}, ${drainContractKey})
+        or worker_id = ${workerId}
+    `;
+  }
+
+  // 4. Clear bidirectional FKs (source_jobs.gap_id and source_gaps.resolved_by_run_id) before deleting runs/gaps/jobs.
   for (const jobId of createdJobIds) {
-    await sql`update public.source_gaps set resolved_by_run_id = null where resolved_by_run_id in (select id from public.source_runs where job_id = ${jobId}::uuid)`;
+    await sql`
+      update public.source_gaps
+      set resolved_by_run_id = null
+      where resolved_by_run_id in (
+        select id from public.source_runs where job_id = ${jobId}::uuid
+      )
+    `;
     await sql`update public.source_jobs set gap_id = null where id = ${jobId}::uuid`;
+  }
+  if (testStartedAt) {
+    await sql`
+      update public.source_jobs
+      set gap_id = null
+      where contract_key in (${testContractKey}, ${drainContractKey})
+        or created_at >= ${testStartedAt}::timestamptz
+        or updated_at >= ${testStartedAt}::timestamptz
+        or 'worker' = any(enqueued_by)
+        or gap_id in (
+          select id from public.source_gaps
+          where contract_key in (${testContractKey}, ${drainContractKey})
+            or detected_at >= ${testStartedAt}::timestamptz
+            or updated_at >= ${testStartedAt}::timestamptz
+        )
+    `;
+    await sql`
+      update public.source_gaps
+      set resolved_by_run_id = null
+      where contract_key in (${testContractKey}, ${drainContractKey})
+        or detected_at >= ${testStartedAt}::timestamptz
+        or updated_at >= ${testStartedAt}::timestamptz
+        or resolved_by_run_id in (
+          select id from public.source_runs
+          where contract_key in (${testContractKey}, ${drainContractKey})
+            or created_at >= ${testStartedAt}::timestamptz
+            or job_id in (
+              select id from public.source_jobs
+              where created_at >= ${testStartedAt}::timestamptz
+                or updated_at >= ${testStartedAt}::timestamptz
+                or 'worker' = any(enqueued_by)
+            )
+        )
+    `;
+  } else {
+    await sql`update public.source_jobs set gap_id = null where contract_key in (${testContractKey}, ${drainContractKey})`;
+    await sql`update public.source_gaps set resolved_by_run_id = null where contract_key in (${testContractKey}, ${drainContractKey})`;
+  }
+
+  // 5. Delete source_runs.
+  for (const jobId of createdJobIds) {
     await sql`delete from public.source_runs where job_id = ${jobId}::uuid`;
+  }
+  if (testStartedAt) {
+    await sql`
+      delete from public.source_runs
+      where contract_key in (${testContractKey}, ${drainContractKey})
+        or created_at >= ${testStartedAt}::timestamptz
+        or job_id in (
+          select id from public.source_jobs
+          where created_at >= ${testStartedAt}::timestamptz
+            or updated_at >= ${testStartedAt}::timestamptz
+            or 'worker' = any(enqueued_by)
+        )
+    `;
+  } else {
+    await sql`delete from public.source_runs where contract_key in (${testContractKey}, ${drainContractKey})`;
+  }
+
+  // 6. Delete source_gaps.
+  if (testStartedAt) {
+    await sql`
+      delete from public.source_gaps
+      where contract_key in (${testContractKey}, ${drainContractKey})
+        or detected_at >= ${testStartedAt}::timestamptz
+    `;
+  } else {
+    await sql`delete from public.source_gaps where contract_key in (${testContractKey}, ${drainContractKey})`;
+  }
+
+  // 7. Delete source_jobs.
+  for (const jobId of createdJobIds) {
     await sql`delete from public.source_jobs where id = ${jobId}::uuid`;
   }
-  await sql`delete from public.source_gaps where contract_key in (${testContractKey}, ${drainContractKey})`;
-  await sql`delete from public.source_runs where contract_key in (${testContractKey}, ${drainContractKey})`;
-  await sql`delete from public.source_checkpoints where contract_key in (${testContractKey}, ${drainContractKey})`;
-  await sql`delete from public.source_jobs where contract_key in (${testContractKey}, ${drainContractKey})`;
+  if (testStartedAt) {
+    await sql`
+      delete from public.source_jobs
+      where contract_key in (${testContractKey}, ${drainContractKey})
+        or created_at >= ${testStartedAt}::timestamptz
+        or updated_at >= ${testStartedAt}::timestamptz
+        or 'worker' = any(enqueued_by)
+    `;
+  } else {
+    await sql`delete from public.source_jobs where contract_key in (${testContractKey}, ${drainContractKey})`;
+  }
+
+  // 8. Clean up source_checkpoints touched during the test and restore any pre-existing seeded checkpoints.
+  if (testStartedAt) {
+    await sql`
+      delete from public.source_checkpoints
+      where contract_key in (${testContractKey}, ${drainContractKey})
+        or updated_at >= ${testStartedAt}::timestamptz
+    `;
+    for (const cp of initialCheckpoints) {
+      if (
+        cp.contract_key === testContractKey ||
+        cp.contract_key === drainContractKey
+      ) {
+        continue;
+      }
+      await sql`
+        insert into public.source_checkpoints (
+          contract_key,
+          last_scheduled_for,
+          last_attempt_at,
+          last_success_at,
+          upstream_published_at,
+          data_from,
+          data_through,
+          validated_at,
+          published_at,
+          replay_cursor,
+          consecutive_failures,
+          schema_fingerprint,
+          records_accepted,
+          records_expected,
+          coverage_status,
+          fallback_contract_key,
+          last_public_reason_code,
+          updated_at
+        ) values (
+          ${cp.contract_key},
+          ${cp.last_scheduled_for}::timestamptz,
+          ${cp.last_attempt_at}::timestamptz,
+          ${cp.last_success_at}::timestamptz,
+          ${cp.upstream_published_at}::timestamptz,
+          ${cp.data_from}::timestamptz,
+          ${cp.data_through}::timestamptz,
+          ${cp.validated_at}::timestamptz,
+          ${cp.published_at}::timestamptz,
+          ${cp.replay_cursor === null ? null : JSON.stringify(cp.replay_cursor)}::jsonb,
+          ${cp.consecutive_failures},
+          ${cp.schema_fingerprint},
+          ${cp.records_accepted},
+          ${cp.records_expected},
+          ${cp.coverage_status},
+          ${cp.fallback_contract_key},
+          ${cp.last_public_reason_code},
+          ${cp.updated_at}::timestamptz
+        )
+        on conflict (contract_key) do nothing
+      `;
+    }
+  } else {
+    await sql`delete from public.source_checkpoints where contract_key in (${testContractKey}, ${drainContractKey})`;
+  }
+
+  // 9. Delete temporary test contracts.
   await sql`delete from public.source_contracts where key in (${testContractKey}, ${drainContractKey})`;
   await sql.close();
 }

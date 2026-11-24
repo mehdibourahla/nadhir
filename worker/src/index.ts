@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { runClaimedSourceJob } from "@/lib/ingest/source-executor.server";
+import { fallbackConfig } from "@/lib/llm/fallback.server";
 import {
   claimSourceJob,
   completeSourceJob,
@@ -14,14 +15,20 @@ import { createWorkerLogger } from "./redact";
 import { EUWorker } from "./runner";
 
 const config = loadWorkerConfig(process.env);
-const secrets = [
-  config.supabaseServiceRoleKey,
-  process.env["NADHIR_GATEWAY_ACCESS_CLIENT_SECRET"] ?? "",
-  process.env["LLM_FALLBACK_API_KEY"] ?? "",
-  process.env["FIRMS_MAP_KEY"] ?? "",
-  process.env["EUMETSAT_CONSUMER_SECRET"] ?? "",
-  process.env["TELEGRAM_BOT_TOKEN"] ?? "",
-].filter(Boolean);
+const secrets = Array.from(
+  new Set(
+    [
+      config.supabaseServiceRoleKey,
+      process.env["NADHIR_GATEWAY_ACCESS_CLIENT_SECRET"] ?? "",
+      process.env["LLM_FALLBACK_API_KEY"] ?? "",
+      ...fallbackConfig(process.env).map((p) => p.apiKey),
+      process.env["FIREBASE_SERVICE_ACCOUNT"] ?? "",
+      process.env["FIRMS_MAP_KEY"] ?? "",
+      process.env["EUMETSAT_CONSUMER_SECRET"] ?? "",
+      process.env["TELEGRAM_BOT_TOKEN"] ?? "",
+    ].filter(Boolean),
+  ),
+);
 
 const logger = createWorkerLogger(secrets);
 
@@ -51,7 +58,8 @@ const worker = new EUWorker(
       const { error } = await supabaseAdmin
         .from("source_contracts")
         .select("key")
-        .limit(1);
+        .limit(1)
+        .abortSignal(AbortSignal.timeout(3_000));
       return !error;
     },
     logger,

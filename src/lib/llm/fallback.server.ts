@@ -109,6 +109,8 @@ const RESERVED_HEADERS = new Set([
 
 const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 const PROVIDER_ID_RE = /^[a-z0-9._-]{1,40}$/i;
+const HEADER_NAME_RE = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]{1,128}$/;
+const ANTHROPIC_VERSION_RE = /^[0-9A-Za-z._-]{1,40}$/;
 const MAX_CHAIN_LENGTH = 5;
 const MIN_TIMEOUT_MS = 1_000;
 const MAX_TIMEOUT_MS = 120_000;
@@ -118,6 +120,14 @@ const MAX_RETRY_AFTER_S = 3_600;
 const DEFAULT_ANTHROPIC_VERSION = "2023-06-01";
 
 const textEncoder = new TextEncoder();
+
+function hasAsciiControlChar(value: string): boolean {
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i);
+    if (code <= 0x1f || code === 0x7f) return true;
+  }
+  return false;
+}
 
 export function validatePurposeRequest(
   purpose: GatewayPurpose,
@@ -132,7 +142,9 @@ export function validatePurposeRequest(
   }
   let totalChars = 0;
   for (const message of request.messages) {
-    if (typeof message.content !== "string") return false;
+    if (typeof message.content !== "string" || message.content.length === 0) {
+      return false;
+    }
     totalChars += message.content.length;
     if (totalChars > policy.maxChars) return false;
   }
@@ -152,9 +164,16 @@ function parseOptionalInt(
   max: number,
 ): number | undefined {
   if (raw === undefined || raw === null || raw === "") return undefined;
-  const parsed =
-    typeof raw === "number" ? raw : Number.parseInt(String(raw), 10);
-  if (!Number.isFinite(parsed)) return undefined;
+  let parsed: number;
+  if (typeof raw === "number") {
+    if (!Number.isInteger(raw) || raw < 0) return undefined;
+    parsed = raw;
+  } else {
+    const str = String(raw).trim();
+    if (!/^\d+$/.test(str)) return undefined;
+    parsed = Number.parseInt(str, 10);
+  }
+  if (!Number.isSafeInteger(parsed)) return undefined;
   return clampInt(parsed, min, max);
 }
 
@@ -236,11 +255,11 @@ function sanitizeHeaders(raw: unknown): Record<string, string> | undefined {
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     if (FORBIDDEN_KEYS.has(key)) continue;
     const trimmedKey = key.trim();
-    if (!trimmedKey || /[\r\n:]/.test(trimmedKey)) continue;
+    if (!HEADER_NAME_RE.test(trimmedKey)) continue;
     if (RESERVED_HEADERS.has(trimmedKey.toLowerCase())) continue;
     if (typeof value !== "string") continue;
     const trimmedValue = value.trim();
-    if (!trimmedValue || /[\r\n]/.test(trimmedValue)) continue;
+    if (!trimmedValue || hasAsciiControlChar(trimmedValue)) continue;
     result[trimmedKey] = trimmedValue;
     count += 1;
   }
@@ -303,10 +322,13 @@ function normalizeEntry(
   const maxTokens = parseOptionalInt(raw["maxTokens"], 64, 16_384);
   const maxRetries = parseOptionalInt(raw["maxRetries"], 0, MAX_RETRIES_LIMIT);
   const headers = sanitizeHeaders(raw["headers"]);
-  const anthropicVersion =
-    typeof raw["anthropicVersion"] === "string" &&
-    raw["anthropicVersion"].trim()
+  const rawAnthropicVersion =
+    typeof raw["anthropicVersion"] === "string"
       ? raw["anthropicVersion"].trim()
+      : "";
+  const anthropicVersion =
+    rawAnthropicVersion && ANTHROPIC_VERSION_RE.test(rawAnthropicVersion)
+      ? rawAnthropicVersion
       : undefined;
 
   return {
@@ -342,13 +364,32 @@ export function fallbackConfig(
         return [];
       }
       const providers: FallbackProviderConfig[] = [];
+      const seenIds = new Set<string>();
       for (const item of parsed.slice(0, MAX_CHAIN_LENGTH)) {
         if (!item || typeof item !== "object" || Array.isArray(item)) continue;
         const normalized = normalizeEntry(
           item as Record<string, unknown>,
           providers.length,
         );
-        if (normalized) providers.push(normalized);
+        if (!normalized) continue;
+        let uniqueId = normalized.id;
+        if (seenIds.has(uniqueId)) {
+          let suffix = 2;
+          const makeCandidate = (n: number) => {
+            const tail = `-${n}`;
+            return `${normalized.id.slice(0, Math.max(1, 40 - tail.length))}${tail}`;
+          };
+          while (seenIds.has(makeCandidate(suffix))) {
+            suffix += 1;
+          }
+          uniqueId = makeCandidate(suffix);
+        }
+        seenIds.add(uniqueId);
+        providers.push(
+          uniqueId === normalized.id
+            ? normalized
+            : { ...normalized, id: uniqueId },
+        );
       }
       return providers;
     } catch {
@@ -423,8 +464,36 @@ function sanitizeToolName(name: string): string {
 
 function stripMarkdownFences(content: string): string {
   const trimmed = content.trim();
-  const match = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
-  return match && match[1] !== undefined ? match[1].trim() : trimmed;
+  if (
+    !trimmed.startsWith("```") ||
+    !trimmed.endsWith("```") ||
+    trimmed.length < 6
+  ) {
+    return trimmed;
+  }
+  let start = 3;
+  const end = trimmed.length - 3;
+  if (
+    end - start >= 4 &&
+    trimmed.slice(start, start + 4).toLowerCase() === "json"
+  ) {
+    const nextChar = start + 4 < end ? trimmed.charAt(start + 4) : "";
+    if (!nextChar || !/^[a-z0-9_-]$/i.test(nextChar)) {
+      start += 4;
+    }
+  }
+  if (start >= end) return "";
+  return trimmed.slice(start, end).trim();
+}
+
+function expectsObjectSchema(request: ChatRequest): boolean {
+  if (request.response_format.type !== "json_schema") return false;
+  const schema = request.response_format.json_schema.schema;
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) {
+    return false;
+  }
+  const record = schema as Record<string, unknown>;
+  return record["type"] === "object" || "properties" in record;
 }
 
 function validateJsonIfRequired(
@@ -434,9 +503,16 @@ function validateJsonIfRequired(
   const cleaned = stripMarkdownFences(rawText);
   if (!cleaned) return null;
   if (request.response_format.type === "json_schema") {
+    let parsed: unknown;
     try {
-      JSON.parse(cleaned);
+      parsed = JSON.parse(cleaned);
     } catch {
+      return null;
+    }
+    if (
+      expectsObjectSchema(request) &&
+      (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+    ) {
       return null;
     }
   }
@@ -447,6 +523,7 @@ function parseRetryAfterHeader(headers: Headers): number | null {
   const raw = headers.get("retry-after");
   if (!raw) return null;
   const trimmed = raw.trim();
+  if (/^-\d+$/.test(trimmed)) return null;
   if (/^\d+$/.test(trimmed)) {
     const secs = Number.parseInt(trimmed, 10);
     return Number.isFinite(secs)
@@ -574,13 +651,20 @@ function extractAnthropicContent(
     if (
       block &&
       typeof block === "object" &&
-      (block as { type?: unknown }).type === "tool_use" &&
-      (block as { input?: unknown }).input !== undefined
+      (block as { type?: unknown }).type === "tool_use"
     ) {
-      const serialized = JSON.stringify((block as { input: unknown }).input);
-      if (typeof serialized === "string") {
-        return validateJsonIfRequired(serialized, request);
+      const input = (block as { input?: unknown }).input;
+      if (
+        input !== null &&
+        typeof input === "object" &&
+        !Array.isArray(input)
+      ) {
+        const serialized = JSON.stringify(input);
+        if (typeof serialized === "string") {
+          return validateJsonIfRequired(serialized, request);
+        }
       }
+      return null;
     }
   }
 
@@ -631,15 +715,21 @@ async function singleFallbackRequest(
   let headers: Record<string, string>;
   let payload: Record<string, unknown>;
 
+  const safeCustomHeaders = sanitizeHeaders(provider.headers) ?? {};
+
   if (provider.provider === "anthropic") {
     const built = buildAnthropicPayload(provider, request, maxTokens);
     if (!built) return { ok: false, kind: "bad_request", retryAfter: null };
     payload = built;
+    const anthropicVersion =
+      provider.anthropicVersion &&
+      ANTHROPIC_VERSION_RE.test(provider.anthropicVersion)
+        ? provider.anthropicVersion
+        : DEFAULT_ANTHROPIC_VERSION;
     headers = {
-      ...(provider.headers ?? {}),
+      ...safeCustomHeaders,
       "x-api-key": provider.apiKey,
-      "anthropic-version":
-        provider.anthropicVersion ?? DEFAULT_ANTHROPIC_VERSION,
+      "anthropic-version": anthropicVersion,
       "content-type": "application/json",
     };
   } else {
@@ -659,7 +749,7 @@ async function singleFallbackRequest(
       max_tokens: maxTokens,
     };
     headers = {
-      ...(provider.headers ?? {}),
+      ...safeCustomHeaders,
       authorization: `Bearer ${provider.apiKey}`,
       "content-type": "application/json",
     };

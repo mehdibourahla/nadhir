@@ -14,6 +14,7 @@ const valueAfter = (flag: string): string | undefined => {
   return index < 0 ? undefined : process.argv[index + 1];
 };
 
+const hasContractFlag = process.argv.includes("--contract");
 const target = valueAfter("--target");
 const contract = valueAfter("--contract");
 
@@ -23,6 +24,11 @@ if (!target || !isSourceExecutionTarget(target)) {
   );
   process.exit(1);
 }
+if (hasContractFlag && (!contract || contract.startsWith("--"))) {
+  throw new Error(
+    "--contract flag requires a value matching /^[a-z0-9_.-]{1,80}$/",
+  );
+}
 if (contract !== undefined && !CONTRACT_RE.test(contract)) {
   console.error("--contract must match /^[a-z0-9_.-]{1,80}$/");
   process.exit(1);
@@ -30,10 +36,11 @@ if (contract !== undefined && !CONTRACT_RE.test(contract)) {
 
 const workerScope =
   process.env["GITHUB_RUN_ID"] ?? process.env["WORKER_ID"] ?? "local";
+const workerId = `${target}:${workerScope}:${contract ?? "any"}`.slice(0, 200);
 const result = await executeNextSourceJob({
   target,
   ...(contract === undefined ? {} : { contractKey: contract }),
-  workerId: `${target}:${workerScope}:${contract ?? "any"}`,
+  workerId,
 });
 const commandResult = result.claimed
   ? result

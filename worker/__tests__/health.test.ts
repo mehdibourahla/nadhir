@@ -84,4 +84,77 @@ describe("worker health server", () => {
     });
     expect(methodNotAllowed.status).toBe(405);
   });
+
+  it("times out stalled /readyz DB probes and returns 503 db_unavailable promptly", async () => {
+    const snapshot: WorkerHealthSnapshot = {
+      status: "ok",
+      workerId: "eu-worker-stalled-db",
+      uptimeMs: 100,
+      activeJobs: 0,
+      targets: ["worker"],
+      completedJobs: 0,
+      failedJobs: 0,
+      lastSchedulerTickAt: null,
+    };
+
+    handle = await startHealthServer({
+      host: "127.0.0.1",
+      port: 0,
+      getSnapshot: () => snapshot,
+      checkDb: () => new Promise<boolean>(() => {}),
+      dbCheckTimeoutMs: 60,
+    });
+
+    const t0 = performance.now();
+    const res = await fetch(`http://127.0.0.1:${handle.port}/readyz`);
+    const elapsedMs = performance.now() - t0;
+
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({
+      ready: false,
+      reason: "db_unavailable",
+    });
+    expect(elapsedMs).toBeLessThan(1_000);
+  });
+
+  it("resolves health.close() promptly even while a /readyz DB probe is in-flight", async () => {
+    const snapshot: WorkerHealthSnapshot = {
+      status: "ok",
+      workerId: "eu-worker-close-race",
+      uptimeMs: 100,
+      activeJobs: 0,
+      targets: ["worker"],
+      completedJobs: 0,
+      failedJobs: 0,
+      lastSchedulerTickAt: null,
+    };
+    let resolveProbeStarted!: () => void;
+    const probeStarted = new Promise<void>((resolve) => {
+      resolveProbeStarted = resolve;
+    });
+
+    handle = await startHealthServer({
+      host: "127.0.0.1",
+      port: 0,
+      getSnapshot: () => snapshot,
+      checkDb: () => {
+        resolveProbeStarted();
+        return new Promise<boolean>(() => {});
+      },
+      dbCheckTimeoutMs: 5_000,
+    });
+
+    const inFlight = fetch(`http://127.0.0.1:${handle.port}/readyz`).catch(
+      () => null,
+    );
+    await probeStarted;
+
+    const t0 = performance.now();
+    await handle.close(80);
+    const elapsedMs = performance.now() - t0;
+    handle = null;
+
+    await inFlight;
+    expect(elapsedMs).toBeLessThan(1_000);
+  });
 });
