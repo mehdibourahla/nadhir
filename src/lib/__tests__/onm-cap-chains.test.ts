@@ -355,6 +355,65 @@ describe("ONM Atom & CAP detail chain parsing + ingestion", () => {
     expect(detail.instruction_fr).toBeNull();
   });
 
+  it("scans 40,000 repeated opening tags and CAP URL hrefs in strictly linear O(n) time (< 50 ms)", () => {
+    const ns = "urn:oasis:names:tc:emergency:cap:1.2";
+
+    const feedStart = performance.now();
+    const feedRes = parseOnmFeed(
+      `<feed xmlns:cap="${ns}"><entry>${"<id>".repeat(40_000)}</id></entry></feed>`,
+    );
+    const feedElapsed = performance.now() - feedStart;
+    expect(feedRes).toEqual([]);
+    expect(feedElapsed).toBeLessThan(50);
+
+    const capStart = performance.now();
+    const capRes = parseCapDetail(
+      `<alert xmlns="${ns}">${"<msgType>".repeat(40_000)}</msgType></alert>`,
+    );
+    const capElapsed = performance.now() - capStart;
+    expect(capRes).toEqual({
+      headline_fr: null,
+      instruction_fr: null,
+      polygon: null,
+      msg_type: null,
+      cap_references: null,
+      referenced_cap_ids: [],
+      geocodes: [],
+    });
+    expect(capElapsed).toBeLessThan(50);
+
+    const entriesStart = performance.now();
+    const entriesRes = parseOnmFeed(
+      `<feed xmlns:cap="${ns}">${"<entry>".repeat(40_000)}</entry></feed>`,
+    );
+    expect(entriesRes).toEqual([]);
+    expect(performance.now() - entriesStart).toBeLessThan(50);
+
+    const geoStart = performance.now();
+    const geoRes = parseCapDetail(
+      `<alert xmlns="${ns}">${"<geocode>".repeat(40_000)}</geocode></alert>`,
+    );
+    expect(geoRes?.geocodes).toEqual([]);
+    expect(performance.now() - geoStart).toBeLessThan(50);
+
+    const geoValStart = performance.now();
+    const geoValRes = parseCapDetail(
+      `<alert xmlns="${ns}"><geocode>${"<value>".repeat(40_000)}</value></geocode></alert>`,
+    );
+    expect(geoValRes?.geocodes).toEqual([]);
+    expect(performance.now() - geoValStart).toBeLessThan(50);
+
+    const hrefStart = performance.now();
+    const hrefRes = parseOnmFeed(
+      `<feed xmlns:cap="${ns}"><entry><id>urn:oid:href.dos</id><title>Rain Severe</title><cap:sent>2026-11-24T10:00:00Z</cap:sent><cap:areaDesc>ALGER</cap:areaDesc><link href="${"/CAPs/".repeat(20_000)}"/><link href="https://ametvigilance.meteo.dz/CAPs/.xml"/><link href="https://ametvigilance.meteo.dz/CAPs/valid.xml"/></entry></feed>`,
+    );
+    expect(hrefRes).toHaveLength(1);
+    expect(hrefRes[0]!.cap_url).toBe(
+      "https://ametvigilance.meteo.dz/CAPs/valid.xml",
+    );
+    expect(performance.now() - hrefStart).toBeLessThan(50);
+  });
+
   it("preserves CAP-detail-enriched fields across two Atom polls by omitting cap_detail_fetched_at from upserts", async () => {
     const atomWithoutDetailFields = `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xmlns:cap="urn:oasis:names:tc:emergency:cap:1.2">

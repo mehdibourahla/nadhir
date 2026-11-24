@@ -59,14 +59,13 @@ const tag = (xml: string, name: string): string | null => {
       pos = openEnd + 1;
       continue;
     }
-    const closeStart = xml.indexOf(closeTag, openEnd + 1);
-    if (closeStart === -1) return null;
-    const content = xml.slice(openEnd + 1, closeStart);
-    if (content.includes("<")) {
-      pos = openEnd + 1;
+    const nextLt = xml.indexOf("<", openEnd + 1);
+    if (nextLt === -1) return null;
+    if (!xml.startsWith(closeTag, nextLt)) {
+      pos = nextLt;
       continue;
     }
-    return content.trim();
+    return xml.slice(openEnd + 1, nextLt).trim();
   }
   return null;
 };
@@ -136,6 +135,29 @@ function extractGeocodes(xml: string): string[] {
   return out;
 }
 
+/** Linear O(n), ReDoS-free extractor for CAP XML link hrefs (`/CAPs/*.xml`). */
+function extractCapUrl(entry: string): string | null {
+  let pos = 0;
+  while (pos < entry.length) {
+    const start = entry.indexOf('href="', pos);
+    if (start === -1) return null;
+    const valStart = start + 6;
+    const end = entry.indexOf('"', valStart);
+    if (end === -1) return null;
+    const href = entry.slice(valStart, end);
+    const capsIdx = href.indexOf("/CAPs/");
+    if (
+      capsIdx !== -1 &&
+      href.endsWith(".xml") &&
+      href.length > capsIdx + "/CAPs/.xml".length
+    ) {
+      return href;
+    }
+    pos = end + 1;
+  }
+  return null;
+}
+
 export function parseOnmFeed(xml: string): OnmEntry[] {
   if (!xml.includes("urn:oasis:names:tc:emergency:cap:1.2")) return [];
   const out: OnmEntry[] = [];
@@ -168,7 +190,7 @@ export function parseOnmFeed(xml: string): OnmEntry[] {
       expires: tag(entry, "cap:expires"),
       sent,
       area_desc: area ?? "",
-      cap_url: entry.match(/href="([^"]*\/CAPs\/[^"]+\.xml)"/)?.[1] ?? null,
+      cap_url: extractCapUrl(entry),
       msg_type,
       cap_references,
       referenced_cap_ids: parseCapReferenceIds(cap_references),
