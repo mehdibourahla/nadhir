@@ -1,6 +1,6 @@
 begin;
 set local search_path = public, extensions;
-select plan(81);
+select plan(83);
 
 -- ---------------------------------------------------------------------------
 -- 1. Seed realistic constraint-compliant fixtures across ALL 6 cold tables
@@ -234,6 +234,18 @@ select is(
   (select array_agg(d order by d) from private.cold_pending_days_as_of('source_jobs', '2026-11-26T03:17:00Z') d),
   array['2026-08-25'::date],
   '2026-11-26: source_jobs (92d) pending is only 2026-08-25 (2026-08-26 stays hot)'
+);
+
+-- Non-UTC offset handling on _as_of (proves UTC conversion before ::date cutoff)
+select throws_ok(
+  $$select private.cold_archive_commit_as_of('weather_snapshots', '2026-08-27', 0, null, null, null, null, '2026-11-26T00:30:00+01:00')$$,
+  '22023', 'cold_day_still_hot',
+  'non-UTC offset: 2026-11-26T00:30:00+01:00 (= 2026-11-25T23:30:00Z) treats 2026-08-27 as hot'
+);
+select is(
+  (select array_agg(d order by d) from private.cold_pending_days_as_of('weather_snapshots', '2026-11-26T01:00:00+01:00') d),
+  array['2026-08-27'::date],
+  'non-UTC offset: 2026-11-26T01:00:00+01:00 (= 2026-11-26T00:00:00Z) returns 2026-08-27 as pending'
 );
 
 -- Verify exact UTC midnight candidate assignment (23:59:59Z on 08-27 vs 00:00:00Z on 08-28)

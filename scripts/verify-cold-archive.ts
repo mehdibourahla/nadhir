@@ -23,6 +23,7 @@ import {
 import {
   assertLoopbackDatabaseUrl,
   assertLoopbackHttpUrl,
+  buildDuckdbPgEnv,
   COLD_TABLE_CONFIG,
   computeColdCutoff,
   computeKeyDigest,
@@ -32,6 +33,7 @@ import {
   resolveVerifyMode,
   serializeCanonicalNdjson,
   shiftUtcDay,
+  stripIpv6Brackets,
   verifyExportArtifact,
 } from "../src/lib/cold-archive-verify";
 
@@ -135,6 +137,24 @@ function createTracker(): FixtureTracker {
     riskForecastDays: new Set<string>(),
     uploadedPaths: new Set<string>(),
   };
+}
+
+function resetTracker(tracker: FixtureTracker): void {
+  tracker.contractKeys.length = 0;
+  tracker.itaReportIds.length = 0;
+  tracker.civilInvestigationIds.length = 0;
+  tracker.sourceGapIds.length = 0;
+  tracker.sourceRunIds.length = 0;
+  tracker.retiredKeys.length = 0;
+  tracker.sourceJobIds.length = 0;
+  tracker.weatherSnapshotIds.length = 0;
+  tracker.airportObservationIds.length = 0;
+  tracker.riskForecastIds.length = 0;
+  tracker.riskPublicationIds.length = 0;
+  tracker.broadcastAuditIds.length = 0;
+  tracker.broadcastAuditDays.clear();
+  tracker.riskForecastDays.clear();
+  tracker.uploadedPaths.clear();
 }
 
 type SeededMatrix = {
@@ -908,115 +928,145 @@ async function cleanupFixtures(
   tracker: FixtureTracker,
   initialCheckpoint: CheckpointRow | null,
   initialExports: Set<string>,
+  options: { snapshotsCaptured: boolean; didMutateDb: boolean },
 ): Promise<void> {
+  let storageError: unknown = null;
   const paths = [...tracker.uploadedPaths];
   if (paths.length > 0) {
-    const { error } = await supabase.storage.from(BUCKET).remove(paths);
-    if (error) {
-      throw new Error(
-        `Failed to remove verification storage objects: ${error.message}`,
-      );
+    try {
+      const { error } = await supabase.storage.from(BUCKET).remove(paths);
+      if (error) {
+        storageError = new Error(
+          `Failed to remove verification storage objects: ${error.message}`,
+        );
+      } else {
+        tracker.uploadedPaths.clear();
+      }
+    } catch (err) {
+      storageError = err;
     }
-    tracker.uploadedPaths.clear();
   }
 
-  await sql.begin(async (tx) => {
-    for (const id of tracker.civilInvestigationIds) {
-      await tx`delete from public.civil_investigations where id = ${id}::uuid`;
-    }
-    for (const id of tracker.itaReportIds) {
-      await tx`delete from public.ita_reports where id = ${id}::uuid`;
-    }
-    for (const id of tracker.sourceGapIds) {
-      await tx`update public.source_gaps set resolved_by_run_id = null where id = ${id}::uuid`;
-      await tx`delete from public.source_gaps where id = ${id}::uuid`;
-    }
-    for (const id of tracker.weatherSnapshotIds) {
-      await tx`delete from public.weather_snapshots where id = ${id}::uuid`;
-    }
-    for (const id of tracker.sourceRunIds) {
-      await tx`delete from public.source_runs where id = ${id}::uuid`;
-    }
-    for (const key of tracker.retiredKeys) {
-      await tx`delete from public.source_run_retired_keys where idempotency_key = ${key}`;
-    }
-    for (const id of tracker.sourceJobIds) {
-      await tx`delete from public.source_jobs where id = ${id}::uuid`;
-    }
-    for (const id of tracker.airportObservationIds) {
-      await tx`delete from public.airport_observations where id = ${id}::uuid`;
-    }
+  let dbError: unknown = null;
+  if (options.didMutateDb) {
+    try {
+      await sql.begin(async (tx) => {
+        for (const id of tracker.civilInvestigationIds) {
+          await tx`delete from public.civil_investigations where id = ${id}::uuid`;
+        }
+        for (const id of tracker.itaReportIds) {
+          await tx`delete from public.ita_reports where id = ${id}::uuid`;
+        }
+        for (const id of tracker.sourceGapIds) {
+          await tx`update public.source_gaps set resolved_by_run_id = null where id = ${id}::uuid`;
+          await tx`delete from public.source_gaps where id = ${id}::uuid`;
+        }
+        for (const id of tracker.weatherSnapshotIds) {
+          await tx`delete from public.weather_snapshots where id = ${id}::uuid`;
+        }
+        for (const id of tracker.sourceRunIds) {
+          await tx`delete from public.source_runs where id = ${id}::uuid`;
+        }
+        for (const key of tracker.retiredKeys) {
+          await tx`delete from public.source_run_retired_keys where idempotency_key = ${key}`;
+        }
+        for (const id of tracker.sourceJobIds) {
+          await tx`delete from public.source_jobs where id = ${id}::uuid`;
+        }
+        for (const id of tracker.airportObservationIds) {
+          await tx`delete from public.airport_observations where id = ${id}::uuid`;
+        }
 
-    // Restore pre-test risk_publication_checkpoint before deleting seeded risk_forecasts
-    if (initialCheckpoint) {
-      await tx`
-        insert into public.risk_publication_checkpoint (
-          key, snapshot_id, base_date, scheduled_for, published_at, coverage_status
-        ) values (
-          ${initialCheckpoint.key},
-          ${initialCheckpoint.snapshot_id}::uuid,
-          ${initialCheckpoint.base_date}::date,
-          ${initialCheckpoint.scheduled_for}::timestamptz,
-          ${initialCheckpoint.published_at}::timestamptz,
-          ${initialCheckpoint.coverage_status}
-        )
-        on conflict (key) do update set
-          snapshot_id = excluded.snapshot_id,
-          base_date = excluded.base_date,
-          scheduled_for = excluded.scheduled_for,
-          published_at = excluded.published_at,
-          coverage_status = excluded.coverage_status
-      `;
-    } else {
-      await tx`delete from public.risk_publication_checkpoint where key = 'local_fwi'`;
-    }
+        // Restore pre-test risk_publication_checkpoint ONLY when snapshots were captured
+        if (options.snapshotsCaptured) {
+          if (initialCheckpoint) {
+            await tx`
+              insert into public.risk_publication_checkpoint (
+                key, snapshot_id, base_date, scheduled_for, published_at, coverage_status
+              ) values (
+                ${initialCheckpoint.key},
+                ${initialCheckpoint.snapshot_id}::uuid,
+                ${initialCheckpoint.base_date}::date,
+                ${initialCheckpoint.scheduled_for}::timestamptz,
+                ${initialCheckpoint.published_at}::timestamptz,
+                ${initialCheckpoint.coverage_status}
+              )
+              on conflict (key) do update set
+                snapshot_id = excluded.snapshot_id,
+                base_date = excluded.base_date,
+                scheduled_for = excluded.scheduled_for,
+                published_at = excluded.published_at,
+                coverage_status = excluded.coverage_status
+            `;
+          } else {
+            await tx`delete from public.risk_publication_checkpoint where key = 'local_fwi'`;
+          }
+        }
 
-    // Trigger-safe transactional manifest bridge: insert temporary rows=0 cold_exports
-    // placeholders for seeded broadcast_audit & risk_forecasts days so live triggers
-    // legitimately permit deleting ONLY our seeded fixture UUIDs.
-    for (const day of tracker.riskForecastDays) {
-      await tx`
-        insert into public.cold_exports (table_name, day, rows)
-        values ('risk_forecasts', ${day}::date, 0)
-        on conflict (table_name, day) do nothing
-      `;
-    }
-    for (const day of tracker.broadcastAuditDays) {
-      await tx`
-        insert into public.cold_exports (table_name, day, rows)
-        values ('broadcast_audit', ${day}::date, 0)
-        on conflict (table_name, day) do nothing
-      `;
-    }
+        // Trigger-safe transactional manifest bridge: insert temporary rows=0 cold_exports
+        // placeholders for seeded broadcast_audit & risk_forecasts days so live triggers
+        // legitimately permit deleting ONLY our seeded fixture UUIDs.
+        for (const day of tracker.riskForecastDays) {
+          await tx`
+            insert into public.cold_exports (table_name, day, rows)
+            values ('risk_forecasts', ${day}::date, 0)
+            on conflict (table_name, day) do nothing
+          `;
+        }
+        for (const day of tracker.broadcastAuditDays) {
+          await tx`
+            insert into public.cold_exports (table_name, day, rows)
+            values ('broadcast_audit', ${day}::date, 0)
+            on conflict (table_name, day) do nothing
+          `;
+        }
 
-    for (const id of tracker.riskForecastIds) {
-      await tx`delete from public.risk_forecasts where id = ${id}::uuid`;
-    }
-    for (const id of tracker.riskPublicationIds) {
-      await tx`delete from public.risk_publications where snapshot_id = ${id}::uuid`;
-    }
-    for (const id of tracker.broadcastAuditIds) {
-      await tx`delete from public.broadcast_audit where id = ${id}::uuid`;
-    }
+        for (const id of tracker.riskForecastIds) {
+          await tx`delete from public.risk_forecasts where id = ${id}::uuid`;
+        }
+        for (const id of tracker.riskPublicationIds) {
+          await tx`delete from public.risk_publications where snapshot_id = ${id}::uuid`;
+        }
+        for (const id of tracker.broadcastAuditIds) {
+          await tx`delete from public.broadcast_audit where id = ${id}::uuid`;
+        }
 
-    // Remove ONLY cold_exports rows created during this run
-    const currentExports = await tx<ColdExportKey[]>`
-      select table_name, day::text as day from public.cold_exports
-    `;
-    for (const row of currentExports) {
-      const composite = `${row.table_name}:${row.day}`;
-      if (!initialExports.has(composite)) {
-        await tx`
-          delete from public.cold_exports
-          where table_name = ${row.table_name} and day = ${row.day}::date
-        `;
-      }
-    }
+        // Remove ONLY cold_exports rows created during this run, and ONLY when snapshots were captured
+        if (options.snapshotsCaptured) {
+          const currentExports = await tx<ColdExportKey[]>`
+            select table_name, day::text as day from public.cold_exports
+          `;
+          for (const row of currentExports) {
+            const composite = `${row.table_name}:${row.day}`;
+            if (!initialExports.has(composite)) {
+              await tx`
+                delete from public.cold_exports
+                where table_name = ${row.table_name} and day = ${row.day}::date
+              `;
+            }
+          }
+        }
 
-    for (const key of tracker.contractKeys) {
-      await tx`delete from public.source_contracts where key = ${key}`;
+        for (const key of tracker.contractKeys) {
+          await tx`delete from public.source_contracts where key = ${key}`;
+        }
+      });
+    } catch (err) {
+      dbError = err;
     }
-  });
+  }
+
+  if (!storageError && !dbError) {
+    resetTracker(tracker);
+    return;
+  }
+  if (storageError && dbError) {
+    throw new AggregateError(
+      [storageError, dbError],
+      "Fixture cleanup failed (storage and database errors)",
+    );
+  }
+  throw storageError ?? dbError;
 }
 
 async function queryCandidatesAsColdReader(
@@ -1380,25 +1430,40 @@ async function main(): Promise<void> {
   const explicitUrl = process.env["COLD_ARCHIVE_TEST_SUPABASE_URL"];
   const explicitKey =
     process.env["COLD_ARCHIVE_TEST_SUPABASE_SERVICE_ROLE_KEY"];
+  const explicitDbUrl = process.env["COLD_ARCHIVE_TEST_DATABASE_URL"];
+
+  // Fail closed immediately on any non-loopback explicit override before invoking supabase status
+  if (explicitUrl) {
+    assertLoopbackHttpUrl(explicitUrl, "SUPABASE_URL");
+  }
+  if (explicitDbUrl) {
+    assertLoopbackDatabaseUrl(explicitDbUrl, "DATABASE_URL");
+  }
+
   const envSupabaseIsLocal =
     isLoopbackUrl(process.env["SUPABASE_URL"]) &&
     Boolean(process.env["SUPABASE_SERVICE_ROLE_KEY"]);
-  const statusEnv =
-    explicitUrl || envSupabaseIsLocal ? {} : loadLocalSupabaseEnv();
-
-  const supabaseUrl =
+  const candidateUrl =
     explicitUrl ||
-    (envSupabaseIsLocal ? process.env["SUPABASE_URL"] : statusEnv["API_URL"]);
-  const serviceRoleKey =
+    (envSupabaseIsLocal ? process.env["SUPABASE_URL"] : undefined);
+  const candidateKey =
     explicitKey ||
-    (envSupabaseIsLocal
-      ? process.env["SUPABASE_SERVICE_ROLE_KEY"]
-      : statusEnv["SERVICE_ROLE_KEY"]);
-  const databaseUrl =
-    process.env["COLD_ARCHIVE_TEST_DATABASE_URL"] ||
+    (envSupabaseIsLocal ? process.env["SUPABASE_SERVICE_ROLE_KEY"] : undefined);
+  const candidateDbUrl =
+    explicitDbUrl ||
     (isLoopbackUrl(process.env["DATABASE_URL"])
       ? process.env["DATABASE_URL"]
-      : statusEnv["DB_URL"]) ||
+      : undefined);
+
+  // Fall back to `supabase status -o env` whenever any of url, serviceRoleKey, or databaseUrl is missing
+  const needsStatusEnv = !candidateUrl || !candidateKey || !candidateDbUrl;
+  const statusEnv = needsStatusEnv ? loadLocalSupabaseEnv() : {};
+
+  const supabaseUrl = candidateUrl || statusEnv["API_URL"];
+  const serviceRoleKey = candidateKey || statusEnv["SERVICE_ROLE_KEY"];
+  const databaseUrl =
+    candidateDbUrl ||
+    statusEnv["DB_URL"] ||
     "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
 
   assert(
@@ -1422,7 +1487,7 @@ async function main(): Promise<void> {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const sql = new SQL({
-    hostname: dbParsed.hostname,
+    hostname: stripIpv6Brackets(dbParsed.hostname),
     port: Number(dbParsed.port || 54322),
     username: decodeURIComponent(dbParsed.username || "postgres"),
     password: decodeURIComponent(dbParsed.password || "postgres"),
@@ -1434,10 +1499,14 @@ async function main(): Promise<void> {
   const tracker = createTracker();
   let initialCheckpoint: CheckpointRow | null = null;
   const initialExports = new Set<string>();
+  let snapshotsCaptured = false;
+  let didMutateDb = false;
   let duckdbWorkDir: string | null = null;
   let duckdbEnv: NodeJS.ProcessEnv | null = null;
   let readerSql: SQL | null = null;
   let temporaryReaderPasswordSet = false;
+  let readerHadNullPassword = false;
+  let previousReaderPasswordHash: string | null = null;
 
   try {
     const [clockRow] = await sql<{ db_today: string }[]>`
@@ -1474,28 +1543,32 @@ async function main(): Promise<void> {
     for (const row of existingExportRows) {
       initialExports.add(`${row.table_name}:${row.day}`);
     }
+    snapshotsCaptured = true;
 
     // Open a genuine cold_reader login session so Postgres natively enforces
     // cold_reader RLS policies and default_transaction_read_only=on.
     const explicitReaderUrl =
       process.env["COLD_ARCHIVE_TEST_READER_DATABASE_URL"];
+    let readerUrl: URL;
     let readerPassword: string;
-    let readerHost = dbParsed.hostname;
-    let readerPort = Number(dbParsed.port || 54322);
-    let readerUser = "cold_reader";
-    let readerDatabase = dbParsed.pathname.slice(1) || "postgres";
 
     if (explicitReaderUrl) {
-      const readerParsed = assertLoopbackDatabaseUrl(
+      readerUrl = assertLoopbackDatabaseUrl(
         explicitReaderUrl,
         "COLD_ARCHIVE_TEST_READER_DATABASE_URL",
       );
-      readerHost = readerParsed.hostname;
-      readerPort = Number(readerParsed.port || 54322);
-      readerUser = decodeURIComponent(readerParsed.username || "cold_reader");
-      readerPassword = decodeURIComponent(readerParsed.password || "");
-      readerDatabase = readerParsed.pathname.slice(1) || "postgres";
+      readerPassword = decodeURIComponent(readerUrl.password || "");
     } else {
+      readerUrl = new URL(dbParsed.href);
+      readerUrl.username = "cold_reader";
+      readerUrl.password = "";
+
+      const [readerAuth] = await sql<{ rolpassword: string | null }[]>`
+        select rolpassword from pg_authid where rolname = 'cold_reader'
+      `;
+      readerHadNullPassword = readerAuth?.rolpassword === null;
+      previousReaderPasswordHash = readerAuth?.rolpassword ?? null;
+
       readerPassword = crypto.randomUUID().replaceAll("-", "");
       await sql.unsafe(
         `alter role cold_reader with password '${readerPassword}'`,
@@ -1504,11 +1577,13 @@ async function main(): Promise<void> {
     }
 
     readerSql = new SQL({
-      hostname: readerHost,
-      port: readerPort,
-      username: readerUser,
+      hostname: stripIpv6Brackets(readerUrl.hostname),
+      port: Number(readerUrl.port || 54322),
+      username: readerUrl.username
+        ? decodeURIComponent(readerUrl.username)
+        : "cold_reader",
       password: readerPassword,
-      database: readerDatabase,
+      database: readerUrl.pathname.replace(/^\//, "") || "postgres",
       max: 2,
       tls: false,
     });
@@ -1521,15 +1596,7 @@ async function main(): Promise<void> {
 
     if (resolvedMode === "duckdb") {
       duckdbWorkDir = await mkdtemp(join(tmpdir(), "cold-archive-verify-"));
-      duckdbEnv = {
-        ...process.env,
-        PGHOST: readerHost,
-        PGPORT: String(readerPort),
-        PGUSER: readerUser,
-        PGPASSWORD: readerPassword,
-        PGDATABASE: readerDatabase,
-        PGSSLMODE: "disable",
-      };
+      duckdbEnv = buildDuckdbPgEnv(process.env, readerUrl, readerPassword);
     }
 
     if (!args.json) {
@@ -1546,6 +1613,7 @@ async function main(): Promise<void> {
       if (args.seed) {
         const c90 = computeColdCutoff("broadcast_audit", args.asOf);
         const c92 = computeColdCutoff("source_jobs", args.asOf);
+        didMutateDb = true;
         await seedCutoffMatrix(
           sql,
           communeId,
@@ -1652,6 +1720,7 @@ async function main(): Promise<void> {
     // Phase 1: Reproducible 2026-11-26 & 2026-11-27 Cutoff Proof (ALL 6 tables)
     // -----------------------------------------------------------------------
     const phase1Tag = `p1_${crypto.randomUUID().slice(0, 6)}`;
+    didMutateDb = true;
     const phase1 = await seedCutoffMatrix(
       sql,
       communeId,
@@ -1808,7 +1877,9 @@ async function main(): Promise<void> {
       tracker,
       initialCheckpoint,
       initialExports,
+      { snapshotsCaptured, didMutateDb },
     );
+    didMutateDb = false;
 
     // -----------------------------------------------------------------------
     // Phase 2: Live Wall-Clock service_role Full 6-Table Proof (real now())
@@ -1816,6 +1887,7 @@ async function main(): Promise<void> {
     const live90 = computeColdCutoff("broadcast_audit", dbToday);
     const live92 = computeColdCutoff("source_jobs", dbToday);
     const phase2Tag = `p2_${crypto.randomUUID().slice(0, 6)}`;
+    didMutateDb = true;
     const phase2 = await seedCutoffMatrix(
       sql,
       communeId,
@@ -2222,21 +2294,32 @@ async function main(): Promise<void> {
     }
   } finally {
     try {
-      await cleanupFixtures(
-        sql,
-        supabase,
-        tracker,
-        initialCheckpoint,
-        initialExports,
-      );
+      if (didMutateDb || tracker.uploadedPaths.size > 0) {
+        await cleanupFixtures(
+          sql,
+          supabase,
+          tracker,
+          initialCheckpoint,
+          initialExports,
+          { snapshotsCaptured, didMutateDb },
+        );
+      }
     } finally {
       if (readerSql) {
         await readerSql.close().catch(() => {});
       }
       if (temporaryReaderPasswordSet) {
-        await sql
-          .unsafe("alter role cold_reader with password null")
-          .catch(() => {});
+        if (readerHadNullPassword) {
+          await sql
+            .unsafe("alter role cold_reader with password null")
+            .catch(() => {});
+        } else if (previousReaderPasswordHash) {
+          await sql<{ stmt: string }[]>`
+            select pg_catalog.format('alter role cold_reader with password %L', ${previousReaderPasswordHash}) as stmt
+          `
+            .then(([row]) => (row?.stmt ? sql.unsafe(row.stmt) : undefined))
+            .catch(() => {});
+        }
       }
       if (duckdbWorkDir) {
         await rm(duckdbWorkDir, { recursive: true, force: true }).catch(

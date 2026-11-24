@@ -20,6 +20,21 @@ export interface ColdCutoff {
 
 const ISO_DAY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+const FORBIDDEN_LIBPQ_QUERY_PARAMS = new Set([
+  "service",
+  "servicefile",
+  "passfile",
+  "sslrootcert",
+]);
+const STRIPPED_LIBPQ_ENV_VARS = [
+  "PGHOSTADDR",
+  "PGSERVICE",
+  "PGSERVICEFILE",
+  "PGPASSFILE",
+  "PGOPTIONS",
+  "PGSSLROOTCERT",
+  "PGSSLMODE",
+] as const;
 
 export function isIsoDay(value: string): boolean {
   const match = ISO_DAY_RE.exec(value);
@@ -94,30 +109,45 @@ export function computeKeyDigest(ids: readonly string[]): string | null {
   return createHash("md5").update(sorted.join(","), "utf8").digest("hex");
 }
 
-export function canonicalizeJsonValue(value: unknown): unknown {
+function canonicalizeJsonValueInner(
+  value: unknown,
+  seen: WeakSet<object>,
+): unknown {
   if (value === null || typeof value !== "object") {
     if (typeof value === "bigint") return value.toString();
     return value;
   }
   if (value instanceof Date) {
-    return value.toISOString();
+    return Number.isNaN(value.getTime()) ? null : value.toISOString();
   }
   if (value instanceof Uint8Array) {
     return Buffer.from(value).toString("base64");
   }
-  if (Array.isArray(value)) {
-    return value.map((item) => canonicalizeJsonValue(item));
+  if (seen.has(value)) {
+    throw new Error("Circular reference in canonicalizeJsonValue");
   }
-  const record = value as Record<string, unknown>;
-  const sortedKeys = Object.keys(record).sort(compareCLocale);
-  const out: Record<string, unknown> = {};
-  for (const key of sortedKeys) {
-    const entry = record[key];
-    if (entry !== undefined) {
-      out[key] = canonicalizeJsonValue(entry);
+  seen.add(value);
+  try {
+    if (Array.isArray(value)) {
+      return value.map((item) => canonicalizeJsonValueInner(item, seen));
     }
+    const record = value as Record<string, unknown>;
+    const sortedKeys = Object.keys(record).sort(compareCLocale);
+    const out = Object.create(null) as Record<string, unknown>;
+    for (const key of sortedKeys) {
+      const entry = record[key];
+      if (entry !== undefined) {
+        out[key] = canonicalizeJsonValueInner(entry, seen);
+      }
+    }
+    return out;
+  } finally {
+    seen.delete(value);
   }
-  return out;
+}
+
+export function canonicalizeJsonValue(value: unknown): unknown {
+  return canonicalizeJsonValueInner(value, new WeakSet<object>());
 }
 
 export function serializeCanonicalNdjson(
@@ -133,7 +163,16 @@ export function readBackCanonicalNdjson(bytes: Uint8Array): Summary {
   if (bytes.byteLength === 0) {
     return { rows: 0, digest: null };
   }
-  const decoded = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  const decoded = new TextDecoder("utf-8", {
+    fatal: true,
+    ignoreBOM: true,
+  }).decode(bytes);
+  if (decoded.startsWith("\uFEFF")) {
+    throw new Error("Canonical NDJSON must not start with a UTF-8 BOM");
+  }
+  if (decoded.includes("\r")) {
+    throw new Error("Canonical NDJSON must use LF line endings only");
+  }
   const rawLines = decoded.split("\n");
   if (rawLines[rawLines.length - 1] === "") {
     rawLines.pop();
@@ -201,10 +240,35 @@ function isLoopbackHost(hostname: string): boolean {
   return LOOPBACK_HOSTS.has(hostname.toLowerCase());
 }
 
+export function stripIpv6Brackets(host: string): string {
+  return host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
+}
+
+export function buildDuckdbPgEnv(
+  baseEnv: Record<string, string | undefined>,
+  readerUrl: URL,
+  password: string,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...baseEnv };
+  for (const key of STRIPPED_LIBPQ_ENV_VARS) {
+    delete env[key];
+  }
+  env["PGHOST"] = stripIpv6Brackets(readerUrl.hostname);
+  env["PGPORT"] = readerUrl.port || "5432";
+  env["PGUSER"] = readerUrl.username
+    ? decodeURIComponent(readerUrl.username)
+    : "cold_reader";
+  env["PGPASSWORD"] = password;
+  env["PGDATABASE"] = readerUrl.pathname.replace(/^\//, "") || "postgres";
+  env["PGSSLMODE"] = "disable";
+  return env;
+}
+
 export function assertLoopbackHttpUrl(raw: string, label: string): URL {
+  const trimmed = raw.trim();
   let parsed: URL;
   try {
-    parsed = new URL(raw);
+    parsed = new URL(trimmed);
   } catch {
     throw new Error(`${label} is not a valid URL`);
   }
@@ -213,7 +277,13 @@ export function assertLoopbackHttpUrl(raw: string, label: string): URL {
       `${label} must use http: or https: protocol (got ${parsed.protocol})`,
     );
   }
-  if (parsed.username !== "" || parsed.password !== "") {
+  const authority =
+    trimmed.slice(parsed.protocol.length + 2).split(/[/?#]/, 1)[0] ?? "";
+  if (
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    authority.includes("@")
+  ) {
     throw new Error(`${label} must not embed credentials`);
   }
   if (!isLoopbackHost(parsed.hostname)) {
@@ -225,9 +295,10 @@ export function assertLoopbackHttpUrl(raw: string, label: string): URL {
 }
 
 export function assertLoopbackDatabaseUrl(raw: string, label: string): URL {
+  const trimmed = raw.trim();
   let parsed: URL;
   try {
-    parsed = new URL(raw);
+    parsed = new URL(trimmed);
   } catch {
     throw new Error(`${label} is not a valid URL`);
   }
@@ -237,7 +308,9 @@ export function assertLoopbackDatabaseUrl(raw: string, label: string): URL {
     );
   }
   // Reject libpq multi-host forms such as postgres://user:pass@127.0.0.1:5432,prod.db:5432/postgres
-  const authority = raw.slice(parsed.protocol.length + 2).split(/[/?#]/, 1)[0];
+  const authority = trimmed
+    .slice(parsed.protocol.length + 2)
+    .split(/[/?#]/, 1)[0];
   const hostPortPart = authority?.includes("@")
     ? authority.slice(authority.lastIndexOf("@") + 1)
     : authority;
@@ -251,6 +324,11 @@ export function assertLoopbackDatabaseUrl(raw: string, label: string): URL {
   }
   for (const [key, value] of parsed.searchParams.entries()) {
     const normalized = key.toLowerCase();
+    if (FORBIDDEN_LIBPQ_QUERY_PARAMS.has(normalized)) {
+      throw new Error(
+        `${label} query parameter ${key} is forbidden for local verification`,
+      );
+    }
     if (normalized === "host" || normalized === "hostaddr") {
       const hosts = value.split(",").map((part) => part.trim());
       if (hosts.length !== 1 || !hosts[0] || !isLoopbackHost(hosts[0])) {
@@ -296,6 +374,7 @@ export function parseVerifyColdArchiveArgs(
 ): VerifyColdArchiveArgs {
   let dryRun = false;
   let asOf = "2026-11-26";
+  let explicitAsOf = false;
   let mode: VerifyMode = "auto";
   let seed = true;
   let json = false;
@@ -320,6 +399,7 @@ export function parseVerifyColdArchiveArgs(
         );
       }
       asOf = next;
+      explicitAsOf = true;
       i += 1;
     } else if (arg.startsWith("--as-of=")) {
       const value = arg.slice("--as-of=".length);
@@ -329,6 +409,7 @@ export function parseVerifyColdArchiveArgs(
         );
       }
       asOf = value;
+      explicitAsOf = true;
     } else if (arg === "--mode") {
       const next = argv[i + 1];
       if (next !== "auto" && next !== "duckdb" && next !== "ts") {
@@ -348,6 +429,17 @@ export function parseVerifyColdArchiveArgs(
       mode = value;
     } else {
       throw new Error(`Unknown argument: ${arg}`);
+    }
+  }
+
+  if (!help) {
+    if (!seed && !dryRun) {
+      throw new Error("--no-seed can only be used together with --dry-run");
+    }
+    if (explicitAsOf && !dryRun) {
+      throw new Error(
+        "--as-of can only be used together with --dry-run (full verification runs 2026-11-26, 2026-11-27, and live now())",
+      );
     }
   }
 

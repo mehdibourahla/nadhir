@@ -4,6 +4,7 @@ import { COLD_TABLES, sha256 } from "../cold-archive";
 import {
   assertLoopbackDatabaseUrl,
   assertLoopbackHttpUrl,
+  buildDuckdbPgEnv,
   canonicalizeJsonValue,
   COLD_TABLE_CONFIG,
   compareCLocale,
@@ -16,6 +17,7 @@ import {
   resolveVerifyMode,
   serializeCanonicalNdjson,
   shiftUtcDay,
+  stripIpv6Brackets,
   verifyExportArtifact,
 } from "../cold-archive-verify";
 
@@ -223,6 +225,48 @@ describe("cold-archive-verify canonical NDJSON export & verification", () => {
     });
   });
 
+  it("preserves __proto__ keys without mutating prototype, handles invalid Date and shared refs, and rejects circular refs", () => {
+    const withProto = JSON.parse(
+      '{"__proto__":{"polluted":true},"a":1,"constructor":"ctor"}',
+    ) as Record<string, unknown>;
+    const canonical = canonicalizeJsonValue(withProto) as Record<
+      string,
+      unknown
+    >;
+    expect(Object.getPrototypeOf(canonical)).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(canonical, "__proto__")).toBe(
+      true,
+    );
+    expect(JSON.stringify(canonical)).toBe(
+      '{"__proto__":{"polluted":true},"a":1,"constructor":"ctor"}',
+    );
+
+    // Invalid Date matches JSON.stringify -> null
+    expect(canonicalizeJsonValue(new Date("not-a-date"))).toBeNull();
+    expect(
+      JSON.stringify(canonicalizeJsonValue({ bad: new Date("invalid") })),
+    ).toBe('{"bad":null}');
+
+    // Shared non-circular references serialize cleanly
+    const shared = { y: 2, x: 1 };
+    expect(
+      JSON.stringify(canonicalizeJsonValue({ first: shared, second: shared })),
+    ).toBe('{"first":{"x":1,"y":2},"second":{"x":1,"y":2}}');
+
+    // Circular object and array references throw a clean error
+    const circularObj: Record<string, unknown> = { a: 1 };
+    circularObj["self"] = circularObj;
+    expect(() => canonicalizeJsonValue(circularObj)).toThrow(
+      /Circular reference/,
+    );
+
+    const circularArr: unknown[] = [];
+    circularArr.push(circularArr);
+    expect(() => canonicalizeJsonValue(circularArr)).toThrow(
+      /Circular reference/,
+    );
+  });
+
   it("detects SHA-256 tampering, ID tampering, missing/extra rows, invalid UTF-8, and malformed JSON", () => {
     const rows = [
       { id: "id-1", value: "alpha" },
@@ -275,11 +319,26 @@ describe("cold-archive-verify canonical NDJSON export & verification", () => {
     expect(() =>
       readBackCanonicalNdjson(new TextEncoder().encode('{"no_id":1}\n')),
     ).toThrow(/missing a non-empty string id/);
+
+    // UTF-8 BOM-only, BOM-prefixed, and CRLF payloads
+    expect(() =>
+      readBackCanonicalNdjson(new Uint8Array([0xef, 0xbb, 0xbf])),
+    ).toThrow(/UTF-8 BOM/);
+    const bomPrefixed = new Uint8Array([
+      0xef,
+      0xbb,
+      0xbf,
+      ...new TextEncoder().encode('{"id":"a"}\n'),
+    ]);
+    expect(() => readBackCanonicalNdjson(bomPrefixed)).toThrow(/UTF-8 BOM/);
+    expect(() =>
+      readBackCanonicalNdjson(new TextEncoder().encode('{"id":"a"}\r\n')),
+    ).toThrow(/LF line endings/);
   });
 });
 
 describe("cold-archive-verify loopback-only URL guards", () => {
-  it("accepts loopback HTTP and Postgres URLs", () => {
+  it("accepts loopback HTTP and Postgres URLs including whitespace-padded and IPv6 loopback", () => {
     expect(
       assertLoopbackHttpUrl("http://127.0.0.1:54321", "SUPABASE_URL").hostname,
     ).toBe("127.0.0.1");
@@ -289,10 +348,22 @@ describe("cold-archive-verify loopback-only URL guards", () => {
     expect(
       assertLoopbackHttpUrl("http://[::1]:54321", "SUPABASE_URL").hostname,
     ).toBe("[::1]");
+    expect(
+      assertLoopbackHttpUrl(
+        "http://127.0.0.1:54321/path@segment",
+        "SUPABASE_URL",
+      ).hostname,
+    ).toBe("127.0.0.1");
 
     expect(
       assertLoopbackDatabaseUrl(
         "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+        "DATABASE_URL",
+      ).hostname,
+    ).toBe("127.0.0.1");
+    expect(
+      assertLoopbackDatabaseUrl(
+        "  postgresql://postgres:postgres@127.0.0.1:54322/postgres  ",
         "DATABASE_URL",
       ).hostname,
     ).toBe("127.0.0.1");
@@ -310,7 +381,7 @@ describe("cold-archive-verify loopback-only URL guards", () => {
     ).toBe("[::1]");
   });
 
-  it("rejects remote hosts, 0.0.0.0, embedded HTTP credentials, libpq host overrides, and multi-host URLs", () => {
+  it("rejects remote hosts, 0.0.0.0, embedded/empty HTTP credentials, libpq override params, and multi-host URLs", () => {
     expect(() =>
       assertLoopbackHttpUrl(
         "https://kuukthyenirwgdfkltlm.supabase.co",
@@ -325,6 +396,12 @@ describe("cold-archive-verify loopback-only URL guards", () => {
     ).toThrow(/local loopback host/);
     expect(() =>
       assertLoopbackHttpUrl("http://user:pass@127.0.0.1:54321", "SUPABASE_URL"),
+    ).toThrow(/embed credentials/);
+    expect(() =>
+      assertLoopbackHttpUrl("http://:@127.0.0.1:54321", "SUPABASE_URL"),
+    ).toThrow(/embed credentials/);
+    expect(() =>
+      assertLoopbackHttpUrl("http://@127.0.0.1:54321", "SUPABASE_URL"),
     ).toThrow(/embed credentials/);
     expect(() =>
       assertLoopbackHttpUrl("ftp://127.0.0.1:21", "SUPABASE_URL"),
@@ -356,6 +433,36 @@ describe("cold-archive-verify loopback-only URL guards", () => {
     ).toThrow(/query parameter hostaddr/);
     expect(() =>
       assertLoopbackDatabaseUrl(
+        "postgresql://postgres:postgres@127.0.0.1:54322/postgres?service=prod",
+        "DATABASE_URL",
+      ),
+    ).toThrow(/query parameter service is forbidden/);
+    expect(() =>
+      assertLoopbackDatabaseUrl(
+        "postgresql://postgres:postgres@127.0.0.1:54322/postgres?SERVICE=prod",
+        "DATABASE_URL",
+      ),
+    ).toThrow(/query parameter SERVICE is forbidden/);
+    expect(() =>
+      assertLoopbackDatabaseUrl(
+        "postgresql://postgres:postgres@127.0.0.1:54322/postgres?servicefile=/tmp/pg_service.conf",
+        "DATABASE_URL",
+      ),
+    ).toThrow(/query parameter servicefile is forbidden/);
+    expect(() =>
+      assertLoopbackDatabaseUrl(
+        "postgresql://postgres:postgres@127.0.0.1:54322/postgres?passfile=/tmp/pgpass",
+        "DATABASE_URL",
+      ),
+    ).toThrow(/query parameter passfile is forbidden/);
+    expect(() =>
+      assertLoopbackDatabaseUrl(
+        "postgresql://postgres:postgres@127.0.0.1:54322/postgres?sslrootcert=/tmp/ca.crt",
+        "DATABASE_URL",
+      ),
+    ).toThrow(/query parameter sslrootcert is forbidden/);
+    expect(() =>
+      assertLoopbackDatabaseUrl(
         "postgresql://postgres:postgres@127.0.0.1:54322,db.prod.supabase.co:5432/postgres",
         "DATABASE_URL",
       ),
@@ -363,6 +470,60 @@ describe("cold-archive-verify loopback-only URL guards", () => {
     expect(() =>
       assertLoopbackDatabaseUrl("http://127.0.0.1:54322/postgres", "DB"),
     ).toThrow(/postgres: or postgresql:/);
+  });
+
+  it("strips IPv6 brackets and builds a sanitized DuckDB libpq env", () => {
+    expect(stripIpv6Brackets("[::1]")).toBe("::1");
+    expect(stripIpv6Brackets("::1")).toBe("::1");
+    expect(stripIpv6Brackets("127.0.0.1")).toBe("127.0.0.1");
+    expect(stripIpv6Brackets("localhost")).toBe("localhost");
+
+    const baseEnv: Record<string, string | undefined> = {
+      PATH: "/usr/bin",
+      PGHOSTADDR: "10.0.0.99",
+      PGSERVICE: "prod",
+      PGSERVICEFILE: "/etc/pg_service.conf",
+      PGPASSFILE: "/home/user/.pgpass",
+      PGOPTIONS: "-c statement_timeout=1",
+      PGSSLROOTCERT: "/etc/ssl/root.crt",
+      PGSSLMODE: "verify-full",
+    };
+    const readerUrl = assertLoopbackDatabaseUrl(
+      "postgresql://cold_reader@[::1]:54322/nadhir",
+      "READER_DB",
+    );
+    const sanitized = buildDuckdbPgEnv(baseEnv, readerUrl, "ephemeral-secret");
+
+    expect(sanitized["PATH"]).toBe("/usr/bin");
+    expect(sanitized["PGHOST"]).toBe("::1");
+    expect(sanitized["PGPORT"]).toBe("54322");
+    expect(sanitized["PGUSER"]).toBe("cold_reader");
+    expect(sanitized["PGPASSWORD"]).toBe("ephemeral-secret");
+    expect(sanitized["PGDATABASE"]).toBe("nadhir");
+    expect(sanitized["PGSSLMODE"]).toBe("disable");
+
+    expect("PGHOSTADDR" in sanitized).toBe(false);
+    expect("PGSERVICE" in sanitized).toBe(false);
+    expect("PGSERVICEFILE" in sanitized).toBe(false);
+    expect("PGPASSFILE" in sanitized).toBe(false);
+    expect("PGOPTIONS" in sanitized).toBe(false);
+    expect("PGSSLROOTCERT" in sanitized).toBe(false);
+
+    // Caller's baseEnv must not be mutated
+    expect(baseEnv["PGHOSTADDR"]).toBe("10.0.0.99");
+    expect(baseEnv["PGSERVICE"]).toBe("prod");
+
+    // Defaults when port/user/database are omitted
+    const minimalUrl = assertLoopbackDatabaseUrl(
+      "postgresql://127.0.0.1",
+      "READER_DB",
+    );
+    const minimalEnv = buildDuckdbPgEnv({}, minimalUrl, "pw");
+    expect(minimalEnv["PGHOST"]).toBe("127.0.0.1");
+    expect(minimalEnv["PGPORT"]).toBe("5432");
+    expect(minimalEnv["PGUSER"]).toBe("cold_reader");
+    expect(minimalEnv["PGDATABASE"]).toBe("postgres");
+    expect(minimalEnv["PGSSLMODE"]).toBe("disable");
   });
 });
 
@@ -376,7 +537,7 @@ describe("cold-archive-verify mode resolution & CLI argument parsing", () => {
     expect(() => resolveVerifyMode("duckdb", false)).toThrow(/DuckDB CLI/);
   });
 
-  it("parses all CLI flags and defaults and rejects invalid inputs", () => {
+  it("parses all CLI flags and defaults and rejects invalid inputs and incompatible flag combinations", () => {
     expect(parseVerifyColdArchiveArgs([])).toEqual({
       dryRun: false,
       asOf: "2026-11-26",
@@ -406,16 +567,30 @@ describe("cold-archive-verify mode resolution & CLI argument parsing", () => {
     });
 
     expect(
-      parseVerifyColdArchiveArgs(["--as-of=2026-11-26", "--mode=duckdb", "-h"]),
+      parseVerifyColdArchiveArgs([
+        "--as-of=2026-11-26",
+        "--no-seed",
+        "--mode=duckdb",
+        "-h",
+      ]),
     ).toEqual({
       dryRun: false,
       asOf: "2026-11-26",
       mode: "duckdb",
-      seed: true,
+      seed: false,
       json: false,
       help: true,
     });
 
+    expect(() => parseVerifyColdArchiveArgs(["--no-seed"])).toThrow(
+      /--no-seed can only be used together with --dry-run/,
+    );
+    expect(() => parseVerifyColdArchiveArgs(["--as-of", "2026-11-27"])).toThrow(
+      /--as-of can only be used together with --dry-run/,
+    );
+    expect(() => parseVerifyColdArchiveArgs(["--as-of=2026-11-26"])).toThrow(
+      /--as-of can only be used together with --dry-run/,
+    );
     expect(() => parseVerifyColdArchiveArgs(["--as-of", "2026-02-30"])).toThrow(
       /Invalid --as-of/,
     );
