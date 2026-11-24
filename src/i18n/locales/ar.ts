@@ -1,4 +1,8 @@
 import type { Translation } from "./en";
+import { track1Ar } from "../modules/track1/ar";
+import { track2Ar } from "../modules/track2/ar";
+import { track3Ar } from "../modules/track3/ar";
+import { track4Ar } from "../modules/track4/ar";
 
 export const ar: Translation = {
   authKit: {
@@ -1546,4 +1550,8 @@ export const ar: Translation = {
     unsupported: "هذا المتصفح لا يدعم الإشعارات.",
     error: "فشل الاشتراك. تحقق من اتصالك وأعد المحاولة.",
   },
+  ...track1Ar,
+  ...track2Ar,
+  ...track3Ar,
+  ...track4Ar,
 };

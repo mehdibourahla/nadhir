@@ -10,7 +10,7 @@ import { ar } from "./locales/ar";
 import { en } from "./locales/en";
 import { fr } from "./locales/fr";
 import { kab } from "./locales/kab";
-import { weatherAr, weatherEn, weatherFr } from "./weather";
+import { weatherAr, weatherEn, weatherFr, weatherKab } from "./weather";
 
 export {
   LOCALES,
@@ -58,7 +58,7 @@ if (!i18n.isInitialized) {
       kab: {
         translation: kab,
         admin: overlay(adminFr, adminKab),
-        weather: weatherFr,
+        weather: weatherKab,
       },
     },
     lng: "ar",

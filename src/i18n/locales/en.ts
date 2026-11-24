@@ -1,3 +1,8 @@
+import { track1En } from "../modules/track1/en";
+import { track2En } from "../modules/track2/en";
+import { track3En } from "../modules/track3/en";
+import { track4En } from "../modules/track4/en";
+
 export const en = {
   authKit: {
     localSignedOut:
@@ -1594,6 +1599,10 @@ export const en = {
     unsupported: "This browser does not support push notifications.",
     error: "Subscription failed. Check your connection and try again.",
   },
+  ...track1En,
+  ...track2En,
+  ...track3En,
+  ...track4En,
 };
 
 export type Translation = typeof en;

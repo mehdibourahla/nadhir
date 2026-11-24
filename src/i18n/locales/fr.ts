@@ -1,4 +1,8 @@
 import type { Translation } from "./en";
+import { track1Fr } from "../modules/track1/fr";
+import { track2Fr } from "../modules/track2/fr";
+import { track3Fr } from "../modules/track3/fr";
+import { track4Fr } from "../modules/track4/fr";
 
 export const fr: Translation = {
   authKit: {
@@ -1629,4 +1633,8 @@ export const fr: Translation = {
     unsupported: "Ce navigateur ne prend pas en charge les notifications push.",
     error: "Échec de l'abonnement. Vérifiez votre connexion et réessayez.",
   },
+  ...track1Fr,
+  ...track2Fr,
+  ...track3Fr,
+  ...track4Fr,
 };

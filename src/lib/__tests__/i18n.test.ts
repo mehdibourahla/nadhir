@@ -4,12 +4,31 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import i18n from "@/i18n";
+import { adminAr } from "@/i18n/admin/ar";
 import { adminEn } from "@/i18n/admin/en";
+import { adminFr } from "@/i18n/admin/fr";
+import { adminKab } from "@/i18n/admin/kab";
 import { ar } from "@/i18n/locales/ar";
 import { en } from "@/i18n/locales/en";
 import { fr } from "@/i18n/locales/fr";
 import { kab } from "@/i18n/locales/kab";
-import { weatherAr, weatherEn, weatherFr } from "@/i18n/weather";
+import { track1Ar } from "@/i18n/modules/track1/ar";
+import { track1En } from "@/i18n/modules/track1/en";
+import { track1Fr } from "@/i18n/modules/track1/fr";
+import { track1Kab } from "@/i18n/modules/track1/kab";
+import { track2Ar } from "@/i18n/modules/track2/ar";
+import { track2En } from "@/i18n/modules/track2/en";
+import { track2Fr } from "@/i18n/modules/track2/fr";
+import { track2Kab } from "@/i18n/modules/track2/kab";
+import { track3Ar } from "@/i18n/modules/track3/ar";
+import { track3En } from "@/i18n/modules/track3/en";
+import { track3Fr } from "@/i18n/modules/track3/fr";
+import { track3Kab } from "@/i18n/modules/track3/kab";
+import { track4Ar } from "@/i18n/modules/track4/ar";
+import { track4En } from "@/i18n/modules/track4/en";
+import { track4Fr } from "@/i18n/modules/track4/fr";
+import { track4Kab } from "@/i18n/modules/track4/kab";
+import { weatherAr, weatherEn, weatherFr, weatherKab } from "@/i18n/weather";
 
 type Tree = { [k: string]: string | Tree };
 
@@ -19,6 +38,20 @@ function flatten(obj: Tree, prefix = ""): string[] {
       ? flatten(v, `${prefix}${k}.`)
       : [`${prefix}${k}`],
   );
+}
+
+function flattenEntries(obj: Tree, prefix = ""): Array<[string, string]> {
+  return Object.entries(obj).flatMap(([k, v]) =>
+    typeof v === "object" && v !== null
+      ? flattenEntries(v, `${prefix}${k}.`)
+      : [[`${prefix}${k}`, v]],
+  );
+}
+
+function placeholders(value: string): string[] {
+  return [...value.matchAll(/\{\{([a-zA-Z0-9_]+)\}\}/g)]
+    .map((m) => m[1]!)
+    .sort();
 }
 
 function walk(dir: string): string[] {
@@ -44,13 +77,30 @@ const QUALIFIED_KEYS = new Set(
 );
 
 describe("locale parity", () => {
-  it("weather translations cover each enabled language with French Kabyle fallback", () => {
-    expect(flatten(weatherAr).sort()).toEqual([...WEATHER_KEYS].sort());
-    expect(flatten(weatherFr).sort()).toEqual([...WEATHER_KEYS].sort());
+  it("weather translations have 100% key and placeholder parity across ar, fr, en and kab", () => {
+    const enEntries = new Map(flattenEntries(weatherEn as unknown as Tree));
+    for (const [name, table] of Object.entries({
+      ar: weatherAr,
+      fr: weatherFr,
+      kab: weatherKab,
+    })) {
+      const tree = table as unknown as Tree;
+      expect(flatten(tree).sort(), `${name} weather keys`).toEqual(
+        [...WEATHER_KEYS].sort(),
+      );
+      for (const [key, value] of flattenEntries(tree)) {
+        const expectedPlaceholders = placeholders(enEntries.get(key) ?? "");
+        expect(
+          placeholders(value),
+          `${name} weather.${key} placeholders`,
+        ).toEqual(expectedPlaceholders);
+      }
+    }
     expect(i18n.getFixedT("kab", "weather")("pageTitle")).toBe(
-      weatherFr.pageTitle,
+      weatherKab.pageTitle,
     );
   });
+
   const locales = { ar, fr, kab } as unknown as Record<string, Tree>;
   for (const [name, table] of Object.entries(locales)) {
     it(`${name} has exactly the same keys as en`, () => {
@@ -59,6 +109,109 @@ describe("locale parity", () => {
       expect([...theirs].filter((k) => !KEYS.has(k))).toEqual([]);
     });
   }
+
+  it("modular track bundles have 100% key parity across ar, fr, en and kab", () => {
+    const tracks: Array<{
+      name: string;
+      en: Tree;
+      others: Record<string, Tree>;
+    }> = [
+      {
+        name: "track1",
+        en: track1En as unknown as Tree,
+        others: {
+          ar: track1Ar as unknown as Tree,
+          fr: track1Fr as unknown as Tree,
+          kab: track1Kab as unknown as Tree,
+        },
+      },
+      {
+        name: "track2",
+        en: track2En as unknown as Tree,
+        others: {
+          ar: track2Ar as unknown as Tree,
+          fr: track2Fr as unknown as Tree,
+          kab: track2Kab as unknown as Tree,
+        },
+      },
+      {
+        name: "track3",
+        en: track3En as unknown as Tree,
+        others: {
+          ar: track3Ar as unknown as Tree,
+          fr: track3Fr as unknown as Tree,
+          kab: track3Kab as unknown as Tree,
+        },
+      },
+      {
+        name: "track4",
+        en: track4En as unknown as Tree,
+        others: {
+          ar: track4Ar as unknown as Tree,
+          fr: track4Fr as unknown as Tree,
+          kab: track4Kab as unknown as Tree,
+        },
+      },
+    ];
+
+    for (const track of tracks) {
+      const expected = flatten(track.en).sort();
+      const enEntries = new Map(flattenEntries(track.en));
+      for (const [locale, bundle] of Object.entries(track.others)) {
+        expect(flatten(bundle).sort(), `${track.name}.${locale}`).toEqual(
+          expected,
+        );
+        for (const [key, value] of flattenEntries(bundle)) {
+          expect(
+            placeholders(value),
+            `${track.name}.${locale}.${key} placeholders`,
+          ).toEqual(placeholders(enEntries.get(key) ?? ""));
+        }
+      }
+    }
+  });
+
+  it("enforces R-02 zero em dashes and non-empty strings across weather, track modules and admin", () => {
+    const tables: Array<[string, Tree]> = [
+      ["weather.en", weatherEn as unknown as Tree],
+      ["weather.fr", weatherFr as unknown as Tree],
+      ["weather.ar", weatherAr as unknown as Tree],
+      ["weather.kab", weatherKab as unknown as Tree],
+      ["track1.en", track1En as unknown as Tree],
+      ["track1.fr", track1Fr as unknown as Tree],
+      ["track1.ar", track1Ar as unknown as Tree],
+      ["track1.kab", track1Kab as unknown as Tree],
+      ["track2.en", track2En as unknown as Tree],
+      ["track2.fr", track2Fr as unknown as Tree],
+      ["track2.ar", track2Ar as unknown as Tree],
+      ["track2.kab", track2Kab as unknown as Tree],
+      ["track3.en", track3En as unknown as Tree],
+      ["track3.fr", track3Fr as unknown as Tree],
+      ["track3.ar", track3Ar as unknown as Tree],
+      ["track3.kab", track3Kab as unknown as Tree],
+      ["track4.en", track4En as unknown as Tree],
+      ["track4.fr", track4Fr as unknown as Tree],
+      ["track4.ar", track4Ar as unknown as Tree],
+      ["track4.kab", track4Kab as unknown as Tree],
+      ["admin.en", adminEn as unknown as Tree],
+      ["admin.fr", adminFr as unknown as Tree],
+      ["admin.ar", adminAr as unknown as Tree],
+      ["admin.kab", adminKab as unknown as Tree],
+    ];
+
+    const violations: string[] = [];
+    for (const [label, table] of tables) {
+      for (const [key, value] of flattenEntries(table)) {
+        if (value.trim().length === 0) {
+          violations.push(`${label}.${key}: empty string`);
+        }
+        if (value.includes("\u2014")) {
+          violations.push(`${label}.${key}: contains em dash`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
 });
 
 describe("head titles", () => {

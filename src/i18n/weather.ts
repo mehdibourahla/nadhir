@@ -405,3 +405,141 @@ export const weatherAr: typeof weatherEn = {
   freezing: "هطول متجمد",
   thunderstorm: "عاصفة رعدية متوقعة",
 };
+
+export const weatherKab: typeof weatherEn = {
+  historyUnavailable:
+    "Les bulletins antérieurs n’ont pas pu être chargés. Les vigilances en cours restent disponibles.",
+  earlierBulletins: "Tiɣriyin yezrin",
+  bulletinGrouping:
+    "Regroupés par validité chevauchante, événement et zone. Le remplacement de ces bulletins antérieurs n’a pas été vérifié.",
+  comparisonFull:
+    "Couverture temporelle du modèle : toute la période de vigilance est couverte.",
+  comparisonPartial:
+    "Couverture temporelle du modèle : seule une partie de la période de vigilance est couverte.",
+  comparisonNoOverlap:
+    "Couverture temporelle du modèle : aucun chevauchement avec la période de vigilance.",
+  comparisonMissing:
+    "Comparaison au modèle indisponible : aucune prévision chargée.",
+  comparisonStale:
+    "Comparaison au modèle indisponible : prévisions anciennes ou actualisation impossible.",
+  comparisonUnknownValidity:
+    "Couverture temporelle non comparable : la validité de la vigilance est incomplète.",
+  comparisonScope:
+    "La couverture temporelle ne signifie pas un accord. Certaines valeurs peuvent être inconnues ; cette prévision ponctuelle ne confirme ni n’infirme une vigilance de wilaya.",
+  nextDay: "24 n tsaɛtin i d-iteddun",
+  rainTotal: "Amḍan n ugeffur",
+  peakProbability: "Plus forte probabilité horaire de précipitations connue",
+  summaryCoverage:
+    "Ageffur : {{rainCount}}/24 heures connues ; le total exige les 24. Probabilité : {{probabilityCount}}/24 heures connues ; le maximum utilise seulement les heures disponibles.",
+  stormHours: "Heures avec un orage prévu",
+  stormsNone: "Aucun code d’orage prévu sur ces 24 heures.",
+  stormCoverage:
+    "Conditions connues pour {{count}}/24 échéances horaires. Les heures indiquent la fin de chaque heure, sans observation de foudre.",
+  hourlyDetails: "Wali isikzilen n 48 n tsaɛtin",
+  upcoming: "Alɣu i d-iteddun",
+  active: "Alɣu iremden",
+  expired: "Taɣri ifaten",
+  pageTitle: "Isikzilen n yimihiten",
+  metaTitle: "Isikzilen n yimihiten deg Lezzayer · Nadhir",
+  metaDescription:
+    "Vigilances officielles ONM, danger d’incendie, météo et qualité de l’air pour les six prochains jours, pour chaque commune d’Algérie.",
+  outlook: {
+    place: "Taɣiwant",
+    choosePlace: "Fren taɣiwant",
+    searchPlace: "Nadi taɣiwant",
+    noPlace: "Ulac taɣiwant yemṣadan d unadi-a.",
+    emptyTitle: "Fren taɣiwant iwakken ad twaliḍ sḍis n wussan i d-iteddun",
+    emptyBody:
+      "Choisissez n’importe quelle commune d’Algérie. Une fois connecté, la page s’ouvre sur votre première zone.",
+    caption: "Sḍis n wussan i d-iteddun i {{place}}",
+    tomorrow: "Azekka",
+    separator: ", ",
+    rowOnm: "Ilɣa n ONM",
+    rowFire: "Amihi n tmes",
+    rowWeather: "Tagnawt deg uzal",
+    rowAir: "Aḍu : aɣebbar d ubbu",
+    onmNone: "Ulac alɣu",
+    onmNotIssued: "Mazal ur d-yeffiɣ ara",
+    onmLevel: {
+      1: "Amecṭuḥ",
+      2: "Alemmas",
+      3: "Aqessḥan",
+      4: "Ameqqran aṭas",
+    },
+    event: {
+      rain: "Ageffur",
+      storm: "Tiɛeǧǧaǧin",
+      sand: "Aḍu n rrmel",
+      wind: "Aḍu iǧehden",
+      heat: "Azɣal",
+      other: "Wayeḍ",
+    },
+    notPublished: "Ur yeffiɣ ara",
+    weatherTemp: "{{temp}} °C",
+    weatherWind: "Aḍu {{wind}} km/h",
+    weatherRain: "Ageffur {{rain}} mm",
+    airBeyond: "Au-delà de la portée du modèle",
+    airLevel: {
+      low: "Ameẓyan",
+      elevated: "Yuli",
+      high: "Ameqqran",
+      severe: "Aqessḥan aṭas",
+    },
+    airBy: "due aux {{pollutant}}",
+    rowError: "Impossible de charger cette ligne.",
+    placesError: "La liste des communes n’a pas pu être chargée.",
+    notes:
+      "L’ONM émet ses vigilances environ un jour à l’avance : les jours suivants restent ouverts. La météo est la valeur du modèle à midi. L’air est la moyenne sur 24 heures du modèle CAMS, comparée aux lignes directrices de l’OMS.",
+    fireToday: "Amihi n tmes ass-a",
+    hourly: "Tasaɛet s tasaɛet, 48 n tsaɛtin i d-iteddun",
+    nationalTitle: "Anda i yeḥma lḥal aṭas deg Lezzayer",
+    nationalBody:
+      "Ass-a d uzekka : toutes les vigilances ONM, et le danger d’incendie à partir de Élevé.",
+    nationalEmpty:
+      "Aucune vigilance ONM et aucun danger d’incendie élevé dans une wilaya aujourd’hui.",
+    nationalError: "Impossible de charger la vue nationale.",
+    nationalFire: "Amihi n tmes {{level}}",
+    nationalMore: "Sken akk {{count}} n twilayin",
+  },
+  title: "Isikzilen n tegnawt · 48 n tsaɛtin",
+  location: "Fren taɣiwant",
+  choose: "Fren taɣiwant",
+  loading: "Asali n yisikzilen…",
+  unavailable: "Prévisions météo indisponibles pour cette commune.",
+  error: "Impossible de charger les prévisions météo.",
+  locationsError: "Impossible de charger les lieux.",
+  locationsEmpty: "Ulac imukan yellan.",
+  retry: "Ɛreḍ tikkelt-nniḍen",
+  stale: "Ces prévisions sont anciennes. Les conditions peuvent avoir changé.",
+  unknown: "Ur yettwassen ara",
+  fetched: "Yettwaṭṭef deg",
+  valid: "Tallit n usikzel",
+  time: "Tagara n tasaɛet (Lezzayer)",
+  condition: "Tignatin yettwassikzlen",
+  precipitation: "Précipitations totales (mm)",
+  rain: "Ageffur (mm)",
+  probability: "Probabilité de précipitations (%)",
+  gusts: "Aḍu iǧehden (km/h)",
+  interval:
+    "Les quantités et les rafales concernent l’heure précédente. Les valeurs absentes sont inconnues.",
+  limitation:
+    "Prévision de modèle sur un point de grille proche de la commune, sans observation ni détection de foudre. Elle ne décrit pas toute la wilaya.",
+  warnings: "Ilɣa tunṣibin n ONM i twilayt-a",
+  warningsNone:
+    "Aucune vigilance ONM en cours reçue pour cette wilaya. Cela ne garantit pas l’absence de danger.",
+  warningsError: "Ilɣa n ONM ulac-iten tura.",
+  warningsLoading: "Asali n yilɣa n ONM…",
+  warningScope:
+    "Les vigilances officielles couvrent la wilaya. Des prévisions ponctuelles différentes ou absentes ne les invalident pas.",
+  warningPeriod: "Tallit n ulɣu",
+  issued: "Yeffeɣ-d deg",
+  officialSource: "Taɣri tunṣibt",
+  clear: "Igni yeṣfa",
+  cloudy: "Yella usigna",
+  fog: "Tagut",
+  drizzle: "Ageffur afessas",
+  rainfall: "Ageffur",
+  snow: "Adfel",
+  freezing: "Précipitations verglaçantes",
+  thunderstorm: "Taɛeǧǧaǧt yettwassikzlen",
+};

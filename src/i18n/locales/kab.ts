@@ -1,4 +1,8 @@
 import type { Translation } from "./en";
+import { track1Kab } from "../modules/track1/kab";
+import { track2Kab } from "../modules/track2/kab";
+import { track3Kab } from "../modules/track3/kab";
+import { track4Kab } from "../modules/track4/kab";
 
 export const kab: Translation = {
   authKit: {
@@ -1599,4 +1603,8 @@ export const kab: Translation = {
     unsupported: "Iminig-a ur yessefrak ara ilɣa.",
     error: "Yecceḍ ujerred. Senqed tuqqna-inek, tɛerḍeḍ tikkelt-nniḍen.",
   },
+  ...track1Kab,
+  ...track2Kab,
+  ...track3Kab,
+  ...track4Kab,
 };
