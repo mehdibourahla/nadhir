@@ -82,6 +82,9 @@ export const liveZoneContextQuery = queryOptions({
           "id, event, severity, expires, wilaya_id, area:onm_areas(polygon)",
         )
         .is("superseded_at", null)
+        .is("cancelled_at", null)
+        .is("superseded_by", null)
+        .neq("msg_type", "Cancel")
         .gt("expires", now)
         .lte("sent", now)
         .limit(1000),

@@ -1,5 +1,10 @@
 import { archivedFetch, ArchiveFailure } from "@/lib/source-archive.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import {
+  parseCapMsgType,
+  parseCapReferenceIds,
+  type CapMsgType,
+} from "@/lib/cap";
 import { fetchAllPages } from "@/lib/paginate";
 
 /* ONM (Office National de la Météorologie) vigilance feed: CAP 1.2 warnings per
@@ -21,12 +26,50 @@ export type OnmEntry = {
   sent: string;
   area_desc: string;
   cap_url: string | null;
+  msg_type: CapMsgType;
+  cap_references: string | null;
+  referenced_cap_ids: string[];
+  geocodes: string[];
 };
 
 const tag = (entry: string, name: string): string | null => {
   const m = entry.match(new RegExp(`<${name}>([^<]*)</${name}>`));
   return m ? m[1]!.trim() : null;
 };
+
+/** Linear O(n) extraction of <geocode><value>...</value></geocode> (and cap:-prefixed forms). */
+function extractGeocodes(xml: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const prefixes = ["cap:", ""];
+  for (const prefix of prefixes) {
+    const openGeo = `<${prefix}geocode>`;
+    const closeGeo = `</${prefix}geocode>`;
+    const openVal = `<${prefix}value>`;
+    const closeVal = `</${prefix}value>`;
+    let pos = 0;
+    while (pos < xml.length) {
+      const start = xml.indexOf(openGeo, pos);
+      if (start === -1) break;
+      const end = xml.indexOf(closeGeo, start + openGeo.length);
+      if (end === -1) break;
+      const block = xml.slice(start + openGeo.length, end);
+      const valStart = block.indexOf(openVal);
+      if (valStart !== -1) {
+        const valEnd = block.indexOf(closeVal, valStart + openVal.length);
+        if (valEnd !== -1) {
+          const val = block.slice(valStart + openVal.length, valEnd).trim();
+          if (val && !seen.has(val)) {
+            seen.add(val);
+            out.push(val);
+          }
+        }
+      }
+      pos = end + closeGeo.length;
+    }
+  }
+  return out;
+}
 
 export function parseOnmFeed(xml: string): OnmEntry[] {
   if (!xml.includes("urn:oasis:names:tc:emergency:cap:1.2")) return [];
@@ -35,8 +78,19 @@ export function parseOnmFeed(xml: string): OnmEntry[] {
     const cap_id = tag(entry, "id");
     const title = tag(entry, "title");
     const sent = tag(entry, "cap:sent");
+    const rawMsgType = tag(entry, "cap:msgType") ?? tag(entry, "msgType");
+    let msg_type: CapMsgType = "Alert";
+    if (rawMsgType !== null && rawMsgType !== "") {
+      const parsed = parseCapMsgType(rawMsgType);
+      if (!parsed) continue;
+      msg_type = parsed;
+    }
     const area = tag(entry, "cap:areaDesc");
-    if (!cap_id || !title || !sent || !area) continue;
+    if (!cap_id || !title || !sent) continue;
+    if (!area && msg_type !== "Cancel") continue;
+    const rawRefs =
+      tag(entry, "cap:references") ?? tag(entry, "references") ?? null;
+    const cap_references = rawRefs && rawRefs.length > 0 ? rawRefs : null;
     out.push({
       cap_id,
       title,
@@ -48,8 +102,12 @@ export function parseOnmFeed(xml: string): OnmEntry[] {
       onset: tag(entry, "cap:onset"),
       expires: tag(entry, "cap:expires"),
       sent,
-      area_desc: area,
+      area_desc: area ?? "",
       cap_url: entry.match(/href="([^"]*\/CAPs\/[^"]+\.xml)"/)?.[1] ?? null,
+      msg_type,
+      cap_references,
+      referenced_cap_ids: parseCapReferenceIds(cap_references),
+      geocodes: extractGeocodes(entry),
     });
   }
   return out;
@@ -82,12 +140,25 @@ export type CapDetail = {
   headline_fr: string | null;
   instruction_fr: string | null;
   polygon: [number, number][] | null;
+  msg_type: CapMsgType | null;
+  cap_references: string | null;
+  referenced_cap_ids: string[];
+  geocodes: string[];
 };
 
 const BOILERPLATE = "No additional information.";
 
 export function parseCapDetail(xml: string): CapDetail | null {
   if (!xml.includes("urn:oasis:names:tc:emergency:cap:1.2")) return null;
+  const infoStart = xml.indexOf("<info>");
+  const headerXml = infoStart === -1 ? xml : xml.slice(0, infoStart);
+  const msg_type = parseCapMsgType(
+    tag(headerXml, "msgType") ?? tag(headerXml, "cap:msgType"),
+  );
+  const rawRefs =
+    tag(headerXml, "references") ?? tag(headerXml, "cap:references") ?? null;
+  const cap_references = rawRefs && rawRefs.length > 0 ? rawRefs : null;
+
   const headline = tag(xml, "headline");
   const instruction = tag(xml, "instruction");
   const rawPolygon = tag(xml, "polygon");
@@ -108,6 +179,10 @@ export function parseCapDetail(xml: string): CapDetail | null {
     instruction_fr:
       instruction && instruction !== BOILERPLATE ? instruction : null,
     polygon: polygon?.length ? polygon : null,
+    msg_type,
+    cap_references,
+    referenced_cap_ids: parseCapReferenceIds(cap_references),
+    geocodes: extractGeocodes(xml),
   };
 }
 
@@ -119,7 +194,7 @@ export async function backfillCapDetails(): Promise<{
 }> {
   const { data, error } = await supabaseAdmin
     .from("onm_vigilance")
-    .select("id, cap_url")
+    .select("id, cap_id, cap_url")
     .is("cap_detail_fetched_at", null)
     .not("cap_url", "is", null)
     .order("sent", { ascending: false })
@@ -129,6 +204,7 @@ export async function backfillCapDetails(): Promise<{
 
   let filled = 0;
   let failed = 0;
+  const chainCapIds: string[] = [];
   for (const row of data) {
     const res = await archivedFetch(
       "onm",
@@ -162,9 +238,35 @@ export async function backfillCapDetails(): Promise<{
         ? {}
         : { _instruction_fr: detail.instruction_fr }),
       ...(detail.polygon === null ? {} : { _polygon: detail.polygon }),
+      ...(detail.msg_type === null ? {} : { _msg_type: detail.msg_type }),
+      ...(detail.cap_references === null
+        ? {}
+        : { _cap_references: detail.cap_references }),
+      ...(detail.referenced_cap_ids.length
+        ? { _referenced_cap_ids: detail.referenced_cap_ids }
+        : {}),
+      ...(detail.geocodes.length ? { _geocodes: detail.geocodes } : {}),
     });
-    if (!upErr) filled += 1;
-    else failed++;
+    if (!upErr) {
+      filled += 1;
+      if (
+        typeof row.cap_id === "string" &&
+        row.cap_id.length > 0 &&
+        (detail.msg_type === "Update" ||
+          detail.msg_type === "Cancel" ||
+          detail.referenced_cap_ids.length > 0)
+      ) {
+        chainCapIds.push(row.cap_id);
+      }
+    } else failed++;
+  }
+  if (chainCapIds.length) {
+    const { error: chainErr } = await supabaseAdmin.rpc("apply_onm_cap_chain", {
+      _cap_ids: chainCapIds,
+    });
+    if (chainErr) {
+      throw new Error(`ONM CAP detail chain failed: ${chainErr.message}`);
+    }
   }
   return { filled, failed };
 }
@@ -175,8 +277,37 @@ export type OnmRun = {
   unmatched: number;
   superseded?: number;
   detailed?: number;
+  linkedUpdates?: number;
+  cancelled?: number;
+  invalidatedDeliveries?: number;
   error?: string;
 };
+
+const MSG_TYPE_ORDER: Record<CapMsgType, number> = {
+  Alert: 0,
+  Update: 1,
+  Cancel: 2,
+};
+
+function parseChainResult(raw: unknown): {
+  linkedUpdates?: number;
+  cancelled?: number;
+  invalidatedDeliveries?: number;
+} {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const obj = raw as Record<string, unknown>;
+  return {
+    ...(typeof obj["linked_updates"] === "number"
+      ? { linkedUpdates: obj["linked_updates"] }
+      : {}),
+    ...(typeof obj["cancelled_warnings"] === "number"
+      ? { cancelled: obj["cancelled_warnings"] }
+      : {}),
+    ...(typeof obj["invalidated_deliveries"] === "number"
+      ? { invalidatedDeliveries: obj["invalidated_deliveries"] }
+      : {}),
+  };
+}
 
 export async function ingestOnm(): Promise<OnmRun> {
   let xml: string;
@@ -220,16 +351,21 @@ export async function ingestOnm(): Promise<OnmRun> {
       .from("admin_units")
       .select("id, name_fr, name_en")
       .eq("level", "wilaya")
+      .order("id")
       .range(from, to),
   );
 
   let unmatched = 0;
-  // the insert trigger joins each warning to the episode of what was sent before it
+  // Sort chronologically with Alert < Update < Cancel tiebreak so parents precede children in one batch
   const rows = [...entries]
-    .sort((a, b) => Date.parse(a.sent) - Date.parse(b.sent))
+    .sort(
+      (a, b) =>
+        Date.parse(a.sent) - Date.parse(b.sent) ||
+        MSG_TYPE_ORDER[a.msg_type] - MSG_TYPE_ORDER[b.msg_type],
+    )
     .map((e) => {
-      const wilaya = matchWilaya(e.area_desc, wilayas);
-      if (!wilaya) unmatched += 1;
+      const wilaya = e.area_desc ? matchWilaya(e.area_desc, wilayas) : null;
+      if (!wilaya && e.msg_type !== "Cancel") unmatched += 1;
       return { ...e, wilaya_id: wilaya?.id ?? null };
     });
 
@@ -261,6 +397,19 @@ export async function ingestOnm(): Promise<OnmRun> {
       error: `ONM supersession failed: ${supersedeError.message}`,
     };
 
+  const { data: chainData, error: chainError } = await supabaseAdmin.rpc(
+    "apply_onm_cap_chain",
+    { _cap_ids: rows.map((r) => r.cap_id) },
+  );
+  if (chainError)
+    return {
+      fetched: entries.length,
+      stored: rows.length,
+      unmatched,
+      superseded: superseded ?? 0,
+      error: `ONM CAP chain failed: ${chainError.message}`,
+    };
+
   const detailed = await backfillCapDetails();
   return {
     fetched: entries.length,
@@ -268,6 +417,7 @@ export async function ingestOnm(): Promise<OnmRun> {
     unmatched,
     superseded: superseded ?? 0,
     detailed: detailed.filled,
+    ...parseChainResult(chainData),
     ...(detailed.failed
       ? { error: `ONM partial CAP detail coverage: ${detailed.failed} failed` }
       : {}),

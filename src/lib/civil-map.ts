@@ -246,6 +246,9 @@ export function buildSituations({
   }
   for (const data of warnings) {
     if (
+      data.cancelled_at ||
+      data.superseded_by ||
+      data.msg_type === "Cancel" ||
       !data.expires ||
       !(Date.parse(data.expires) > now) ||
       !(Date.parse(data.sent) <= now)

@@ -31,6 +31,10 @@ vi.mock("@/integrations/supabase/client", () => ({
           call.filters.push(["eq", key, value]);
           return this;
         },
+        neq(key: string, value: string) {
+          call.filters.push(["neq", key, value]);
+          return this;
+        },
         gt(key: string, value: string) {
           call.filters.push(["gt", key, value]);
           return this;
@@ -68,7 +72,8 @@ vi.mock("@/integrations/supabase/client", () => ({
               call.filters.every(([operator, key, value]) => {
                 const actual = row[key as keyof OnmVigilance];
                 if (operator === "is") return actual == null;
-                if (actual === null) return false;
+                if (operator === "neq") return actual !== value;
+                if (actual == null) return false;
                 return operator === "eq"
                   ? actual === value
                   : operator === "gt"
@@ -250,5 +255,48 @@ describe("weather warning query producer", () => {
       "unknown-onset",
     ]);
     expect(source.calls).toHaveLength(1);
+  });
+
+  it("excludes Cancel records and cancelled/superseded warnings from current warnings", async () => {
+    source.rows = [
+      bulletin(
+        "active",
+        "2026-09-15T09:00:00.000Z",
+        "2026-09-15T13:00:00.000Z",
+      ),
+      {
+        ...bulletin(
+          "cancelled",
+          "2026-09-15T09:00:00.000Z",
+          "2026-09-15T13:00:00.000Z",
+        ),
+        cancelled_at: "2026-09-15T10:30:00.000Z",
+      },
+      {
+        ...bulletin(
+          "cancel-record",
+          "2026-09-15T09:00:00.000Z",
+          "2026-09-15T13:00:00.000Z",
+        ),
+        msg_type: "Cancel",
+      },
+    ];
+    const result = await fetchWarnings();
+    expect(source.calls[0]!.filters).toContainEqual([
+      "is",
+      "cancelled_at",
+      "null",
+    ]);
+    expect(source.calls[0]!.filters).toContainEqual([
+      "is",
+      "superseded_by",
+      "null",
+    ]);
+    expect(source.calls[0]!.filters).toContainEqual([
+      "neq",
+      "msg_type",
+      "Cancel",
+    ]);
+    expect(result.warnings.map((row) => row.id)).not.toContain("cancel-record");
   });
 });

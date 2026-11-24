@@ -2,6 +2,10 @@ import { ar } from "@/i18n/locales/ar";
 import { en, type Translation } from "@/i18n/locales/en";
 import { fr } from "@/i18n/locales/fr";
 import { kab } from "@/i18n/locales/kab";
+import {
+  EARTHQUAKE_BROADCAST_MIN_MAGNITUDE,
+  EARTHQUAKE_BROADCAST_RADIUS_KM,
+} from "@/lib/broadcast-rules";
 import { haversineKm } from "@/lib/nadhir";
 import {
   authorityConcernsZone,
@@ -42,6 +46,9 @@ export type HazardContext = {
     expires: string;
     alert_key: string;
     advice: string | null;
+    msg_type?: string | null;
+    cancelled_at?: string | null;
+    superseded_by?: string | null;
   }[];
   official: {
     id: string;
@@ -207,8 +214,8 @@ const OFFICIAL_HAZARD_NAME: Partial<
   other: "other",
 };
 
-export const QUAKE_ALERT_MAGNITUDE = 4;
-const QUAKE_ALERT_KM = 100;
+export const QUAKE_ALERT_MAGNITUDE = EARTHQUAKE_BROADCAST_MIN_MAGNITUDE;
+const QUAKE_ALERT_KM = EARTHQUAKE_BROADCAST_RADIUS_KM;
 
 const AUTHORITY_SEVERITY: Record<string, number> = { Severe: 4, Extreme: 5 };
 
@@ -270,6 +277,12 @@ export function hazardAlerts(
 
     if (zone.notify_weather)
       for (const warning of context.weather) {
+        if (
+          warning.cancelled_at ||
+          warning.superseded_by ||
+          warning.msg_type === "Cancel"
+        )
+          continue;
         if (!weatherConcernsZone(area, warning)) continue;
         const severity = ONM_SEVERITY[warning.severity] ?? 2;
         if (severity < threshold) continue;

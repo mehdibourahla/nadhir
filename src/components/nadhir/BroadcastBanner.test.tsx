@@ -64,3 +64,46 @@ it("drops an ONM relay once the warning's own validity ended", () => {
   ];
   expect(renderToStaticMarkup(<BroadcastBanner />)).toBe("");
 });
+
+it("hides explicitly cancelled or superseded ONM banners and lets official end supersede initial", () => {
+  rows.data = [
+    {
+      ...fireRow("x", 1),
+      id: "onm-cancelled",
+      kind: "onm",
+      cluster_id: null,
+      fire_clusters: null,
+      onm_vigilance: {
+        title: "Pluie",
+        headline_fr: "Pluies annulées",
+        expires: new Date(Date.now() + 3_600_000).toISOString(),
+        msg_type: "Alert",
+        cancelled_at: hoursAgo(0.5),
+        superseded_by: null,
+      },
+    },
+    {
+      ...fireRow("x", 1),
+      id: "off-end",
+      kind: "official",
+      phase: "end",
+      cluster_id: null,
+      official_incident_id: "inc-99",
+      fire_clusters: null,
+      cap_alerts: { info: [{ language: "fr-DZ", headline: "Fin inondation" }] },
+    },
+    {
+      ...fireRow("x", 1),
+      id: "off-initial",
+      kind: "official",
+      phase: "initial",
+      cluster_id: null,
+      official_incident_id: "inc-99",
+      fire_clusters: null,
+      cap_alerts: {
+        info: [{ language: "fr-DZ", headline: "Inondation active" }],
+      },
+    },
+  ];
+  expect(renderToStaticMarkup(<BroadcastBanner />)).toBe("");
+});

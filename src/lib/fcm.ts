@@ -120,7 +120,20 @@ export type FcmMessage = NativeDelivery & {
     fcm_options: { link: string };
     notification?: { tag: string; renotify: boolean };
   };
-  data: { broadcast_id: string; severity: string; kind: string; link: string };
+  data: {
+    broadcast_id: string;
+    severity: string;
+    kind: string;
+    link: string;
+    hazard?: string;
+    phase?: string;
+    status?: string;
+    magnitude?: string;
+    source_key?: string;
+    source_attribution?: string;
+    observed_at?: string;
+    area_label?: string;
+  };
 };
 
 function message(
@@ -234,12 +247,33 @@ export function fcmMessagesForOfficial(args: {
   severity: string;
   communeCodes: string[];
   info: { language: string; headline: string; description: string }[];
+  incidentId?: string | null;
+  phase?: string | null;
+  hazard?: string | null;
+  status?: string | null;
+  sourceKey?: string | null;
+  sourceAttribution?: string | null;
+  observedAt?: string | null;
+  areaLabel?: string | null;
 }): FcmMessage[] {
-  const data = {
+  const data: Omit<FcmMessage["data"], "link"> = {
     broadcast_id: args.broadcastId,
     severity: args.severity,
     kind: "official",
+    ...(args.hazard ? { hazard: args.hazard } : {}),
+    ...(args.phase ? { phase: args.phase } : {}),
+    ...(args.status ? { status: args.status } : {}),
+    ...(args.sourceKey ? { source_key: args.sourceKey } : {}),
+    ...(args.sourceAttribution
+      ? { source_attribution: args.sourceAttribution }
+      : {}),
+    ...(args.observedAt ? { observed_at: args.observedAt } : {}),
+    ...(args.areaLabel ? { area_label: args.areaLabel } : {}),
   };
+  const link = args.incidentId
+    ? `${APP_URL}/?event=${encodeURIComponent(`official:${args.incidentId}`)}`
+    : APP_URL;
+  const tag = args.incidentId ? `official-${args.incidentId}` : undefined;
   const out: FcmMessage[] = [];
   for (const code of args.communeCodes)
     for (const lang of FCM_LANGS) {
@@ -250,8 +284,55 @@ export function fcmMessagesForOfficial(args: {
           fcmTopic(code, lang),
           block.headline,
           block.description,
-          APP_URL,
+          link,
           data,
+          tag,
+        ),
+      );
+    }
+  return out;
+}
+
+export function fcmMessagesForEarthquake(args: {
+  broadcastId: string;
+  severity: string;
+  communeCodes: string[];
+  earthquakeId: string;
+  magnitude: number;
+  info: { language: string; headline: string; description: string }[];
+  sourceKey?: string | null;
+  sourceAttribution?: string | null;
+  observedAt?: string | null;
+  areaLabel?: string | null;
+}): FcmMessage[] {
+  const link = `${APP_URL}/?event=${encodeURIComponent(`quake:${args.earthquakeId}`)}`;
+  const data: Omit<FcmMessage["data"], "link"> = {
+    broadcast_id: args.broadcastId,
+    severity: args.severity,
+    kind: "earthquake",
+    hazard: "earthquake",
+    magnitude: args.magnitude.toFixed(1),
+    source_key: args.sourceKey ?? "emsc",
+    ...(args.sourceAttribution
+      ? { source_attribution: args.sourceAttribution }
+      : {}),
+    ...(args.observedAt ? { observed_at: args.observedAt } : {}),
+    ...(args.areaLabel ? { area_label: args.areaLabel } : {}),
+  };
+  const tag = `quake-${args.earthquakeId}`;
+  const out: FcmMessage[] = [];
+  for (const code of args.communeCodes)
+    for (const lang of FCM_LANGS) {
+      const block = args.info.find((i) => i.language.split("-")[0] === lang);
+      if (!block) continue;
+      out.push(
+        message(
+          fcmTopic(code, lang),
+          block.headline,
+          block.description,
+          link,
+          data,
+          tag,
         ),
       );
     }

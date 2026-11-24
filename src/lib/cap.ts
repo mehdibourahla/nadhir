@@ -1,13 +1,22 @@
+import { isFireKind } from "@/lib/text-sources/merge";
+
 export type CapUrgency =
   "Immediate" | "Expected" | "Future" | "Past" | "Unknown";
 export type CapSeverity =
   "Extreme" | "Severe" | "Moderate" | "Minor" | "Unknown";
 export type CapCertainty =
   "Observed" | "Likely" | "Possible" | "Unlikely" | "Unknown";
+export type CapMsgType = "Alert" | "Update" | "Cancel";
+
+export type CapReference = {
+  sender: string;
+  identifier: string;
+  sent: string;
+};
 
 export type CapInfo = {
   language: string;
-  category: "Fire" | "Met" | "Transport" | "Other";
+  category: "Fire" | "Met" | "Transport" | "Geo" | "Safety" | "Other";
   event: string;
   urgency: CapUrgency;
   severity: CapSeverity;
@@ -26,7 +35,7 @@ export type CapAlert = {
   sender: string;
   sent: string;
   status: "Actual";
-  msgType: "Alert" | "Update" | "Cancel";
+  msgType: CapMsgType;
   scope: "Public";
   references?: string;
   info: CapInfo[];
@@ -313,42 +322,198 @@ export function capToXml(alert: CapAlert): string {
   ].join("\n");
 }
 
+const MAX_CAP_REFERENCES_LEN = 32_768;
+
+/** Parse a CAP 1.2 <msgType> value into Alert | Update | Cancel, or null for Ack/Error/unknown. */
+export function parseCapMsgType(
+  raw: string | null | undefined,
+): CapMsgType | null {
+  if (!raw) return null;
+  switch (raw.trim().toLowerCase()) {
+    case "alert":
+      return "Alert";
+    case "update":
+      return "Update";
+    case "cancel":
+      return "Cancel";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Linear O(n), ReDoS-free parser for CAP 1.2 `<references>` values.
+ * Accepts standard whitespace-delimited `sender,identifier,sent` tuples as well as
+ * comma-joined runs (`s1,id1,t1,s2,id2,t2`), skipping malformed entries safely.
+ */
+export function parseCapReferences(
+  raw: string | null | undefined,
+): CapReference[] {
+  if (!raw) return [];
+  const bounded =
+    raw.length > MAX_CAP_REFERENCES_LEN
+      ? raw.slice(0, MAX_CAP_REFERENCES_LEN)
+      : raw;
+  const trimmed = bounded.trim();
+  if (!trimmed) return [];
+
+  const out: CapReference[] = [];
+  const seen = new Set<string>();
+  const pushTuple = (sender: string, identifier: string, sent: string) => {
+    const s = sender.trim();
+    const id = identifier.trim();
+    const ts = sent.trim();
+    if (!s || !id || !ts) return;
+    if (!Number.isFinite(Date.parse(ts))) return;
+    if (seen.has(id)) return;
+    seen.add(id);
+    out.push({ sender: s, identifier: id, sent: ts });
+  };
+
+  const tokens = trimmed.split(/\s+/);
+  for (const token of tokens) {
+    const parts = token.split(",");
+    if (parts.length === 3) {
+      pushTuple(parts[0]!, parts[1]!, parts[2]!);
+    } else if (parts.length >= 6 && parts.length % 3 === 0) {
+      for (let i = 0; i < parts.length; i += 3) {
+        pushTuple(parts[i]!, parts[i + 1]!, parts[i + 2]!);
+      }
+    }
+  }
+  return out;
+}
+
+export function parseCapReferenceIds(raw: string | null | undefined): string[] {
+  return parseCapReferences(raw).map((ref) => ref.identifier);
+}
+
+export function officialCapCategory(kind: string): CapInfo["category"] {
+  if (isFireKind(kind)) return "Fire";
+  switch (kind) {
+    case "flood":
+    case "storm":
+      return "Met";
+    case "road":
+      return "Transport";
+    case "structure":
+      return "Safety";
+    default:
+      return "Other";
+  }
+}
+
 export type OfficialCapInput = {
   incidentId: string;
   areaDesc: string;
   sentAt: Date;
   asOf: Date;
   texts: CapText[];
+  category?: CapInfo["category"];
+  severity?: "Extreme" | "Severe";
+  phase?: "initial" | "end";
+  expiresHours?: number;
+  references?: { identifier: string; sent: string }[];
 };
 
-function officialCapIdentifier(incidentId: string): string {
-  return `nadhir-off-${incidentId.slice(0, 8)}`;
+export function officialCapIdentifier(
+  incidentId: string,
+  phase: "initial" | "end" = "initial",
+): string {
+  const base = `nadhir-off-${incidentId.slice(0, 8)}`;
+  return phase === "end" ? `${base}-end` : base;
 }
 
 /* No circle: the authority named a commune, not a point with a radius, and the
  * areaDesc is the only geometry claim Nadhir can make for it. */
 export function buildOfficialCap(input: OfficialCapInput): CapAlert {
+  const phase = input.phase ?? "initial";
+  const isEnd = phase === "end";
   const sent = capDateTime(input.sentAt);
+  const expiresHours = input.expiresHours ?? 24;
+  const category = input.category ?? "Fire";
+  const severity = input.severity ?? "Severe";
+  const refs = input.references ?? [];
   return {
-    identifier: officialCapIdentifier(input.incidentId),
+    identifier: officialCapIdentifier(input.incidentId, phase),
     sender: CAP_SENDER,
     sent,
+    status: "Actual",
+    msgType: isEnd ? "Update" : "Alert",
+    scope: "Public",
+    ...(isEnd && refs.length
+      ? {
+          references: refs
+            .map((r) => `${CAP_SENDER},${r.identifier},${r.sent}`)
+            .join(" "),
+        }
+      : {}),
+    info: input.texts.map((text) => ({
+      language: text.language,
+      category,
+      event: text.event,
+      urgency: isEnd ? "Past" : "Expected",
+      severity,
+      certainty: "Observed",
+      effective: capDateTime(input.asOf),
+      expires: capDateTime(
+        new Date(input.sentAt.getTime() + expiresHours * 60 * 60_000),
+      ),
+      headline: text.headline,
+      description: text.description,
+      instruction: text.instruction,
+      areaDesc: input.areaDesc,
+    })),
+  };
+}
+
+export type EarthquakeCapInput = {
+  earthquakeId: string;
+  magnitude: number;
+  lat: number;
+  lon: number;
+  radiusKm?: number;
+  areaDesc: string;
+  occurredAt: Date;
+  sentAt: Date;
+  texts: CapText[];
+};
+
+export function earthquakeCapIdentifier(earthquakeId: string): string {
+  return `nadhir-quake-${earthquakeId}`;
+}
+
+export function buildEarthquakeCap(input: EarthquakeCapInput): CapAlert {
+  const severeOrExtreme: "Extreme" | "Severe" =
+    input.magnitude >= 5.0 ? "Extreme" : "Severe";
+  const urgency: CapUrgency = input.magnitude >= 5.0 ? "Immediate" : "Expected";
+  const radiusKm = input.radiusKm ?? 100;
+  const effective = capDateTime(input.occurredAt);
+  const expires = capDateTime(
+    new Date(input.occurredAt.getTime() + 6 * 60 * 60_000),
+  );
+
+  return {
+    identifier: earthquakeCapIdentifier(input.earthquakeId),
+    sender: CAP_SENDER,
+    sent: capDateTime(input.sentAt),
     status: "Actual",
     msgType: "Alert",
     scope: "Public",
     info: input.texts.map((text) => ({
       language: text.language,
-      category: "Fire",
+      category: "Geo",
       event: text.event,
-      urgency: "Expected",
-      severity: "Severe",
+      urgency,
+      severity: severeOrExtreme,
       certainty: "Observed",
-      effective: capDateTime(input.asOf),
-      expires: capDateTime(new Date(input.sentAt.getTime() + 24 * 60 * 60_000)),
+      effective,
+      expires,
       headline: text.headline,
       description: text.description,
       instruction: text.instruction,
       areaDesc: input.areaDesc,
+      circle: `${input.lat},${input.lon} ${radiusKm}`,
     })),
   };
 }

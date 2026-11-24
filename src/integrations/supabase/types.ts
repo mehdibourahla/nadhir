@@ -1065,16 +1065,20 @@ export type Database = {
           cluster_id: string | null;
           commune_codes: string[];
           created_at: string;
+          earthquake_id: string | null;
           fcm_delivered_at: string | null;
           fcm_topics: number | null;
+          hazard: string | null;
           id: string;
           inside_codes: string[];
           kind: string;
+          metadata: Json;
           official_incident_id: string | null;
           onm_vigilance_id: string | null;
           phase: string;
           push_codes: string[];
           severity: string;
+          source_key: string | null;
           telegram_channels: number | null;
           telegram_delivered_at: string | null;
         };
@@ -1084,16 +1088,20 @@ export type Database = {
           cluster_id?: string | null;
           commune_codes: string[];
           created_at?: string;
+          earthquake_id?: string | null;
           fcm_delivered_at?: string | null;
           fcm_topics?: number | null;
+          hazard?: string | null;
           id?: string;
           inside_codes?: string[];
           kind: string;
+          metadata?: Json;
           official_incident_id?: string | null;
           onm_vigilance_id?: string | null;
           phase?: string;
           push_codes: string[];
           severity: string;
+          source_key?: string | null;
           telegram_channels?: number | null;
           telegram_delivered_at?: string | null;
         };
@@ -1103,16 +1111,20 @@ export type Database = {
           cluster_id?: string | null;
           commune_codes?: string[];
           created_at?: string;
+          earthquake_id?: string | null;
           fcm_delivered_at?: string | null;
           fcm_topics?: number | null;
+          hazard?: string | null;
           id?: string;
           inside_codes?: string[];
           kind?: string;
+          metadata?: Json;
           official_incident_id?: string | null;
           onm_vigilance_id?: string | null;
           phase?: string;
           push_codes?: string[];
           severity?: string;
+          source_key?: string | null;
           telegram_channels?: number | null;
           telegram_delivered_at?: string | null;
         };
@@ -1136,6 +1148,13 @@ export type Database = {
             columns: ["cluster_id"];
             isOneToOne: false;
             referencedRelation: "fire_clusters";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "broadcasts_earthquake_id_fkey";
+            columns: ["earthquake_id"];
+            isOneToOne: false;
+            referencedRelation: "earthquakes";
             referencedColumns: ["id"];
           },
           {
@@ -2292,10 +2311,13 @@ export type Database = {
       };
       onm_vigilance: {
         Row: {
-          cap_detail_fetched_at: string | null;
           area_desc: string;
           area_id: string | null;
+          cancelled_at: string | null;
+          cancelled_by: string | null;
+          cap_detail_fetched_at: string | null;
           cap_id: string;
+          cap_references: string | null;
           cap_url: string | null;
           certainty: string;
           created_at: string;
@@ -2303,22 +2325,29 @@ export type Database = {
           episode_peak: number;
           event: string;
           expires: string | null;
+          geocodes: string[];
           headline_fr: string | null;
           id: string;
           instruction_fr: string | null;
+          msg_type: string;
           onset: string | null;
+          referenced_cap_ids: string[];
           sent: string;
-          superseded_at: string | null;
           severity: string;
+          superseded_at: string | null;
+          superseded_by: string | null;
           title: string;
           urgency: string;
           wilaya_id: string | null;
         };
         Insert: {
-          cap_detail_fetched_at?: string | null;
           area_desc: string;
           area_id?: string | null;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
+          cap_detail_fetched_at?: string | null;
           cap_id: string;
+          cap_references?: string | null;
           cap_url?: string | null;
           certainty: string;
           created_at?: string;
@@ -2326,22 +2355,29 @@ export type Database = {
           episode_peak?: number;
           event: string;
           expires?: string | null;
+          geocodes?: string[];
           headline_fr?: string | null;
           id?: string;
           instruction_fr?: string | null;
+          msg_type?: string;
           onset?: string | null;
+          referenced_cap_ids?: string[];
           sent: string;
-          superseded_at?: string | null;
           severity: string;
+          superseded_at?: string | null;
+          superseded_by?: string | null;
           title: string;
           urgency: string;
           wilaya_id?: string | null;
         };
         Update: {
-          cap_detail_fetched_at?: string | null;
           area_desc?: string;
           area_id?: string | null;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
+          cap_detail_fetched_at?: string | null;
           cap_id?: string;
+          cap_references?: string | null;
           cap_url?: string | null;
           certainty?: string;
           created_at?: string;
@@ -2349,13 +2385,17 @@ export type Database = {
           episode_peak?: number;
           event?: string;
           expires?: string | null;
+          geocodes?: string[];
           headline_fr?: string | null;
           id?: string;
           instruction_fr?: string | null;
+          msg_type?: string;
           onset?: string | null;
+          referenced_cap_ids?: string[];
           sent?: string;
-          superseded_at?: string | null;
           severity?: string;
+          superseded_at?: string | null;
+          superseded_by?: string | null;
           title?: string;
           urgency?: string;
           wilaya_id?: string | null;
@@ -2366,6 +2406,20 @@ export type Database = {
             columns: ["area_id"];
             isOneToOne: false;
             referencedRelation: "onm_areas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "onm_vigilance_cancelled_by_fkey";
+            columns: ["cancelled_by"];
+            isOneToOne: false;
+            referencedRelation: "onm_vigilance";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "onm_vigilance_superseded_by_fkey";
+            columns: ["superseded_by"];
+            isOneToOne: false;
+            referencedRelation: "onm_vigilance";
             referencedColumns: ["id"];
           },
           {
@@ -3896,13 +3950,21 @@ export type Database = {
           zone_count: number;
         }[];
       };
+      apply_onm_cap_chain: {
+        Args: { _cap_ids: string[] };
+        Returns: Json;
+      };
       onm_suppressions_logged: { Args: { _ids: string[] }; Returns: string[] };
       store_onm_detail: {
         Args: {
+          _cap_references?: string;
+          _geocodes?: string[];
           _headline_fr?: string;
           _id: string;
           _instruction_fr?: string;
+          _msg_type?: string;
           _polygon?: Json;
+          _referenced_cap_ids?: string[];
         };
         Returns: undefined;
       };

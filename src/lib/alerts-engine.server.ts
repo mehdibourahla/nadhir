@@ -273,6 +273,9 @@ async function loadHazardContext(
           "id, severity, event, onset, title, headline_fr, area:onm_areas(polygon), wilaya_id, expires, sent, episode_id, episode_peak",
         )
         .is("superseded_at", null)
+        .is("cancelled_at", null)
+        .is("superseded_by", null)
+        .neq("msg_type", "Cancel")
         .gt("expires", iso)
         .lte("sent", iso)
         .order("id")

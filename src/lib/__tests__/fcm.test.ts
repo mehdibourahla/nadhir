@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   FCM_LANGS,
   fcmMessageForAlert,
+  fcmMessagesForEarthquake,
   fcmMessagesForFire,
+  fcmMessagesForOfficial,
   fcmMessagesForOnm,
   fcmTopic,
   packTopics,
@@ -359,5 +361,80 @@ describe("packTopics", () => {
     ).toMatchObject({
       topic: "v1.commune.1506.fr",
     });
+  });
+});
+
+describe("fcmMessagesForOfficial & fcmMessagesForEarthquake (F8/F9)", () => {
+  it("preserves legacy fcmMessagesForOfficial defaults and enriches non-fire metadata when supplied", () => {
+    const legacy = fcmMessagesForOfficial({
+      broadcastId: "b-off-1",
+      severity: "Severe",
+      communeCodes: ["1601"],
+      info,
+    });
+    expect(legacy).toHaveLength(4);
+    expect(legacy[0]!.data).toEqual({
+      broadcast_id: "b-off-1",
+      severity: "Severe",
+      kind: "official",
+      link: "/",
+    });
+    expect(legacy[0]!.android.notification).toEqual({ channel_id: "alerts" });
+
+    const enriched = fcmMessagesForOfficial({
+      broadcastId: "b-off-2",
+      severity: "Severe",
+      communeCodes: ["1601"],
+      info,
+      incidentId: "inc-42",
+      phase: "initial",
+      hazard: "flood",
+      status: "ongoing",
+      sourceKey: "dgpc_telegram",
+      sourceAttribution: "DGPC",
+      observedAt: "2026-11-24T10:00:00Z",
+      areaLabel: "Bab El Oued, Alger",
+    });
+    expect(enriched[0]!.android.notification.tag).toBe("official-inc-42");
+    expect(enriched[0]!.data).toMatchObject({
+      broadcast_id: "b-off-2",
+      kind: "official",
+      hazard: "flood",
+      phase: "initial",
+      status: "ongoing",
+      source_key: "dgpc_telegram",
+      link: "/?event=official%3Ainc-42",
+    });
+  });
+
+  it("fans out fcmMessagesForEarthquake to accountless commune topics across 4 locales and packs cleanly", () => {
+    const msgs = fcmMessagesForEarthquake({
+      broadcastId: "b-eq-1",
+      severity: "Severe",
+      communeCodes: ["1601", "0901"],
+      earthquakeId: "eq-20261124-1",
+      magnitude: 4.4,
+      info,
+      sourceAttribution: "EMSC",
+      observedAt: "2026-11-24T11:00:00Z",
+      areaLabel: "Alger, Alger",
+    });
+    expect(msgs).toHaveLength(8);
+    expect(msgs[0]!.topic).toBe("v1.commune.1601.ar");
+    expect(msgs[0]!.android.notification.tag).toBe("quake-eq-20261124-1");
+    expect(msgs[0]!.webpush.fcm_options.link).toBe(
+      "https://nadhir.app/?event=quake%3Aeq-20261124-1",
+    );
+    expect(msgs[0]!.data).toMatchObject({
+      broadcast_id: "b-eq-1",
+      severity: "Severe",
+      kind: "earthquake",
+      hazard: "earthquake",
+      magnitude: "4.4",
+      source_key: "emsc",
+      link: "/?event=quake%3Aeq-20261124-1",
+    });
+    const packed = packTopics(msgs);
+    expect(packed).toHaveLength(4);
   });
 });

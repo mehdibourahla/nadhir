@@ -39,6 +39,7 @@ function warningsOn(warnings: OnmVigilance[], day: string) {
   const to = from + DAY;
   const seen = new Map<string, OnmVigilance>();
   for (const w of warnings) {
+    if (w.cancelled_at || w.superseded_by || w.msg_type === "Cancel") continue;
     if (!w.expires) continue;
     const start = Date.parse(w.onset ?? w.sent);
     if (start >= to || Date.parse(w.expires) <= from) continue;

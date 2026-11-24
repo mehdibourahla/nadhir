@@ -390,6 +390,10 @@ export type OnmVigilance = {
   wilaya_id: string | null;
   headline_fr: string | null;
   superseded_at: string | null;
+  msg_type?: string;
+  cap_references?: string | null;
+  superseded_by?: string | null;
+  cancelled_at?: string | null;
 };
 
 export const onmVigilanceQuery = queryOptions({
@@ -399,10 +403,13 @@ export const onmVigilanceQuery = queryOptions({
       await supabase
         .from("onm_vigilance")
         .select(
-          "id, cap_id, title, event, severity, urgency, certainty, onset, expires, sent, area_desc, cap_url, wilaya_id, headline_fr, superseded_at",
+          "id, cap_id, title, event, severity, urgency, certainty, onset, expires, sent, area_desc, cap_url, wilaya_id, headline_fr, superseded_at, msg_type, cap_references, superseded_by, cancelled_at",
         )
         .gt("expires", new Date().toISOString())
         .is("superseded_at", null)
+        .is("cancelled_at", null)
+        .is("superseded_by", null)
+        .neq("msg_type", "Cancel")
         .order("sent", { ascending: false })
         .limit(300),
     ),

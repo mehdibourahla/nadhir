@@ -4,7 +4,7 @@ import type { OnmVigilance } from "@/lib/nadhir";
 import { PAGE_SIZE } from "@/lib/paginate";
 
 const fields =
-  "id, cap_id, title, event, severity, urgency, certainty, onset, expires, sent, area_desc, cap_url, wilaya_id, headline_fr, superseded_at";
+  "id, cap_id, title, event, severity, urgency, certainty, onset, expires, sent, area_desc, cap_url, wilaya_id, headline_fr, superseded_at, msg_type, cap_references, superseded_by, cancelled_at";
 
 export const weatherOnmQuery = (wilayaId: string | null | undefined) =>
   queryOptions({
@@ -22,10 +22,15 @@ export const weatherOnmQuery = (wilayaId: string | null | undefined) =>
             .from("onm_vigilance")
             .select(fields)
             .eq("wilaya_id", wilayaId)
-            .lte("sent", capturedAt);
+            .lte("sent", capturedAt)
+            .neq("msg_type", "Cancel");
           query = bounds
             ? query.gt("expires", bounds.start).lt("onset", bounds.end)
-            : query.gt("expires", capturedAt).is("superseded_at", null);
+            : query
+                .gt("expires", capturedAt)
+                .is("superseded_at", null)
+                .is("cancelled_at", null)
+                .is("superseded_by", null);
           const { data, error } = await query
             .order("sent", { ascending: false })
             .order("id")

@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   BROADCAST_DAILY_COMMUNE_LIMIT,
+  EARTHQUAKE_BROADCAST_RADIUS_KM,
   applyDailyLimit,
   coverageOf,
   downwindAdditions,
+  earthquakeSeverity,
+  evaluateOfficialIncidentBroadcast,
   setThreadCoverage,
   fireSeverity,
   insideCommunes,
@@ -16,7 +19,9 @@ import {
   pushCodesFor,
   fuelLimitedCodes,
   targetCommunes,
+  targetCommunesForEarthquake,
   type CommuneShape,
+  type OfficialIncidentBroadcastInput,
   type OpenThread,
   type OnmWarning,
 } from "@/lib/broadcast-rules";
@@ -697,5 +702,151 @@ describe("onmRelayPlan", () => {
         [open],
       ).relay,
     ).toHaveLength(1);
+  });
+});
+
+describe("evaluateOfficialIncidentBroadcast (F8)", () => {
+  const nowMs = Date.parse("2026-11-24T12:00:00Z");
+  const baseNonFire = (
+    over: Partial<OfficialIncidentBroadcastInput> = {},
+  ): OfficialIncidentBroadcastInput => ({
+    kind: "flood",
+    status: "ongoing",
+    communeCode: "1601",
+    asOfMs: nowMs - 2 * 3600_000,
+    nowMs,
+    unlistedAt: null,
+    sourceKey: "dgpc_telegram",
+    authorityTier: "national",
+    evidence: "تدخل متواصل لامتصاص مياه الأمطار في بلدية باب الوادي",
+    documentBody:
+      "الحماية المدنية: تدخل متواصل لامتصاص مياه الأمطار في بلدية باب الوادي ولاية الجزائر.",
+    hasInitialBroadcast: false,
+    initialDelivered: false,
+    hasEndBroadcast: false,
+    ...over,
+  });
+
+  it.each(["flood", "storm", "road", "structure"] as const)(
+    "accepts verified ongoing dgpc_telegram %s incident within 12h",
+    (kind) => {
+      expect(evaluateOfficialIncidentBroadcast(baseNonFire({ kind }))).toEqual({
+        action: "initial",
+      });
+    },
+  );
+
+  it("rejects ITA, media tier, unapproved sources, unsupported kinds, missing commune, stale, future, non-ongoing, missing verbatim evidence, and retrospective summaries", () => {
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({ sourceKey: "ita_facebook", authorityTier: "media" }),
+      ),
+    ).toEqual({ action: "suppress", reason: "media_source_excluded" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({ sourceKey: "ita_website", authorityTier: "national" }),
+      ),
+    ).toEqual({ action: "suppress", reason: "ita_source_excluded" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({ sourceKey: "other_source" }),
+      ),
+    ).toEqual({ action: "suppress", reason: "unapproved_non_fire_source" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(baseNonFire({ kind: "other" })),
+    ).toEqual({ action: "suppress", reason: "unsupported_hazard_kind" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(baseNonFire({ communeCode: null })),
+    ).toEqual({ action: "suppress", reason: "missing_commune" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({ asOfMs: nowMs - 13 * 3600_000 }),
+      ),
+    ).toEqual({ action: "suppress", reason: "stale_incident" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({ asOfMs: nowMs + 60_000 }),
+      ),
+    ).toEqual({ action: "suppress", reason: "future_as_of" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(baseNonFire({ status: "unknown" })),
+    ).toEqual({ action: "suppress", reason: "non_fire_not_ongoing" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({ documentBody: "Unrelated bulletin text" }),
+      ),
+    ).toEqual({ action: "suppress", reason: "missing_verbatim_evidence" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          evidence: "حصيلة تدخلات الحماية المدنية خلال 24 ساعة الماضية",
+          documentBody: "حصيلة تدخلات الحماية المدنية خلال 24 ساعة الماضية",
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "retrospective_or_summary" });
+  });
+
+  it("emits end on cleared ONLY when initial was delivered, stays silent if cleared before delivery, and never infers cleared from silence", () => {
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          status: "cleared",
+          hasInitialBroadcast: true,
+          initialDelivered: true,
+        }),
+      ),
+    ).toEqual({ action: "end" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          status: "cleared",
+          hasInitialBroadcast: true,
+          initialDelivered: false,
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "cleared_before_delivery" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          status: "ongoing",
+          hasInitialBroadcast: true,
+          initialDelivered: true,
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "already_broadcast" });
+  });
+});
+
+describe("earthquake commune targeting & severity (F9)", () => {
+  const communes = [
+    { code: "1601", lat: 36.75, lon: 3.05 }, // ~0 km
+    { code: "0901", lat: 36.47, lon: 2.83 }, // ~37 km
+    { code: "1501", lat: 36.71, lon: 4.05 }, // ~89 km
+    { code: "3101", lat: 35.7, lon: -0.63 }, // ~350 km (Oran)
+  ];
+
+  it("targets all communes within 100 km sorted by distance then code, excluding distant communes", () => {
+    expect(EARTHQUAKE_BROADCAST_RADIUS_KM).toBe(100);
+    expect(
+      targetCommunesForEarthquake({ lat: 36.75, lon: 3.05 }, communes),
+    ).toEqual(["1601", "0901", "1501"]);
+  });
+
+  it("maps M4.0-4.9 to Severe and M5.0+ to Extreme", () => {
+    expect(earthquakeSeverity(4.0)).toBe("Severe");
+    expect(earthquakeSeverity(4.9)).toBe("Severe");
+    expect(earthquakeSeverity(5.0)).toBe("Extreme");
+    expect(earthquakeSeverity(6.2)).toBe("Extreme");
   });
 });
