@@ -10,8 +10,8 @@ select has_table('public', 'operator_alert_state', 'operator alert state exists'
 
 select is(
   (select count(*)::integer from cron.job where jobname = 'nadhir-github-dispatch'),
-  1,
-  'pg_cron dispatches github jobs every minute'
+  0,
+  'pg_cron github auto-dispatch schedule is retired'
 );
 
 delete from public.source_jobs

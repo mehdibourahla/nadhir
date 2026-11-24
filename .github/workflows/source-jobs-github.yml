@@ -1,19 +1,25 @@
-name: Source jobs (github target)
+name: Source jobs (manual fallback)
 
-# Primary trigger: private.dispatch_github_source_jobs() from pg_cron (repository_dispatch).
-# The schedule is a best-effort fallback only — GitHub delivered 1 of 12 firings on
-# 2026-09-01 — so the queue is drained even while the dispatch PAT is unset.
+# Automatic GitHub Actions triggers (repository_dispatch and schedule — previously
+# 720 runs/day for ita_facebook) are retired. The standalone always-on EU backend
+# worker (worker/) now consumes ita_facebook, ita_website, dgpc_telegram, local_fwi,
+# and effis directly from Postgres source_jobs.
+# This workflow remains strictly as a manual emergency fallback via workflow_dispatch.
 on:
-  repository_dispatch:
-    types: [source-job]
-  schedule:
-    - cron: "5 6-17 * * *"
   workflow_dispatch:
     inputs:
       contract:
         description: Source contract key (local_fwi, effis, ita_facebook, ita_website, dgpc_telegram)
         required: true
         type: string
+      target:
+        description: Queue execution target to drain manually
+        required: false
+        default: github
+        type: choice
+        options:
+          - github
+          - worker
 
 permissions: {}
 
@@ -23,18 +29,19 @@ jobs:
     timeout-minutes: 2
     outputs:
       contracts: ${{ steps.pick.outputs.contracts }}
+      target: ${{ steps.pick.outputs.target }}
     steps:
       - id: pick
         env:
-          DISPATCHED: ${{ github.event.client_payload.contract }}
           MANUAL: ${{ inputs.contract }}
+          TARGET: ${{ inputs.target || 'github' }}
         run: |
-          one="${DISPATCHED:-$MANUAL}"
-          if [ -n "$one" ]; then
-            echo "contracts=[\"$one\"]" >> "$GITHUB_OUTPUT"
+          if [ -n "$MANUAL" ]; then
+            echo "contracts=[\"$MANUAL\"]" >> "$GITHUB_OUTPUT"
           else
             echo 'contracts=["local_fwi","effis","ita_facebook","ita_website","dgpc_telegram"]' >> "$GITHUB_OUTPUT"
           fi
+          echo "target=${TARGET}" >> "$GITHUB_OUTPUT"
 
   consume:
     needs: plan
@@ -61,15 +68,21 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           CONTRACT: ${{ matrix.contract }}
+          TARGET: ${{ needs.plan.outputs.target }}
           # model calls go to the home gateway (gpt-6-luna on the ChatGPT plan), behind Cloudflare Access
           NADHIR_GATEWAY_URL: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.NADHIR_GATEWAY_URL || '' }}
           NADHIR_GATEWAY_ACCESS_CLIENT_ID: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.NADHIR_GATEWAY_ACCESS_CLIENT_ID || '' }}
           NADHIR_GATEWAY_ACCESS_CLIENT_SECRET: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.NADHIR_GATEWAY_ACCESS_CLIENT_SECRET || '' }}
+          # optional automatic EU/cloud LLM API fallback when the home gateway is unavailable
+          LLM_FALLBACK_PROVIDER: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_PROVIDER || '' }}
+          LLM_FALLBACK_API_URL: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_API_URL || '' }}
+          LLM_FALLBACK_API_KEY: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_API_KEY || '' }}
+          LLM_FALLBACK_MODEL: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_MODEL || '' }}
         run: |
           deadline=$((SECONDS + 1740))
           while true; do
             set +e
-            bun run source:job -- --target github --contract "$CONTRACT"
+            bun run source:job -- --target "$TARGET" --contract "$CONTRACT"
             status=$?
             set -e
             if [ "$status" -eq 0 ]; then exit 0; fi

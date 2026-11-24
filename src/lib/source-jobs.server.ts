@@ -28,8 +28,10 @@ type CompleteArgs = Omit<GeneratedCompleteArgs, NullableCompleteArg> & {
   [Key in NullableCompleteArg]: GeneratedCompleteArgs[Key] | null;
 };
 
+export type SourceJobScheduler = "database" | "cloudflare" | "worker";
+
 function rpcFailure(
-  operation: "claim" | "enqueue" | "complete" | "inspect",
+  operation: "claim" | "enqueue" | "complete" | "inspect" | "recover" | "renew",
 ): Error {
   return new Error(`Could not ${operation} source job`);
 }
@@ -80,13 +82,48 @@ export async function claimSourceJob(
 export async function enqueueDueSourceJobs(
   client: SourceJobRpcClient,
   observedAt: string,
-  enqueuedBy: "database" | "cloudflare",
+  enqueuedBy: SourceJobScheduler,
 ): Promise<number> {
   const { data, error } = await client.rpc("enqueue_due_source_jobs", {
     _observed_at: observedAt,
     _enqueued_by: enqueuedBy,
   });
   if (error) throw rpcFailure("enqueue");
+  return data;
+}
+
+export async function requeueExpiredSourceJobs(
+  client: SourceJobRpcClient,
+  now?: string,
+): Promise<number> {
+  const { data, error } = await client.rpc(
+    "requeue_expired_source_jobs",
+    now === undefined ? {} : { _now: now },
+  );
+  if (error) throw rpcFailure("recover");
+  return data;
+}
+
+export async function renewSourceJobLease(
+  client: SourceJobRpcClient,
+  input: {
+    jobId: string;
+    workerId: string;
+    attempt: number;
+    leaseSeconds?: number;
+    now?: string;
+  },
+): Promise<string> {
+  const { data, error } = await client.rpc("renew_source_job_lease", {
+    _job_id: input.jobId,
+    _worker_id: input.workerId,
+    _attempt: input.attempt,
+    ...(input.leaseSeconds === undefined
+      ? {}
+      : { _lease_seconds: input.leaseSeconds }),
+    ...(input.now === undefined ? {} : { _now: input.now }),
+  });
+  if (error || !data) throw rpcFailure("renew");
   return data;
 }
 

@@ -1,6 +1,9 @@
 import { civilLeaseHours } from "./incident-lifecycle";
 import type { ChatRequest } from "./llm/codex.server";
-import { completeWithGateway } from "./llm/gateway.server";
+import {
+  completeWithGateway,
+  type GatewayProvenance,
+} from "./llm/gateway.server";
 import { z } from "zod/v4";
 import {
   CivilDecisionSchema,
@@ -257,7 +260,13 @@ export async function investigateCivilReport(
   throw new Error("Civil agent investigation budget exhausted");
 }
 
-export function civilAgentCompletion(signal: AbortSignal) {
+export function civilAgentCompletion(
+  signal: AbortSignal,
+  onProvenance?: (provenance: GatewayProvenance) => void,
+) {
   return (request: Request): Promise<string> =>
-    completeWithGateway("civil_agent_step", request, { signal });
+    completeWithGateway("civil_agent_step", request, {
+      signal,
+      ...(onProvenance ? { onProvenance } : {}),
+    });
 }

@@ -36,7 +36,9 @@
     "replay:source": "bun run scripts/replay-source-gap.ts",
     "replay:window": "bun run scripts/replay-window.ts",
     "watchdog:external": "bun run scripts/external-watchdog.ts",
-    "archive:cold": "bun run scripts/cold-archive.ts"
+    "archive:cold": "bun run scripts/cold-archive.ts",
+    "worker:start": "bun run worker/src/index.ts",
+    "test:worker:integration": "bun run scripts/test-eu-worker-integration.ts"
   },
   "dependencies": {
     "@capacitor-firebase/messaging": "^8.5.2",

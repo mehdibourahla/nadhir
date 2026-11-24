@@ -47,6 +47,38 @@ export async function runCivilInvestigations(job: ClaimedSourceJob) {
       if (prior.error)
         throw new Error(`Source revision lookup: ${prior.error.message}`);
       const extraction = source.data.extraction as { incidents: unknown[] };
+      const agentDeps = {
+        model: GATEWAY_MODEL,
+        now: new Date(),
+        complete: civilAgentCompletion(signal, (provenance) => {
+          agentDeps.model = provenance.model;
+        }),
+        searchAreas: (query: string, parentId: string | null) =>
+          searchAdministrativeAreas(query, parentId, signal),
+        async officialReports(query: string | null, areaId: string | null) {
+          const { data, error } = await supabaseAdmin
+            .rpc("search_civil_official_evidence", {
+              _query: query,
+              _area: areaId,
+            })
+            .abortSignal(signal);
+          if (error)
+            throw new Error(`Official evidence search: ${error.message}`);
+          return data;
+        },
+        async recentPublications() {
+          const { data, error } = await supabaseAdmin
+            .from("civil_publications")
+            .select("id,summary,source_published_at,area_id")
+            .eq("state", "published")
+            .gt("expires_at", new Date().toISOString())
+            .order("source_published_at", { ascending: false })
+            .limit(30)
+            .abortSignal(signal);
+          if (error) throw new Error(`Publication search: ${error.message}`);
+          return data;
+        },
+      };
       result = await investigateCivilReport(
         {
           body: source.data.body,
@@ -62,36 +94,7 @@ export async function runCivilInvestigations(job: ClaimedSourceJob) {
             }),
           ),
         },
-        {
-          model: GATEWAY_MODEL,
-          now: new Date(),
-          complete: civilAgentCompletion(signal),
-          searchAreas: (query, parentId) =>
-            searchAdministrativeAreas(query, parentId, signal),
-          async officialReports(query, areaId) {
-            const { data, error } = await supabaseAdmin
-              .rpc("search_civil_official_evidence", {
-                _query: query,
-                _area: areaId,
-              })
-              .abortSignal(signal);
-            if (error)
-              throw new Error(`Official evidence search: ${error.message}`);
-            return data;
-          },
-          async recentPublications() {
-            const { data, error } = await supabaseAdmin
-              .from("civil_publications")
-              .select("id,summary,source_published_at,area_id")
-              .eq("state", "published")
-              .gt("expires_at", new Date().toISOString())
-              .order("source_published_at", { ascending: false })
-              .limit(30)
-              .abortSignal(signal);
-            if (error) throw new Error(`Publication search: ${error.message}`);
-            return data;
-          },
-        },
+        agentDeps,
       );
     } catch (cause) {
       if (cause instanceof LlmUnavailable) {

@@ -4372,6 +4372,20 @@ export type Database = {
         Args: { _gap_id: string; _reason?: string | null };
         Returns: string;
       };
+      renew_source_job_lease: {
+        Args: {
+          _attempt: number;
+          _job_id: string;
+          _lease_seconds?: number | null;
+          _now?: string;
+          _worker_id: string;
+        };
+        Returns: string;
+      };
+      requeue_expired_source_jobs: {
+        Args: { _now?: string };
+        Returns: number;
+      };
       claim_alert_pushes: {
         Args: { _limit?: number };
         Returns: Database["public"]["Tables"]["alerts"]["Row"][];
