@@ -33,7 +33,11 @@ import {
   assertTarikiNonFireKind,
   classifyTarikiPostPreFilter,
   filterTarikiNonFireItems,
+  hasTarikiDangerSignal,
+  isTarikiDangerPost,
+  normalizeArabicForMatch,
   TARIKI_ATTRIBUTION,
+  TARIKI_DANGER_PATTERNS,
   TARIKI_SOURCE_KEY,
   tarikiPostsFromCapturedItems,
   tarikiPostsFromFacebookPage,
@@ -306,6 +310,236 @@ describe("F19 - Hardened Gendarmerie Tariki", () => {
         `life-safety Tariki post must stay candidate: ${dangerPost}`,
       ).toBe("candidate");
     }
+  });
+
+  it("canonicalizes Arabic/French orthography, enforces regex-alphabet & 1,606-toponym zero-collision invariants, and guards all danger variants", () => {
+    // 1. Direct normalizeArabicForMatch assertions
+    expect(
+      normalizeArabicForMatch(
+        "أَمْطَارٌ غَزِيرَةٌ وَثُلُوجٌ وَرُؤْيَةٌ مَحْدُودَةٌ",
+      ),
+    ).toBe("امطار غزيره وثلوج ورويه محدوده");
+    expect(normalizeArabicForMatch("أَمـطـار غـزيرة")).toBe("امطار غزيره");
+    expect(normalizeArabicForMatch("انعدام\u200F الرؤية\u200B")).toBe(
+      "انعدام الرويه",
+    );
+    expect(normalizeArabicForMatch("ا\u0654شغال الرو\u0654ية")).toBe(
+      "اشغال الرويه",
+    );
+    expect(normalizeArabicForMatch("انز\uFEFBق ٱلطريق إلى مرمى")).toBe(
+      "انزلاق الطريق الي مرمي",
+    );
+    expect(normalizeArabicForMatch("🧊جليد 🔥حريق ⚠️وحل")).toBe(
+      "جليد حريق وحل",
+    );
+    expect(
+      normalizeArabicForMatch(
+        "éboulement e\u0301boulement Tempête de sable route coupée",
+      ),
+    ).toBe("eboulement eboulement Tempete de sable route coupee");
+
+    // 2. Structural regex-alphabet invariant: zero unnormalized Arabic chars in TARIKI_DANGER_PATTERNS
+    const unnormalizedArabicRe = /[أإآٱةىؤئۀھیک\u0640]|[\u064B-\u065F\u0670]/;
+    for (const pattern of TARIKI_DANGER_PATTERNS) {
+      expect(
+        unnormalizedArabicRe.test(pattern.source),
+        `TARIKI_DANGER_PATTERNS entry contains unnormalized Arabic char: ${pattern.source}`,
+      ).toBe(false);
+    }
+
+    // 3. Zero-collision invariant across ALL 69 Algerian wilayas and ALL 1,537 communes (1,606 total)
+    const adminGeo = JSON.parse(
+      readFileSync(
+        new URL("../../../data/geo/algeria-admin.json", import.meta.url),
+        "utf8",
+      ),
+    ) as {
+      wilayas: { code: string; name_ar: string }[];
+      communes: { code: string; name_ar: string }[];
+    };
+    expect(adminGeo.wilayas).toHaveLength(69);
+    expect(adminGeo.communes).toHaveLength(1537);
+    const collidingToponyms: string[] = [];
+    for (const w of adminGeo.wilayas) {
+      if (hasTarikiDangerSignal(normalizeArabicForMatch(w.name_ar))) {
+        collidingToponyms.push(`wilaya:${w.code}:${w.name_ar}`);
+      }
+    }
+    for (const c of adminGeo.communes) {
+      if (hasTarikiDangerSignal(normalizeArabicForMatch(c.name_ar))) {
+        collidingToponyms.push(`commune:${c.code}:${c.name_ar}`);
+      }
+    }
+    expect(collidingToponyms).toEqual([]);
+    // Kabylia village أحريق must not collide with word-bounded حريق
+    expect(hasTarikiDangerSignal(normalizeArabicForMatch("أحريق"))).toBe(false);
+
+    // 4. Challenger Iter 2 (A1-A13, A15, A34-A35, E1-E2, E4, E7) + Reviewer Iter 2 + extended Arabic & French hazards
+    const mustStayCandidate: readonly string[] = [
+      // Full vocalization & tatweel+vocalization (A1-A6, A15)
+      "#طريقي: مَنْعٌ مُؤَقَّتٌ لِسَيْرِ شَاحِنَاتِ الْوَزْنِ الثَّقِيلِ فَقَطْ بِسَبَبِ أَمْطَارٌ غَزِيرَةٌ.",
+      "#طريقي: مَنْعٌ مُؤَقَّتٌ لِسَيْرِ شَاحِنَاتِ الْوَزْنِ الثَّقِيلِ فَقَطْ بِسَبَبِ ضَبَابٌ كَثِيفٌ.",
+      "#طريقي: مُرَافَقَةُ قَافِلَةٍ اسْتِثْنَائِيَّةٍ مَعَ تَسَاقُطِ ثُلُوجٌ.",
+      "#طريقي: مَنْعٌ مُؤَقَّتٌ لِسَيْرِ شَاحِنَاتِ الْوَزْنِ الثَّقِيلِ فَقَطْ بِسَبَبِ زَوَابِعُ رَمْلِيَّةٌ.",
+      "#طريقي: مَنْعٌ مُؤَقَّتٌ لِسَيْرِ شَاحِنَاتِ الْوَزْنِ الثَّقِيلِ فَقَطْ بِسَبَبِ انْعِدَامُ الرُّؤْيَةِ.",
+      "صَبَاحُ الْخَيْرِ، ضَبَابٌ كَثِيفٌ عَلَى الطَّرِيقِ السَّيَّارِ.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب أَمـطـار غـزيرة.",
+      // Single-shadda variants (A7-A10)
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب زوابع رمليّة.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب انعدام الرّؤية.",
+      "#طريقي: مرافقة قافلة استثنائية أثناء تساقط الثّلوج.",
+      "صباح الخير، الضّباب الكثيف يحجب الرؤية على الطريق الوطني رقم 5.",
+      // Formal definite MSA, ة<->ه, feminine, singular sandstorm, rockfall, cracks (A11-A13, A34-A35, E1-E2, E4, E7, Reviewer Minor 1)
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب الأمطار الغزيرة.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب الزوابع الرملية.",
+      "#طريقي: مرافقة قافلة استثنائية وسط الأمطار الغزيرة.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب امطار غزيره.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب زوابع رمليه.",
+      "#طريقي: الطريق مغمورة بالمياه بولاية البليدة مع منع مؤقت لسير شاحنات الوزن الثقيل فقط.",
+      "صباح الخير، الطريق مغمورة بالمياه ببلدية بوفاريك.",
+      "صباح الخير، تساقط صخور على الطريق الوطني رقم 43 بولاية جيجل.",
+      "#طريقي: أشغال مستعجلة إثر تشقق في الطريق الوطني رقم 15.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب زوبعة رملية قوية بولاية تمنراست.",
+      "#طريقي: مرافقة قافلة استثنائية وسط الزوبعة الرملية بالطريق الوطني رقم 1.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب أمطاراً غزيرة وانعدام تام للرؤية.",
+      "#طريقي: مرافقة قافلة استثنائية مع غزارة الأمطار على الطريق الوطني رقم 12.",
+      // Extended Arabic hazard categories across all 3 suppressors
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب جريان الوادي وتجمع المياه.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب طوفان وأمطار طوفانية.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب أمطار جد غزيرة وأمطار معتبرة.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب تشكل الصقيع وطبقة جليدية.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب 🧊جليد على الطريق.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب رياح جد قوية وعاصفة رملية.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب تساقط البرد وسقوط الأشجار.",
+      "#طريقي: مرافقة قافلة استثنائية وسط شبورة وتطاير الرمال وتراكم الرمال.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب انعدام\u200F الرؤية والرو\u0654ية المحدودة.",
+      "#طريقي: أشغال رفع صخرة كبيرة وتراكم الأوحال و ⚠️وحل على الطريق الوطني رقم 9.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب طريق زلقة وانز\uFEFBق التربة.",
+      "#طريقي: مرافقة قافلة استثنائية مع تسرب مادة المازوت على الطريق السيار.",
+      "صباح الخير، حادث مرور واصطدام تسلسلي وانقلاب شاحنة بالطريق السيار شرق-غرب.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب دخان كثيف يحجب الرؤية و 🔥حريق قرب الطريق.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط على الطريق رقم 5 والطريق رقم 1 مقطوع.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط مع صعوبة في السير بالطريق رقم 3.",
+      "#طريقي: غلق الطريق الوطني رقم 5 بسبب مرور قافلة استثنائية.",
+      "#طريقي: مرافقة قافلة إغاثة إلى القرى المعزولة بولاية تيزي وزو.",
+      "#طريقي: مرافقة قافلة الحماية المدنية عبر الطريق الوطني رقم 15.",
+      // French-mixed physical hazards & closures
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط إثر éboulement على الطريق الوطني رقم 43.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط إثر e\u0301boulement على الطريق الوطني رقم 43.",
+      "#طريقي: مرافقة قافلة استثنائية مع brouillard dense و verglas.",
+      "#طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب Tempête de sable و inondation.",
+      "#طريقي: أشغال مع chute de pierres و glissement de terrain.",
+      "صباح الخير، route coupée بالطريق الوطني رقم 11.",
+      "#طريقي: مرافقة قافلة استثنائية، route fermée بالطريق الولائي رقم 14.",
+    ];
+    for (const post of mustStayCandidate) {
+      expect(
+        classifyTarikiPostPreFilter(post),
+        `danger post must remain candidate: ${post}`,
+      ).toBe("candidate");
+      expect(isTarikiDangerPost(post)).toBe(true);
+    }
+
+    // 5. Vocalized & ة->ه pure noise (NV1-NV8) + Algerian commune & boilerplate collision traps
+    const expectedIgnored: readonly [string, string][] = [
+      [
+        "مُرَافَقَةُ قَافِلَةٍ اسْتِثْنَائِيَّةٍ لِنَقْلِ مُعَدَّاتٍ صِنَاعِيَّةٍ.",
+        "ignore_open_works",
+      ],
+      [
+        "مَنْعٌ مُؤَقَّتٌ لِسَيْرِ شَاحِنَاتِ الْوَزْنِ الثَّقِيلِ فَقَطْ خِلَالَ أَوْقَاتِ الذُّرْوَةِ.",
+        "ignore_heavy_trucks_only",
+      ],
+      [
+        "مَنْعٌ مُؤَقَّتٌ لِمُرُورِ شَاحِنَاتِ الْوَزْنِ الثَّقِيلِ فَقَطْ.",
+        "ignore_heavy_trucks_only",
+      ],
+      [
+        "تَحِيَّةٌ صَبَاحِيَّةٌ وَجُمُعَةٌ مُبَارَكَةٌ لِجَمِيعِ مُسْتَعْمِلِي الطَّرِيقِ.",
+        "ignore_greeting",
+      ],
+      [
+        "وُجُودُ أَشْغَالِ تَعْبِيدِ الطَّرِيقِ مَعَ إِبْقَاءِ حَرَكَةِ الْمُرُورِ مَفْتُوحَةً.",
+        "ignore_open_works",
+      ],
+      [
+        "مرافقه قافله استثنائيه لنقل معدات صناعيه عبر الطريق الوطني رقم 5.",
+        "ignore_open_works",
+      ],
+      ["مَسَاءُ الْخَيْرِ وَعِيدٌ مُبَارَكٌ لِلْجَمِيعِ.", "ignore_greeting"],
+      [
+        "نَقْلُ حَمُولَةٍ اسْتِثْنَائِيَّةٍ عَبْرَ الطَّرِيقِ السَّيَّارِ شَرْق غَرْب.",
+        "ignore_open_works",
+      ],
+      [
+        "#طريقي: مرافقة قافلة لنقل معدات صناعية عبر الطريق الوطني رقم 5.",
+        "ignore_open_works",
+      ],
+      [
+        "#قسنطينة غلق الطريق الولائي رقم 05 بالنسبة لـ شاحنات الوزن الثقيل لأشغال الصيانة.",
+        "ignore_heavy_trucks_only",
+      ],
+      // Algerian commune & village collision traps
+      [
+        "#الطارف: وجود أشغال تعبيد الطريق ببلدية بوثلجة مع إبقاء حركة المرور مفتوحة.",
+        "ignore_open_works",
+      ],
+      [
+        "#عين_الدفلى: وجود أشغال صيانة ببلدية جليدة مع بقاء الطريق مفتوحا.",
+        "ignore_open_works",
+      ],
+      [
+        "#عين_الدفلى: منع مؤقت لسير شاحنات الوزن الثقيل فقط ببلدية جليدة خلال أوقات الذروة.",
+        "ignore_heavy_trucks_only",
+      ],
+      ["#تلمسان: وجود أشغال صيانة الأرصفة ببلدية بوحلو.", "ignore_open_works"],
+      [
+        "#تلمسان: وجود أشغال تهيئة الطريق ببلدية أولاد رياح.",
+        "ignore_open_works",
+      ],
+      [
+        "#المسيلة: وجود أشغال تمرير أسلاك الألياف البصرية على جانب الطريق.",
+        "ignore_open_works",
+      ],
+      [
+        "#تيزي_وزو: وجود أشغال صيانة الإنارة العمومية بقرية أحريق.",
+        "ignore_open_works",
+      ],
+      // Routine drainage, water-pipe, prevention-advice & weather-blessing noise traps
+      [
+        "#الجزائر: أشغال تنظيف البالوعات ومجاري المياه عبر الطريق السريع.",
+        "ignore_open_works",
+      ],
+      [
+        "#وهران: وجود أشغال صيانة شبكة المياه الصالحة للشرب دون التأثير على السير.",
+        "ignore_open_works",
+      ],
+      [
+        "صباح الخير، يرجى تخفيض السرعة للوقاية من حوادث المرور وتجنب حوادث المرور.",
+        "ignore_greeting",
+      ],
+      [
+        "جمعة مباركة وأمطار خير وبركة على بلادنا، طريق السلامة للجميع.",
+        "ignore_greeting",
+      ],
+      [
+        "صباح الخير مع هذا البرد القارس، طريق السلامة لجميع مستعملي الطريق.",
+        "ignore_greeting",
+      ],
+    ];
+    for (const [post, expected] of expectedIgnored) {
+      expect(
+        classifyTarikiPostPreFilter(post),
+        `pure-noise Tariki post must be ${expected}: ${post}`,
+      ).toBe(expected);
+      expect(isTarikiDangerPost(post)).toBe(false);
+    }
+
+    // 6. isTarikiDangerPost boolean helper parity on real captured fixtures
+    expect(isTarikiDangerPost(tarikiPostsFixture[0]!.text)).toBe(true);
+    expect(isTarikiDangerPost(tarikiPostsFixture[3]!.text)).toBe(false);
+    expect(isTarikiDangerPost(tarikiPostsFixture[4]!.text)).toBe(false);
+    expect(isTarikiDangerPost(tarikiPostsFixture[5]!.text)).toBe(false);
   });
 
   it("hardens dgpc-situation with tatweel stripping, #/_/emoji-resilient verbatim quote guard, and Tariki dangers-only prompt", async () => {

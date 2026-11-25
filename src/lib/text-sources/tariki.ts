@@ -184,32 +184,66 @@ export function tarikiPostsFromCapturedItems(
   };
 }
 
-function normalizeArabicForMatch(text: string): string {
+export function normalizeArabicForMatch(text: string): string {
   return text
-    .normalize("NFC")
-    .replace(/\u0640/g, "")
-    .replace(/[\u0654\u0655]/g, "")
-    .replace(/[#_]/g, " ")
-    .replace(/[أإآ]/g, "ا")
-    .replace(/\s+/g, " ")
+    .normalize("NFKC")
+    .replace(/[\u0610-\u061A\u064B-\u065F\u0670]/g, "")
+    .replace(/[\u061C\u0640\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/[ةۀھ]/g, "ه")
+    .replace(/[ىی]/g, "ي")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
+    .replace(/ک/g, "ك")
+    .replace(/[àâäÀÂÄ]/g, "a")
+    .replace(/[éèêëÉÈÊË]/g, "e")
+    .replace(/[îïÎÏ]/g, "i")
+    .replace(/[ôöÔÖ]/g, "o")
+    .replace(/[ùûüÙÛÜ]/g, "u")
+    .replace(/[çÇ]/g, "c")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 }
 
-const DANGER_SIGNAL_RE =
-  /طريق مغلق|مقطوع|صعوبة في السير|ارتفاع منسوب المياه|فيضان|سيول|هبوط|انهيار|تصدع|ثلوج|جليد|تساقط الصخور|انجراف|انزلاق|مغمور بالمياه|ضباب|انعدام الرؤية|زوابع رملية|امطار غزيرة/;
+// Single canonical source of truth for Tariki road/weather/geological/accident danger signals.
+// ALL patterns MUST use ONLY canonical normalized characters (no أإآٱةىؤئ or diacritics).
+export const TARIKI_DANGER_PATTERNS: readonly RegExp[] = [
+  // 1. Hydrological: floods, flash floods, water-level rise, submerged roads, flowing wadis, water pooling
+  /فيضان|طوفان|سيول|منسوب (?:ال)?(?:مياه|واد|وادي|اوديه|وديان)|مغمور[ها]? ب(?:ال)?مياه|غمر(?:ت|ته|تها)? (?:ال)?مياه|(?:تجمع|تراكم|تدفق) (?:(?:كبير|معتبر|كثيف) )?(?:ال|لل)?مياه|جريان (?:ال)?(?:واد|وادي|اوديه|وديان)|برك (?:ماييه|(?:ال)?مياه)|(?:^| )(?:[وفبلك]?ال|[وفب])?سيلا? (?:جارف|مايي|عرم)/,
+  // 2. Heavy rain, storms, violent winds, hail, severe weather disturbances, fallen trees/poles
+  /(?:ال|لل)?امطارا? (?:جد )?(?:ال)?(?:غزير|رعدي|طوفاني|قوي|معتبر|كثيف|متواصل)ه?|(?:تساقط|تهاطل|هطول|غزاره|شده|كثافه|تواصل|استمرار|بسبب|اثر|نتيجه) (?:(?:كثيف|غزير|قوي|مستمر) )?(?:ال|لل)?امطار|(?:ال)?مطرا? (?:ال)?(?:غزير|رعدي|طوفاني|قوي)|زخات (?:مطريه|من (?:ال)?امطار)|عاصف|عواصف|اعصار|رياحا? (?:جد )?(?:ال)?(?:قوي|عاتي|شديد|عاصف|رملي)ه?|(?:قوه|شده|هبوب|هبات) (?:ال)?رياح|(?:تساقط|حبات) (?:ال)?برد|تقلبات (?:ال)?جويه|سقوط (?:ال)?(?:اشجار|اعمده)/,
+  // 3. Winter: snow, ice, frost/black-ice (word-bounded جليد excludes commune 4407 جليدة/Djelida)
+  /ثلوج|ثلجي|(?:^| )(?:[وفبلك]?ال|لل|[وفبلك])?ثلجا?(?: |$)|(?:^| )(?:[وفبلك]?ال|لل|[وفبلك])?جليد(?:ي[ه]?|ا)?(?: |$)|صقيع|تجلد/,
+  // 4. Visibility, fog, mist, sandstorms, blowing sand/dust
+  /ضباب|شبوره|زوبعه|زوابع|(?:تطاير|زحف|تراكم) (?:ال)?(?:رمال|غبار)|كثبان رمليه|غبارا? كثيف|(?:انعدام|تدن|تدني|نقص|ضعف|حجب|يحجب|تحجب|تراجع|قله|صعوبه) (?:(?:تام|كلي|شبه كلي|شديد|كبير|حاد) )?(?:في )?(?:ال|لل)?رويه|(?:ال)?رويه (?:شبه )?(?:منعدم|ضعيف|متدني|محدود)ه/,
+  // 5. Geological, structural & road-surface hazards
+  /هبوط|انهيار|تصدع|تشقق|انجراف|انزلاق|تزحلق|(?:طريق|ارضيه) زلقه|صخور|صخره|صخري|اوحال|(?:^| )(?:[وفبلك]?ال|لل|[وفبلك])?وحل(?:ي[ه]?|ا)?(?: |$)|انفجار|تسرب (?:ماده )?(?:ال)?(?:غاز|وقود|مازوت|بنزين|زيت|زيوت)/,
+  // 6. Live traffic accidents, collisions, pileups, vehicle overturns (singular crash, not plural prevention advice)
+  /حادث (?:مرور|سير|اصطدام|انقلاب|دهس)|اصطدام|تصادم|انقلاب (?:ال)?(?:شاحن|مركب|حافل|سيار|مقطور|صهريج)/,
+  // 7. Fire & road-impairing smoke (road-hazard pre-filter only; fire kinds stay excluded downstream)
+  /(?:^| )(?:[وفبلك]?ال|لل|[وفبلك])?حريق(?: |$)|حرايق|اندلاع (?:ال)?نيران|نشوب (?:ال)?حريق|دخانا? (?:كثيف|يحجب)|(?:تصاعد|سحب) (?:ال)?دخان/,
+  // 8. Impassable / cut road, severe circulation difficulty, total closure, emergency relief / stranded motorists
+  /مقطوع|انقطاع (?:ال)?(?:طريق|سير|مرور|حركه المرور)|صعوبه (?:(?:كبيره|بالغه|شديده) )?(?:في )?(?:ال)?(?:سير|حركه المرور|مرور|تنقل)|غلقا? (?:كلي|تام)|مغلق[ها]? كليا|اغاثه|معزول|عالقين|محصورين/,
+  // 9. French-mixed physical hazard terminology (normalized ASCII accents)
+  /\b(?:inondations?|eboulements?|verglas|brouillard|tempetes? de sable|chutes? de pierres|glissements? de terrain)\b/i,
+];
+
+export function hasTarikiDangerSignal(normalizedText: string): boolean {
+  return TARIKI_DANGER_PATTERNS.some((pattern) => pattern.test(normalizedText));
+}
 
 const HEAVY_TRUCKS_ONLY_RE =
-  /في وجه شاحنات الوزن الثقيل|في وجه مركبات الوزن الثقيل|بالنسبة لشاحنات الوزن الثقيل|بالنسبة لمركبات الوزن الثقيل|شاحنات الوزن الثقيل فقط|الوزن الثقيل فقط|المركبات ذات الوزن الثقيل فقط/;
+  /في وجه (?:شاحنات|مركبات) الوزن الثقيل|بالنسبه ل ?(?:شاحنات|مركبات) الوزن الثقيل|(?:(?:شاحنات|المركبات ذات) )?الوزن الثقيل فقط/;
 const ALL_VEHICLES_RE =
-  /جميع المركبات|كافة المركبات|كل المركبات|جميع اصناف المركبات|كافة اصناف المركبات|بما فيها شاحنات الوزن الثقيل|بما في ذلك شاحنات الوزن الثقيل/;
-const HEAVY_TRUCKS_HAZARD_GUARD_RE =
-  /ارتفاع منسوب المياه|فيضان|سيول|مغمور بالمياه|هبوط|انهيار|تصدع|انجراف|انزلاق|تشقق|ثلوج|جليد|صخور|ضباب|انعدام الرؤية|زوابع رملية|امطار غزيرة/;
-const CLOSURE_RE = /غلق|مغلق|تحويل حركة المرور/;
+  /(?:جميع|كافه|كل) (?:اصناف )?المركبات|بما (?:فيها|في ذلك) شاحنات الوزن الثقيل/;
+const CLOSURE_RE =
+  /غلق|مغلق|اغلاق|تحويل حركه المرور|\broute (?:coupee|fermee)\b/i;
 const HEAVY_TRUCKS_RESTRICTION_RE =
-  /غلق|مغلق|تحويل حركة المرور|منع(?:\s+مؤقت)?\s+ل?(?:سير|مرور)/;
+  /غلق|مغلق|اغلاق|تحويل حركه المرور|منع(?: موقتا?)? ل?(?:سير|مرور)/;
 const OPEN_WORKS_RE =
-  /وجود اشغال|اشغال|موكب|حمولة استثنائية|قافلة\s+استثنائية|مرافقة\s+قافلة|تمرير اسلاك/;
-const GREETING_RE = /تحية صباحية|صباح الخير|مساء الخير|جمعة مباركة|عيد مبارك/;
+  /(?:^| )(?:[وفبلك]?ال|[وفب])?اشغالا?(?: |$)|(?:^| )(?:[وفبلك]?ال|[وفب])?موكبا?(?: |$)|(?:ال)?حموله (?:ال)?استثناييه|(?:ال)?قافله (?:ال)?استثناييه|مرافقه (?:ال)?قافله(?! (?:اغاثه|الحمايه المدنيه|طبيه|اسعاف))|تمرير (?:ال)?اسلاك/;
+const GREETING_RE = /تحيه صباحيه|صباح الخير|مساء الخير|جمعه مباركه|عيد مبارك/;
 
 export function isTarikiHeavyTrucksOnlyClosure(text: string): boolean {
   const norm = normalizeArabicForMatch(text);
@@ -219,8 +253,8 @@ export function isTarikiHeavyTrucksOnlyClosure(text: string): boolean {
   ) {
     return false;
   }
-  // Never suppress closures affecting all vehicles or caused by structural/weather hazards
-  if (ALL_VEHICLES_RE.test(norm) || HEAVY_TRUCKS_HAZARD_GUARD_RE.test(norm)) {
+  // Never suppress closures affecting all vehicles or caused by any road/weather/structural hazard
+  if (ALL_VEHICLES_RE.test(norm) || hasTarikiDangerSignal(norm)) {
     return false;
   }
   return true;
@@ -229,14 +263,14 @@ export function isTarikiHeavyTrucksOnlyClosure(text: string): boolean {
 export function isTarikiOpenRoadWorks(text: string): boolean {
   const norm = normalizeArabicForMatch(text);
   if (!OPEN_WORKS_RE.test(norm)) return false;
-  if (DANGER_SIGNAL_RE.test(norm) || CLOSURE_RE.test(norm)) return false;
+  if (hasTarikiDangerSignal(norm) || CLOSURE_RE.test(norm)) return false;
   return true;
 }
 
 export function isTarikiGreetingOnly(text: string): boolean {
   const norm = normalizeArabicForMatch(text);
   if (!GREETING_RE.test(norm)) return false;
-  if (DANGER_SIGNAL_RE.test(norm) || CLOSURE_RE.test(norm)) return false;
+  if (hasTarikiDangerSignal(norm) || CLOSURE_RE.test(norm)) return false;
   return true;
 }
 
@@ -247,6 +281,10 @@ export function classifyTarikiPostPreFilter(
   if (isTarikiHeavyTrucksOnlyClosure(text)) return "ignore_heavy_trucks_only";
   if (isTarikiOpenRoadWorks(text)) return "ignore_open_works";
   return "candidate";
+}
+
+export function isTarikiDangerPost(text: string): boolean {
+  return classifyTarikiPostPreFilter(text) === "candidate";
 }
 
 export function isTarikiFireKind(kind: IncidentKind | string): boolean {
