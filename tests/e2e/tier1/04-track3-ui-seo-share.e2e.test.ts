@@ -324,6 +324,10 @@ describe("Tier 1 — F15: Multi-Hazard /forecast View", () => {
 describe("Tier 1 — F16: 69 Indexable Bilingual (AR/FR) /wilaya/$slug Landing Pages", () => {
   type WilayaSlugsMod = {
     WILAYA_SLUGS?: readonly unknown[];
+    WILAYA_REGISTRY?: readonly { code: string; slug: string }[];
+    wilayaByCode?: (
+      code: string,
+    ) => { code: string; slug: string } | null | undefined;
     wilayaBySlug?: (
       slug: string,
     ) => { code: string; slug: string } | null | undefined;
@@ -342,7 +346,10 @@ describe("Tier 1 — F16: 69 Indexable Bilingual (AR/FR) /wilaya/$slug Landing P
 
     const lookupSlug = (code: string, nameFr: string): string => {
       const fromFn =
-        mod.slugForWilayaCode?.(code) ?? mod.getWilayaSlug?.(code) ?? null;
+        mod.wilayaByCode?.(code)?.slug ??
+        mod.slugForWilayaCode?.(code) ??
+        mod.getWilayaSlug?.(code) ??
+        null;
       if (typeof fromFn === "string" && fromFn.length > 0) return fromFn;
       return deriveWilayaSlug(nameFr);
     };
@@ -503,50 +510,128 @@ describe("Tier 1 — F17: Universal <= 37 KB WhatsApp/Facebook Share Cards (4 Ki
       `Share card endpoint ${httpPath} must return 200 or 404 (not 500/501)`,
     ).toBe(404);
 
-    const renderMod = await importRepoModule<Record<string, unknown>>(
-      "src/lib/share-render.server.ts",
-    );
-    const renderFn =
-      (renderMod.renderShareCard as
-        | ((
-            input: Record<string, unknown>,
-          ) => Promise<Uint8Array | { bytes: Uint8Array }>)
-        | undefined) ??
-      (renderMod.renderUniversalShareCard as
-        | ((
-            input: Record<string, unknown>,
-          ) => Promise<Uint8Array | { bytes: Uint8Array }>)
-        | undefined);
+    const renderMod = await importRepoModule<{
+      renderUniversalShareCard?: (
+        model: unknown,
+        opts: {
+          format: "whatsapp" | "facebook" | "og" | "post" | "story" | "sticker";
+          codec: "webp" | "jpeg" | "png";
+          maxBytes?: number;
+        },
+      ) => Promise<Uint8Array | null>;
+    }>("src/lib/share-render.server.ts");
+    const shareCardMod = await importRepoModule<{
+      onmCardModel: (
+        warning: Record<string, unknown>,
+        wilayaLabel: string | null,
+        t: (key: string, vars?: Record<string, string>) => string,
+        lang: "ar" | "fr" | "en" | "kab",
+      ) => unknown;
+      fireCardModel: (
+        cluster: Record<string, unknown>,
+        level: "probable" | "confirmed",
+        placeLabel: string | null,
+        t: (key: string, vars?: Record<string, string>) => string,
+        lang: "ar" | "fr" | "en" | "kab",
+      ) => unknown;
+      quakeCardModel: (
+        quake: Record<string, unknown>,
+        placeLabel: string | null,
+        t: (key: string, vars?: Record<string, string>) => string,
+        lang: "ar" | "fr" | "en" | "kab",
+      ) => unknown;
+    }>("src/lib/share-card.ts");
+    const translatorMod = await importRepoModule<{
+      shareTranslator: (
+        lang: "ar" | "fr" | "en" | "kab",
+      ) => (key: string, vars?: Record<string, string>) => string;
+    }>("src/lib/share-translator.ts");
+
     expect(
-      typeof renderFn,
-      `share-render.server.ts must export raster renderer for ${kind}`,
+      typeof renderMod.renderUniversalShareCard,
+      `share-render.server.ts must export renderUniversalShareCard for ${kind}`,
     ).toBe("function");
 
-    const rendered = await renderFn!({
-      kind,
-      format: "whatsapp",
-      lang: "fr",
-      title:
-        kind === "onm"
-          ? "BMS Pluies Niveau 2"
-          : kind === "fire"
-            ? "Feu probable · Tizi Ouzou"
-            : "Séisme M4.6 · Béjaïa",
-      area: kind === "quake" ? "Béjaïa" : "Alger",
-      attribution:
-        kind === "onm"
-          ? "Office National de la Météorologie (ONM)"
-          : kind === "fire"
-            ? "NASA FIRMS · Nadhir"
-            : "EMSC / CRAAG",
-      observedAt: "2026-11-24T14:00:00Z",
-    });
+    const t = translatorMod.shareTranslator("fr");
+    const model =
+      kind === "onm"
+        ? shareCardMod.onmCardModel(
+            {
+              id: "onm-e2e-16",
+              cap_id: "urn:oid:2.49.0.1.12.0.20261124.016",
+              title: "نشرية جوية خاصة أمطار غزيرة",
+              event: "Pluies",
+              severity: "Severe",
+              urgency: "Expected",
+              certainty: "Observed",
+              onset: "2026-11-24T12:00:00Z",
+              expires: "2026-11-24T22:00:00Z",
+              sent: "2026-11-24T11:30:00Z",
+              area_desc: "Alger, Tipaza",
+              cap_url: "https://meteo.dz",
+              wilaya_id: null,
+              headline_fr: "BMS Pluies Niveau 2",
+              superseded_at: null,
+              msg_type: "Alert",
+              cap_references: null,
+              superseded_by: null,
+              cancelled_at: null,
+            },
+            "Alger",
+            t,
+            "fr",
+          )
+        : kind === "fire"
+          ? shareCardMod.fireCardModel(
+              {
+                id: "fire-e2e-1",
+                short_id: "DZ-E2E-1",
+                state: "probable",
+                first_detected_at: "2026-11-24T13:30:00Z",
+                last_detected_at: "2026-11-24T14:00:00Z",
+                updated_at: "2026-11-24T14:00:00Z",
+                lat: 36.7118,
+                lon: 4.0459,
+                detection_count: 5,
+                sources: ["firms", "fci"],
+                confirmed_at: null,
+                resolved_at: null,
+                suspected_persistent_source: false,
+              },
+              "probable",
+              "Tizi Ouzou",
+              t,
+              "fr",
+            )
+          : shareCardMod.quakeCardModel(
+              {
+                id: "20261124_0000046",
+                occurred_at: "2026-11-24T13:42:18Z",
+                lat: 36.7525,
+                lon: 5.0556,
+                depth_km: 10,
+                magnitude: 4.6,
+                magnitude_type: "ml",
+                region: "NORTHERN ALGERIA",
+                network: "EMSC / CRAAG",
+                commune_id: null,
+                offshore: false,
+                updated_at: "2026-11-24T13:44:05Z",
+              },
+              "Béjaïa",
+              t,
+              "fr",
+            );
 
-    const bytes =
-      rendered instanceof Uint8Array
-        ? rendered
-        : (rendered as { bytes: Uint8Array }).bytes;
-    const info = await assertValidShareCardImage(bytes, SHARE_CARD_MAX_BYTES);
+    const bytes = await renderMod.renderUniversalShareCard!(model, {
+      format: "whatsapp",
+      codec: "webp",
+      maxBytes: SHARE_CARD_MAX_BYTES,
+    });
+    expect(bytes, `Renderer returned null for ${kind}`).toBeInstanceOf(
+      Uint8Array,
+    );
+    const info = await assertValidShareCardImage(bytes!, SHARE_CARD_MAX_BYTES);
     expect(info.width).toBeGreaterThan(100);
     expect(info.height).toBeGreaterThan(100);
   }

@@ -12,6 +12,7 @@ import { assertPgReachable, psqlJson } from "../lib/pg.ts";
 import {
   findBannedSafeLabels,
   findEmDashesInText,
+  stripHtmlForTextScan,
   withBrowserPage,
 } from "../lib/playwright.ts";
 
@@ -299,7 +300,7 @@ describe("Tier 1 — F8: DGPC Non-Fire (Flood / Storm / Road / Structure) Broadc
     expect(cap.info[0]?.category).not.toBe("Fire");
   });
 
-  it("F8.5: DGPC broadcast adapter supports non-fire kinds and handles authority 'cleared' status cleanly without bare 'safe'", () => {
+  it("F8.5: DGPC broadcast adapter supports non-fire kinds and handles authority 'cleared' status cleanly without bare 'safe'", async () => {
     const broadcastSrc = readRepoFile("src/lib/ingest/broadcast.server.ts");
     const copySrc = readRepoFile("src/lib/broadcast-copy.ts");
     const combined = `${broadcastSrc}\n${copySrc}`;
@@ -308,7 +309,50 @@ describe("Tier 1 — F8: DGPC Non-Fire (Flood / Storm / Road / Structure) Broadc
     expect(combined).toMatch(/storm/);
     expect(combined).toMatch(/road/);
     expect(combined).toMatch(/cleared/);
-    expect(findBannedSafeLabels(copySrc)).toEqual([]);
+
+    // Strip JS/TS comments before scanning source, and verify actual rendered copy across all 4 kinds & both phases
+    const copySrcWithoutComments = copySrc
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/(^|\s)\/\/[^\n]*/g, "$1 ");
+    expect(findBannedSafeLabels(copySrcWithoutComments)).toEqual([]);
+
+    const copyMod = await importRepoModule<{
+      officialHazardTexts: (vars: {
+        kind: "flood" | "storm" | "road" | "structure";
+        phase?: "initial" | "end";
+        commune: string;
+        wilaya: string;
+        source: string;
+        asOf: string;
+        evidence?: string | null;
+      }) => Array<{
+        language: string;
+        event: string;
+        headline: string;
+        description: string;
+        instruction: string;
+      }>;
+    }>("src/lib/broadcast-copy.ts");
+
+    for (const kind of ["flood", "storm", "road", "structure"] as const) {
+      for (const phase of ["initial", "end"] as const) {
+        const rendered = copyMod.officialHazardTexts({
+          kind,
+          phase,
+          commune: "Bab El Oued",
+          wilaya: "Alger",
+          source: "DGPC",
+          asOf: "24/11 14:30",
+        });
+        expect(rendered).toHaveLength(4);
+        for (const item of rendered) {
+          expect(item.instruction).toBe("");
+          const combinedText = `${item.event}\n${item.headline}\n${item.description}`;
+          expect(findBannedSafeLabels(combinedText)).toEqual([]);
+          expect(findEmDashesInText(combinedText).count).toBe(0);
+        }
+      }
+    }
   });
 });
 
@@ -400,6 +444,7 @@ describe("Tier 1 — F9: Accountless Multi-Hazard Commune Push Topics", () => {
 
     const msgs = quakeFcmFn!({
       broadcastId: "brd-quake-m46",
+      earthquakeId: quake.id,
       magnitude: quake.properties.mag,
       severity: "Severe",
       communeCodes: bejaiaCommunes,
@@ -772,7 +817,7 @@ describe("Tier 1 — F12: User-Facing 'Test my notifications' & AR/FR OEM Batter
     expect(pushTestSrc).toMatch(/rate|limit|cooldown|window/i);
   });
 
-  it("F12.2: self-test push payload targets alerts_test channel and self_test provenance kind, never public commune topics", () => {
+  it("F12.2: self-test push payload targets alerts_test channel and self_test provenance kind, never public commune topics", async () => {
     const pushTestSrc = readRepoFile("src/lib/push-test.server.ts");
     const publicTestSrc = repoFileExists(
       "src/routes/api/public/v1/push-test.ts",
@@ -781,9 +826,35 @@ describe("Tier 1 — F12: User-Facing 'Test my notifications' & AR/FR OEM Batter
       : "";
     const combined = `${pushTestSrc}\n${publicTestSrc}`;
 
-    expect(combined).toMatch(/alerts_test|resolveNotificationChannel/);
-    expect(combined).toMatch(/self_test/);
+    expect(combined).toMatch(/fcmMessageForSelfTest/);
     expect(combined).not.toMatch(/v1\.commune\./);
+
+    const fcmMod = await importRepoModule<{
+      fcmMessageForSelfTest: (args: {
+        token: string;
+        testId: string;
+        lang?: "ar" | "fr" | "en" | "kab";
+        observedAt?: string;
+      }) => {
+        token: string;
+        topic?: string;
+        android: { notification: { channel_id: string } };
+        data: Record<string, string>;
+      };
+    }>("src/lib/fcm.ts");
+
+    const msg = fcmMod.fcmMessageForSelfTest({
+      token: "e2e-self-test-device-token",
+      testId: "test-1234",
+      lang: "fr",
+      observedAt: "2026-11-24T12:00:00Z",
+    });
+
+    expect(msg.token).toBe("e2e-self-test-device-token");
+    expect("topic" in msg).toBe(false);
+    expect(msg.android.notification.channel_id).toBe("alerts_test");
+    expect(msg.data["channel_id"]).toBe("alerts_test");
+    expect(msg.data["provenance_trigger"]).toBe("self_test");
   });
 
   it("F12.3: OemBatteryGuide component covers major Algerian-market Android OEMs (Xiaomi, Samsung, Huawei/Honor, Oppo/Realme, Tecno/Infinix)", () => {
@@ -826,56 +897,87 @@ describe("Tier 1 — F12: User-Facing 'Test my notifications' & AR/FR OEM Batter
 
 describe("Tier 1 — F13: Automated WhatsApp Channel & Resend Zone Email Digest Pipelines", () => {
   it("F13.1: whatsapp-channel.server.ts formats approved CAP/official broadcast payloads with verbatim attribution, Algiers timestamp, provenance footer, and nadhir.app link", async () => {
-    const waMod = await importRepoModule<Record<string, unknown>>(
-      "src/lib/delivery/whatsapp-channel.server.ts",
-    );
-    const formatFn = findCallable(waMod, [
-      "formatWhatsAppBroadcast",
-      "formatWhatsAppChannelMessage",
-      "buildWhatsAppBroadcastPayload",
-      "formatWhatsAppMessage",
-    ]);
-    expect(
-      formatFn,
-      "whatsapp-channel.server.ts must export message formatter",
-    ).not.toBeNull();
+    const waMod = await importRepoModule<{
+      formatWhatsappBroadcastMessage: (input: {
+        candidate: {
+          id: string;
+          kind: string;
+          phase: string;
+          severity: string;
+          areaLabel?: string;
+          headline: string;
+          summary?: string;
+          sourceKey?: string;
+          sourceAttribution?: string;
+          observedAt: string;
+          communeCode?: string;
+        };
+        locale: "ar" | "fr" | "en" | "kab";
+      }) => {
+        text: string;
+        deepLink: string;
+        provenanceFooter: string;
+        algiersTimestamp: string;
+      };
+    }>("src/lib/delivery/whatsapp-channel.server.ts");
 
-    const formatted = formatFn!({
-      id: "brd-wa-01",
-      kind: "onm",
-      severity: "Severe",
-      areaLabel: "Alger, Tipaza",
-      headline: "BMS Pluies Niveau 2 (Orange)",
-      body: "Cumuls estimés entre 40 mm et 60 mm.",
-      sourceKey: "onm",
-      sourceAttribution: "Office National de la Météorologie (ONM)",
-      observedAt: "2026-11-24T12:00:00Z",
-      url: "https://nadhir.app/forecast?commune=1601",
+    expect(typeof waMod.formatWhatsappBroadcastMessage).toBe("function");
+
+    const formatted = waMod.formatWhatsappBroadcastMessage({
+      candidate: {
+        id: "brd-wa-01",
+        kind: "onm",
+        phase: "initial",
+        severity: "Severe",
+        areaLabel: "Alger, Tipaza",
+        headline: "BMS Pluies Niveau 2 (Orange)",
+        summary: "Cumuls estimés entre 40 mm et 60 mm.",
+        sourceKey: "onm",
+        sourceAttribution: "Office National de la Météorologie (ONM)",
+        observedAt: "2026-11-24T12:00:00Z",
+        communeCode: "1601",
+      },
       locale: "fr",
     });
 
-    const text =
-      typeof formatted === "string" ? formatted : JSON.stringify(formatted);
-    expect(text).toContain("Office National de la Météorologie (ONM)");
-    expect(text).toContain("nadhir.app");
-    expect(text).toMatch(/\d{2}:\d{2}/);
-    expect(findBannedSafeLabels(text)).toEqual([]);
+    expect(formatted.text).toContain(
+      "Office National de la Météorologie (ONM)",
+    );
+    expect(formatted.text).toContain("nadhir.app");
+    expect(formatted.deepLink).toContain("https://nadhir.app/");
+    expect(formatted.algiersTimestamp).toMatch(/\d{2}:\d{2}/);
+    expect(formatted.provenanceFooter.length).toBeGreaterThan(10);
+    expect(formatted.text).toContain(formatted.provenanceFooter);
+    expect(findBannedSafeLabels(formatted.text)).toEqual([]);
+    expect(findEmDashesInText(formatted.text).count).toBe(0);
   });
 
   it("F13.2: WhatsApp Channel publisher delivers cleanly to mocked local HTTP transport with deduplication/receipt handling", async () => {
-    const waMod = await importRepoModule<Record<string, unknown>>(
-      "src/lib/delivery/whatsapp-channel.server.ts",
-    );
-    const publishFn = findCallable(waMod, [
-      "publishToWhatsAppChannel",
-      "sendWhatsAppChannelBroadcast",
-      "deliverWhatsAppChannelMessage",
-      "sendWhatsAppMessage",
-    ]);
-    expect(
-      publishFn,
-      "whatsapp-channel.server.ts must export publisher function",
-    ).not.toBeNull();
+    const waMod = await importRepoModule<{
+      createMetaWhatsAppChannelTransport: (opts: {
+        accessToken: string;
+        apiUrl?: string;
+      }) => unknown;
+      deliverWhatsappChannelBroadcasts: (opts: {
+        env?: Record<string, string | undefined>;
+        transport?: unknown;
+        store?: unknown;
+        channelTarget?: string;
+        locales?: Array<"ar" | "fr" | "en" | "kab">;
+        candidates?: Array<Record<string, unknown>>;
+        now?: Date;
+      }) => Promise<{
+        disabled: boolean;
+        unconfigured: boolean;
+        enqueued: number;
+        sent: number;
+        failed: number;
+        skipped: number;
+      }>;
+    }>("src/lib/delivery/whatsapp-channel.server.ts");
+
+    expect(typeof waMod.createMetaWhatsAppChannelTransport).toBe("function");
+    expect(typeof waMod.deliverWhatsappChannelBroadcasts).toBe("function");
 
     const mockWa = await startMockHttpServer(() => ({
       status: 200,
@@ -884,100 +986,250 @@ describe("Tier 1 — F13: Automated WhatsApp Channel & Resend Zone Email Digest 
     }));
 
     try {
-      const outcome = await publishFn!(
-        {
-          id: "brd-wa-send-01",
-          kind: "official",
-          sourceKey: "dgpc_telegram",
-          sourceAttribution: "DGPC",
-          areaLabel: "Bab El Oued",
-          headline: "Intervention DGPC inondations",
-          body: "Pompage des eaux pluviales en cours.",
-          text: "DGPC · Bab El Oued · 16:10 CET · https://nadhir.app",
-          observedAt: "2026-11-24T15:10:00Z",
-          url: "https://nadhir.app/incident/dgpc-01",
-        },
-        {
-          apiUrl: `${mockWa.url}/v20.0/channel/messages`,
-          endpoint: `${mockWa.url}/v20.0/channel/messages`,
-          token: "test-wa-token",
-          accessToken: "test-wa-token",
-          channelId: "channel-dz-test",
-          enabled: true,
-        },
-      );
+      const seenDedupeKeys = new Set<string>();
+      const queue: Array<{
+        id: string;
+        broadcast_id: string;
+        channel_target: string;
+        locale: string;
+        dedupe_key: string;
+        state: string;
+        attempts: number;
+        expires_at: string;
+        lease_token: string;
+        last_error: null;
+        payload: Record<string, unknown>;
+      }> = [];
+      const receipts: Array<{
+        id: string;
+        delivered: boolean;
+        providerMessageId?: string | null;
+      }> = [];
 
-      expect(outcome).toBeTruthy();
-      expect(mockWa.requests.length).toBeGreaterThanOrEqual(1);
+      const store = {
+        isGlobalBroadcastEnabled: async () => true,
+        isPipelineActive: async () => true,
+        enqueueBroadcast: async (input: {
+          broadcastId: string;
+          channelTarget: string;
+          locale: string;
+          dedupeKey: string;
+          payload: Record<string, unknown>;
+          expiresAt: string | null;
+        }) => {
+          if (seenDedupeKeys.has(input.dedupeKey)) return null;
+          seenDedupeKeys.add(input.dedupeKey);
+          const id = `wa-row-${queue.length + 1}`;
+          queue.push({
+            id,
+            broadcast_id: input.broadcastId,
+            channel_target: input.channelTarget,
+            locale: input.locale,
+            dedupe_key: input.dedupeKey,
+            state: "pending",
+            attempts: 1,
+            expires_at: input.expiresAt ?? "2026-11-25T15:10:00Z",
+            lease_token: "lease-e2e-wa-1",
+            last_error: null,
+            payload: input.payload,
+          });
+          return id;
+        },
+        claimDeliveries: async () =>
+          queue.filter((row) => row.state === "pending"),
+        finishDelivery: async (input: {
+          id: string;
+          leaseToken: string;
+          delivered: boolean;
+          providerMessageId?: string | null;
+        }) => {
+          const row = queue.find((r) => r.id === input.id);
+          if (row) row.state = input.delivered ? "sent" : "failed";
+          receipts.push({
+            id: input.id,
+            delivered: input.delivered,
+            providerMessageId: input.providerMessageId,
+          });
+          return true;
+        },
+      };
+
+      const transport = waMod.createMetaWhatsAppChannelTransport({
+        accessToken: "test-wa-token",
+        apiUrl: `${mockWa.url}/v21.0`,
+      });
+      const candidate = {
+        id: "brd-wa-send-01",
+        kind: "official",
+        phase: "initial",
+        severity: "Severe",
+        hazard: "flood",
+        sourceKey: "dgpc_telegram",
+        sourceAttribution: "DGPC",
+        areaLabel: "Bab El Oued",
+        headline: "Intervention DGPC inondations",
+        summary: "Pompage des eaux pluviales en cours.",
+        observedAt: "2026-11-24T15:10:00Z",
+        officialIncidentId: "dgpc-01",
+      };
+
+      const firstRun = await waMod.deliverWhatsappChannelBroadcasts({
+        env: {
+          WHATSAPP_CHANNEL_ENABLED: "true",
+          WHATSAPP_CHANNEL_ID: "channel-dz-test",
+          WHATSAPP_ACCESS_TOKEN: "test-wa-token",
+        },
+        transport,
+        store,
+        channelTarget: "channel-dz-test",
+        locales: ["fr"],
+        candidates: [candidate],
+        now: new Date("2026-11-24T15:15:00Z"),
+      });
+
+      expect(firstRun.disabled).toBe(false);
+      expect(firstRun.unconfigured).toBe(false);
+      expect(firstRun.enqueued).toBe(1);
+      expect(firstRun.sent).toBe(1);
+      expect(firstRun.failed).toBe(0);
+      expect(mockWa.requests.length).toBe(1);
+      expect(receipts).toEqual([
+        {
+          id: "wa-row-1",
+          delivered: true,
+          providerMessageId: "wamid.e2e.12345",
+        },
+      ]);
+
+      // Deduplication check: replaying the same broadcast must not re-send
+      const secondRun = await waMod.deliverWhatsappChannelBroadcasts({
+        env: {
+          WHATSAPP_CHANNEL_ENABLED: "true",
+          WHATSAPP_CHANNEL_ID: "channel-dz-test",
+          WHATSAPP_ACCESS_TOKEN: "test-wa-token",
+        },
+        transport,
+        store,
+        channelTarget: "channel-dz-test",
+        locales: ["fr"],
+        candidates: [candidate],
+        now: new Date("2026-11-24T15:16:00Z"),
+      });
+      expect(secondRun.enqueued).toBe(0);
+      expect(secondRun.sent).toBe(0);
+      expect(secondRun.skipped).toBe(1);
+      expect(mockWa.requests.length).toBe(1);
     } finally {
       await mockWa.close();
     }
   });
 
   it("F13.3: email-digest.server.ts generates localized Resend zone email digests across ar/fr/en/kab with attribution, provenance, and unsubscribe link", async () => {
-    const digestMod = await importRepoModule<Record<string, unknown>>(
-      "src/lib/delivery/email-digest.server.ts",
-    );
-    const buildFn = findCallable(digestMod, [
-      "buildZoneEmailDigest",
-      "renderZoneEmailDigest",
-      "formatEmailDigest",
-      "buildDigestEmail",
-    ]);
-    expect(
-      buildFn,
-      "email-digest.server.ts must export digest builder/renderer",
-    ).not.toBeNull();
+    const digestMod = await importRepoModule<{
+      renderZoneDigestEmail: (input: {
+        locale: "ar" | "fr" | "en" | "kab";
+        alerts: Array<{
+          id: string;
+          kind: string;
+          severity: number;
+          title: string;
+          body: string;
+          created_at: string;
+          zone_name?: string | null;
+          source_table?: string | null;
+          payload?: Record<string, unknown> | null;
+          deep_link?: string | null;
+        }>;
+        urgentBypass: boolean;
+        manageUrl?: string;
+      }) => {
+        subject: string;
+        html: string;
+        text: string;
+        dir: "rtl" | "ltr";
+        provenanceLines: string[];
+      };
+    }>("src/lib/delivery/email-digest.server.ts");
+
+    expect(typeof digestMod.renderZoneDigestEmail).toBe("function");
 
     for (const locale of ["ar", "fr", "en", "kab"] as const) {
-      const rendered = buildFn!({
+      const rendered = digestMod.renderZoneDigestEmail({
         locale,
-        recipientEmail: "citizen@example.dz",
-        zoneName: "Alger Centre",
-        unsubscribeUrl: "https://nadhir.app/settings#notifications",
-        preferencesUrl: "https://nadhir.app/settings",
-        items: [
+        urgentBypass: false,
+        manageUrl: "https://nadhir.app/settings#notifications",
+        alerts: [
           {
             id: "alert-1",
             kind: "onm",
+            severity: 3,
             title: "BMS Pluies Niveau 2",
-            areaLabel: "Alger",
-            sourceKey: "onm",
-            sourceAttribution: "Office National de la Météorologie (ONM)",
-            observedAt: "2026-11-24T12:00:00Z",
-            url: "https://nadhir.app/forecast?commune=1601",
+            body: "Cumuls estimés entre 40 mm et 60 mm.",
+            created_at: "2026-11-24T12:00:00Z",
+            zone_name: "Alger Centre",
+            source_table: "onm_vigilance",
+            deep_link: "https://nadhir.app/forecast?commune=1601",
+            payload: {
+              provenance_trigger: "watch_zone",
+              provenance_area: "Alger Centre",
+              provenance_source_key: "onm",
+              provenance_source: "Office National de la Météorologie (ONM)",
+              provenance_rule: "provenance.rule.onmSevere",
+              provenance_observed_at: "2026-11-24T12:00:00Z",
+            },
           },
         ],
       });
 
-      const serialized =
-        typeof rendered === "string" ? rendered : JSON.stringify(rendered);
+      expect(rendered.dir).toBe(locale === "ar" ? "rtl" : "ltr");
+      expect(rendered.provenanceLines.length).toBeGreaterThanOrEqual(1);
       expect(
-        serialized,
-        `digest in ${locale} must preserve ONM attribution`,
+        rendered.text,
+        `digest text in ${locale} must preserve ONM attribution`,
       ).toContain("Office National de la Météorologie (ONM)");
       expect(
-        serialized,
-        `digest in ${locale} must include settings/unsubscribe link`,
+        rendered.html,
+        `digest HTML in ${locale} must preserve ONM attribution`,
+      ).toContain("Office National de la Météorologie (ONM)");
+      expect(
+        rendered.html,
+        `digest HTML in ${locale} must include settings/unsubscribe link`,
       ).toContain("nadhir.app/settings");
-      expect(findBannedSafeLabels(serialized)).toEqual([]);
+      expect(
+        rendered.text,
+        `digest text in ${locale} must include settings/unsubscribe link`,
+      ).toContain("nadhir.app/settings");
+      expect(findBannedSafeLabels(rendered.text)).toEqual([]);
+      expect(findBannedSafeLabels(stripHtmlForTextScan(rendered.html))).toEqual(
+        [],
+      );
+      expect(findEmDashesInText(rendered.text).count).toBe(0);
     }
   });
 
   it("F13.4: Resend email digest sender delivers to mocked local Resend HTTP server and tracks 200 OK receipt", async () => {
-    const digestMod = await importRepoModule<Record<string, unknown>>(
-      "src/lib/delivery/email-digest.server.ts",
-    );
-    const sendFn = findCallable(digestMod, [
-      "sendZoneEmailDigest",
-      "sendDigestEmail",
-      "deliverEmailDigest",
-      "sendResendEmail",
-    ]);
-    expect(
-      sendFn,
-      "email-digest.server.ts must export Resend delivery function",
-    ).not.toBeNull();
+    const digestMod = await importRepoModule<{
+      createResendEmailTransport: (opts: {
+        apiKey: string;
+        apiUrl?: string;
+      }) => unknown;
+      deliverZoneEmailDigests: (opts: {
+        env?: Record<string, string | undefined>;
+        transport?: unknown;
+        store?: unknown;
+        fromEmail?: string;
+        now?: Date;
+      }) => Promise<{
+        disabled: boolean;
+        unconfigured: boolean;
+        usersChecked: number;
+        sent: number;
+        failed: number;
+      }>;
+    }>("src/lib/delivery/email-digest.server.ts");
+
+    expect(typeof digestMod.createResendEmailTransport).toBe("function");
+    expect(typeof digestMod.deliverZoneEmailDigests).toBe("function");
 
     const mockResend = await startMockHttpServer(() => ({
       status: 200,
@@ -986,77 +1238,170 @@ describe("Tier 1 — F13: Automated WhatsApp Channel & Resend Zone Email Digest 
     }));
 
     try {
-      const result = await sendFn!(
-        {
-          to: "citizen@example.dz",
-          recipientEmail: "citizen@example.dz",
-          locale: "fr",
-          zoneName: "Alger",
-          subject: "Nadhir · Synthèse alertes Alger",
-          html: "<p>ONM · BMS Pluies</p><a href='https://nadhir.app/settings'>Gérer</a>",
-          text: "ONM · BMS Pluies · https://nadhir.app/settings",
-          unsubscribeUrl: "https://nadhir.app/settings",
-          items: [
-            {
-              id: "alert-1",
-              kind: "onm",
-              title: "BMS Pluies",
-              areaLabel: "Alger",
-              sourceKey: "onm",
-              sourceAttribution: "ONM",
-              observedAt: "2026-11-24T12:00:00Z",
-              url: "https://nadhir.app/forecast",
-            },
-          ],
-        },
-        {
-          apiUrl: `${mockResend.url}/emails`,
-          endpoint: `${mockResend.url}/emails`,
-          apiKey: "re_test_key_local",
-          from: "alerts@nadhir.app",
-          enabled: true,
-        },
-      );
+      const finished: Array<{
+        id: string;
+        sent: boolean;
+        providerMessageId?: string | null;
+      }> = [];
+      let listedOnce = false;
 
-      expect(result).toBeTruthy();
-      expect(mockResend.requests.length).toBeGreaterThanOrEqual(1);
+      const store = {
+        isPipelineActive: async () => true,
+        listPendingUsers: async () => {
+          if (listedOnce) return [];
+          listedOnce = true;
+          return [
+            {
+              user_id: "user-e2e-1",
+              email: "citizen@example.dz",
+              display_name: "Citoyen Alger",
+              locale: "fr",
+              email_digest_frequency: "immediate" as const,
+              email_digest_hour_algiers: 8,
+              quiet_hours_start: null,
+              quiet_hours_end: null,
+              last_sent_at: null,
+            },
+          ];
+        },
+        loadUndeliveredAlerts: async () => [
+          {
+            id: "alert-1",
+            kind: "onm",
+            severity: 3,
+            title: "BMS Pluies",
+            body: "Cumuls estimés entre 40 mm et 60 mm.",
+            created_at: "2026-11-24T12:00:00Z",
+            zone_name: "Alger",
+            source_table: "onm_vigilance",
+            payload: {
+              provenance_trigger: "watch_zone",
+              provenance_area: "Alger",
+              provenance_source_key: "onm",
+              provenance_source: "Office National de la Météorologie (ONM)",
+              provenance_rule: "provenance.rule.onmSevere",
+              provenance_observed_at: "2026-11-24T12:00:00Z",
+            },
+          },
+        ],
+        claimDigestDelivery: async () => ({
+          id: "digest-e2e-1",
+          lease_token: "lease-e2e-digest-1",
+          attempts: 1,
+        }),
+        finishDigestDelivery: async (input: {
+          id: string;
+          sent: boolean;
+          providerMessageId?: string | null;
+        }) => {
+          finished.push({
+            id: input.id,
+            sent: input.sent,
+            providerMessageId: input.providerMessageId,
+          });
+          return true;
+        },
+      };
+
+      const transport = digestMod.createResendEmailTransport({
+        apiKey: "re_test_key_local",
+        apiUrl: `${mockResend.url}/emails`,
+      });
+
+      const result = await digestMod.deliverZoneEmailDigests({
+        env: {
+          EMAIL_DIGEST_ENABLED: "true",
+          RESEND_API_KEY: "re_test_key_local",
+        },
+        transport,
+        store,
+        fromEmail: "Nadhir <alerts@nadhir.app>",
+        now: new Date("2026-11-24T12:15:00Z"),
+      });
+
+      expect(result.disabled).toBe(false);
+      expect(result.unconfigured).toBe(false);
+      expect(result.usersChecked).toBe(1);
+      expect(result.sent).toBe(1);
+      expect(result.failed).toBe(0);
+      expect(mockResend.requests.length).toBe(1);
+      expect(finished).toEqual([
+        {
+          id: "digest-e2e-1",
+          sent: true,
+          providerMessageId: "re_e2e_receipt_999",
+        },
+      ]);
     } finally {
       await mockResend.close();
     }
   });
 
   it("F13.5: ITA community media posts and unattributed model outputs are excluded from WhatsApp Channel broadcasts", async () => {
-    const waSrc = readRepoFile("src/lib/delivery/whatsapp-channel.server.ts");
-    const waMod = await importRepoModule<Record<string, unknown>>(
-      "src/lib/delivery/whatsapp-channel.server.ts",
-    );
-    const eligibleFn = findCallable(waMod, [
-      "isWhatsAppChannelEligible",
-      "isEligibleForWhatsAppChannel",
-      "canPublishToWhatsAppChannel",
-    ]);
+    const waMod = await importRepoModule<{
+      evaluateWhatsappBroadcastEligibility: (
+        input: Record<string, unknown>,
+        now?: Date,
+      ) => { eligible: boolean; reason?: string };
+    }>("src/lib/delivery/whatsapp-channel.server.ts");
 
-    if (eligibleFn) {
-      const itaPost = buildDgpcNonFirePost({ kind: "ita_media" });
-      expect(
-        eligibleFn({
-          sourceKey: itaPost.sourceKey,
-          kind: "civil",
-          sourceAttribution: itaPost.sourceAttribution,
-        }),
-      ).toBe(false);
-      expect(
-        eligibleFn({
-          sourceKey: "open_meteo",
-          kind: "model",
-          sourceAttribution: "",
-        }),
-      ).toBe(false);
-    } else {
-      // Contract fallback check: source must explicitly gate eligible official/CAP kinds and exclude ITA/model
-      expect(waSrc).toMatch(/ita_facebook|civil|official|onm|cap/i);
-      expect(waSrc).toMatch(/eligible|allow|exclude|filter/i);
-    }
+    expect(typeof waMod.evaluateWhatsappBroadcastEligibility).toBe("function");
+
+    const now = new Date("2026-11-24T12:30:00Z");
+    const itaPost = buildDgpcNonFirePost({ kind: "ita_media" });
+
+    const itaRes = waMod.evaluateWhatsappBroadcastEligibility(
+      {
+        id: itaPost.postId,
+        kind: "official",
+        phase: "initial",
+        severity: "Severe",
+        sourceKey: itaPost.sourceKey,
+        sourceAttribution: itaPost.sourceAttribution,
+        authorityTier: "media",
+        observedAt: itaPost.publishedAt,
+        headline: itaPost.textFr,
+      },
+      now,
+    );
+    expect(itaRes.eligible).toBe(false);
+    expect(itaRes.reason).toBe("ita_media_excluded");
+
+    const modelRes = waMod.evaluateWhatsappBroadcastEligibility(
+      {
+        id: "model-grid-01",
+        kind: "onm",
+        phase: "initial",
+        severity: "Severe",
+        sourceKey: "open_meteo",
+        sourceAttribution: "",
+        authorityStatus: "model",
+        observedAt: "2026-11-24T12:00:00Z",
+        headline: "Model forecast rain",
+      },
+      now,
+    );
+    expect(modelRes.eligible).toBe(false);
+    expect(modelRes.reason).toBe("model_output_excluded");
+
+    // Non-vacuous positive control: valid current ONM Severe warning IS eligible
+    const onmRes = waMod.evaluateWhatsappBroadcastEligibility(
+      {
+        id: "onm-valid-01",
+        kind: "onm",
+        phase: "initial",
+        severity: "Severe",
+        msgType: "Alert",
+        sourceKey: "onm",
+        sourceAttribution: "Office National de la Météorologie (ONM)",
+        observedAt: "2026-11-24T12:00:00Z",
+        sentAt: "2026-11-24T12:00:00Z",
+        expiresAt: "2026-11-24T22:00:00Z",
+        headline: "BMS Pluies Niveau 2",
+      },
+      now,
+    );
+    expect(onmRes.eligible).toBe(true);
   });
 
   it("F13.6: WhatsApp Channel and Resend digest pipelines respect kill-switch / missing credentials without unhandled crashes", async () => {

@@ -342,6 +342,40 @@ describe("buildOfficialCap", () => {
       `alerts@nadhir.app,${floodCap.identifier},${floodCap.sent}`,
     );
   });
+
+  it("resolves CAP 1.2 category from optional kind when category is omitted", () => {
+    const cases: Array<{ kind: string; expected: string }> = [
+      { kind: "flood", expected: "Met" },
+      { kind: "storm", expected: "Met" },
+      { kind: "road", expected: "Transport" },
+      { kind: "structure", expected: "Safety" },
+      { kind: "vegetation", expected: "Fire" },
+    ];
+
+    for (const { kind, expected } of cases) {
+      const built = buildOfficialCap({
+        incidentId: `3f2a9b71-0000-4000-8000-0000000000${kind.slice(0, 2)}`,
+        kind,
+        areaDesc: "Bab El Oued, Alger",
+        sentAt: new Date("2026-11-24T10:00:00Z"),
+        asOf: new Date("2026-11-24T09:00:00Z"),
+        texts: [{ ...texts[0]!, event: kind, instruction: "" }],
+      });
+      expect(built.info[0]!.category).toBe(expected);
+    }
+
+    // Explicit category continues to override kind
+    const overridden = buildOfficialCap({
+      incidentId: "3f2a9b71-0000-4000-8000-000000000099",
+      kind: "flood",
+      category: "Safety",
+      areaDesc: "Bab El Oued, Alger",
+      sentAt: new Date("2026-11-24T10:00:00Z"),
+      asOf: new Date("2026-11-24T09:00:00Z"),
+      texts: [{ ...texts[0]!, event: "Inondation", instruction: "" }],
+    });
+    expect(overridden.info[0]!.category).toBe("Safety");
+  });
 });
 
 describe("buildEarthquakeCap (F9)", () => {

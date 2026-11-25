@@ -102,10 +102,34 @@ describe("Tier 1 — F18: Observed 30-Min Satellite Rainfall (NASA IMERG Early /
     expect(parseFn, `Parser export missing in ${modPath}`).not.toBeNull();
 
     const fixture = buildImergFixture();
-    const parsed = parseFn!(fixture);
+    const producerPayload = {
+      valid_time: fixture.windowEnd,
+      published_time: fixture.windowEnd,
+      window_minutes: 30,
+      observation_kind: "satellite_observed",
+      cells: fixture.cells.map((cell) => ({
+        lat: cell.lat,
+        lon: cell.lon,
+        rate_mm_h: cell.mmPerHour,
+        accum_mm_30m: cell.mm30m,
+      })),
+    };
+    const parsed = (await parseFn!(producerPayload)) as {
+      observations?: Array<{
+        lat: number;
+        lon: number;
+        rateMmH: number;
+        accumMm30m: number;
+      }>;
+    };
     expect(parsed).toBeTruthy();
-    const serialized = JSON.stringify(parsed);
-    expect(serialized).toMatch(/28\.4|56\.8|16/);
+    expect(parsed.observations?.length).toBeGreaterThanOrEqual(2);
+    const algiersObs = parsed.observations?.find(
+      (o) => Math.abs(o.lat - 36.75) < 0.05 && Math.abs(o.lon - 3.05) < 0.05,
+    );
+    expect(algiersObs).toBeDefined();
+    expect(algiersObs?.rateMmH).toBeCloseTo(56.8, 1);
+    expect(algiersObs?.accumMm30m).toBeCloseTo(28.4, 1);
   });
 
   it("F18.3: observed satellite precipitation stays strictly distinct from Open-Meteo model rainfall", () => {
@@ -177,6 +201,7 @@ describe("Tier 1 — F19: Hardened Gendarmerie Tariki Road-Danger Source", () =>
 
     const mod = await importRepoModule<Record<string, unknown>>(modPath!);
     const filterFn = findCallable(mod, [
+      "classifyTarikiPostPreFilter",
       "classifyTarikiPost",
       "isTarikiRoadDanger",
       "isTarikiDangerPost",
@@ -197,6 +222,10 @@ describe("Tier 1 — F19: Hardened Gendarmerie Tariki Road-Danger Source", () =>
 
     const isAccepted = (res: unknown): boolean => {
       if (typeof res === "boolean") return res;
+      if (typeof res === "string") {
+        if (res === "candidate") return true;
+        if (res.startsWith("ignore")) return false;
+      }
       if (res && typeof res === "object") {
         const rec = res as Record<string, unknown>;
         if (typeof rec.accepted === "boolean") return rec.accepted;
@@ -232,37 +261,37 @@ describe("Tier 1 — F19: Hardened Gendarmerie Tariki Road-Danger Source", () =>
   });
 
   it("F19.4: verbatim quote guard accepts valid Tariki quotes normalized across tatweel (\\u0640), emoji, and hashtags", async () => {
-    const modPath = findFirstExisting([
-      "src/lib/text-sources/tariki.ts",
-      "src/lib/text-sources/normalize.ts",
-    ]);
-    expect(modPath).not.toBeNull();
+    const situationMod = await importRepoModule<{
+      comparable: (s: string) => string;
+      copiedFrom: (span: string, post: string) => boolean;
+    }>("src/lib/text-sources/dgpc-situation.server.ts");
 
-    const mod = await importRepoModule<Record<string, unknown>>(modPath!);
-    const normalizeFn = findCallable(mod, [
-      "normalizeTarikiText",
-      "normalizeForQuoteMatch",
-      "verifyTarikiQuote",
-      "matchesVerbatimQuote",
-      "stripTatweel",
-    ]);
-    expect(
-      normalizeFn,
-      "Quote normalization/guard function must be exported",
-    ).not.toBeNull();
+    expect(typeof situationMod.comparable).toBe("function");
+    expect(typeof situationMod.copiedFrom).toBe("function");
 
     const noisy = buildTarikiPost({ kind: "tatweel_hashtag_emoji" });
-    const cleanQuote = "الطريق الوطني رقم 11 مغلق بسبب الفيضان بولاية تيبازة";
+    const normalized = situationMod.comparable(noisy.rawText);
+    expect(normalized).not.toContain("\u0640");
+    expect(normalized).not.toContain("#");
+    expect(normalized).not.toContain("_");
+    expect(normalized).not.toContain("🚨");
+    expect(normalized).toContain("الطريق الوطني رقم 11");
+    expect(normalized).toContain("مغلق بسبب الفيضان بولاية تيبازة");
 
-    const res = normalizeFn!(noisy.rawText, cleanQuote);
-    if (typeof res === "boolean") {
-      expect(res).toBe(true);
-    } else if (typeof res === "string") {
-      expect(res).not.toContain("\u0640");
-      expect(res).toContain("الطريق");
-    } else {
-      expect(res).toBeTruthy();
-    }
+    // Verbatim quote guard must accept true contiguous spans after tatweel/emoji/hashtag normalization
+    expect(
+      situationMod.copiedFrom(
+        "الطريق الوطني رقم 11 طريقي RN11 مغلق بسبب الفيضان بولاية تيبازة",
+        noisy.rawText,
+      ),
+    ).toBe(true);
+    expect(
+      situationMod.copiedFrom("مغلق بسبب الفيضان بولاية تيبازة", noisy.rawText),
+    ).toBe(true);
+    // And reject fabricated quotes not present in the post
+    expect(situationMod.copiedFrom("حريق غابة في بجاية", noisy.rawText)).toBe(
+      false,
+    );
   });
 
   it("F19.5: Tariki road-danger source never grants 'confirmed' status to wildfire incidents", () => {
@@ -281,6 +310,7 @@ describe("Tier 1 — F19: Hardened Gendarmerie Tariki Road-Danger Source", () =>
 describe("Tier 1 — F20: CRAAG Official Earthquake Attribution Matcher + EMSC M2+ Feed", () => {
   it("F20.1: EMSC adapter retains M2+ real-time feed filter and ingests buildEmscEvent()", async () => {
     const emscMod = await importRepoModule<{
+      EMSC_MIN_MAGNITUDE: number;
       parseEmsc: (body: unknown) => Array<{
         id: string;
         magnitude: number;
@@ -288,6 +318,8 @@ describe("Tier 1 — F20: CRAAG Official Earthquake Attribution Matcher + EMSC M
         lon: number;
       }>;
     }>("src/lib/ingest/emsc.ts");
+
+    expect(emscMod.EMSC_MIN_MAGNITUDE).toBe(2);
 
     const ev = buildEmscEvent({ mag: 2.4, lat: 36.7525, lon: 5.0556 });
     const parsed = emscMod.parseEmsc({
@@ -309,7 +341,7 @@ describe("Tier 1 — F20: CRAAG Official Earthquake Attribution Matcher + EMSC M
     expect(parsed[0]?.magnitude).toBe(2.4);
 
     const emscServerSrc = readRepoFile("src/lib/ingest/emsc.server.ts");
-    expect(emscServerSrc).toMatch(/minmag=2|MIN_MAG\s*=\s*2/i);
+    expect(emscServerSrc).toMatch(/minmagnitude[\s\S]*EMSC_MIN_MAGNITUDE/);
   });
 
   it("F20.2: CRAAG contract is registered in source_contracts under M6-1 as national official seismological authority", () => {
@@ -372,16 +404,23 @@ describe("Tier 1 — F20: CRAAG Official Earthquake Attribution Matcher + EMSC M
       depth_km: emsc.properties.depth,
     };
     const craagRecord = {
+      bulletinId: "craag-20261124-01",
+      observedAt: craag.eventTime,
       occurred_at: craag.eventTime,
       eventTime: craag.eventTime,
       lat: craag.lat,
       lon: craag.lon,
       magnitude: craag.magnitude,
+      magnitudeType: "ml",
+      depthKm: craag.depthKm,
       depth_km: craag.depthKm,
+      place: craag.locationFr,
       location_fr: craag.locationFr,
       location_ar: craag.locationAr,
+      sourceUrl: craag.bulletinUrl,
       url: craag.bulletinUrl,
       bulletinUrl: craag.bulletinUrl,
+      attribution: "CRAAG",
     };
 
     const matched = matchFn!(craagRecord, [emscRecord]);
@@ -422,16 +461,24 @@ describe("Tier 1 — F20: CRAAG Official Earthquake Attribution Matcher + EMSC M
 
     const result = matchFn!(
       {
+        bulletinId: "craag-20261124-02",
+        observedAt: craag.eventTime,
         occurred_at: craag.eventTime,
         eventTime: craag.eventTime,
         lat: craag.lat,
         lon: craag.lon,
+        depthKm: craag.depthKm,
         magnitude: craag.magnitude,
+        magnitudeType: "ml",
+        place: craag.locationFr,
+        sourceUrl: craag.bulletinUrl,
         url: craag.bulletinUrl,
+        attribution: "CRAAG",
       },
       [distantEmsc],
     );
 
+    expect(result).toBeNull();
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain("20261124_far_away");
   });
@@ -466,8 +513,28 @@ describe("Tier 1 — F21: 5 Post-Worker Scientific Sources + M6 Gate & national-
     ]);
     expect(modPath).not.toBeNull();
     const src = readRepoFile(modPath!);
-    expect(src).not.toContain("EO:EUM:DAT:0665");
     expect(src).toMatch(/isInWatchArea|watchArea|algeria/i);
+
+    const fciMod = await importRepoModule<{
+      MTG_FCI_PUSH_ATTRIBUTION: string;
+      validateMtgFciPushProductId: (id: string) => string;
+      parseMtgFciPushJson: (payload: unknown) => unknown;
+    }>("src/lib/ingest/mtg-fci-push.ts");
+    expect(fciMod.MTG_FCI_PUSH_ATTRIBUTION).not.toContain("EO:EUM:DAT:0665");
+    expect(() => fciMod.validateMtgFciPushProductId("EO:EUM:DAT:0665")).toThrow(
+      /prohibited/i,
+    );
+    expect(() =>
+      fciMod.parseMtgFciPushJson({
+        product_id: "EO:EUM:DAT:0665",
+        slot_time: "2026-11-24T12:00:00Z",
+        published_at: "2026-11-24T12:02:00Z",
+        features: [],
+      }),
+    ).toThrow(/prohibited/i);
+    expect(fciMod.validateMtgFciPushProductId("EO:EUM:DAT:0662")).toContain(
+      "0662",
+    );
 
     const fixture = buildMtgFciFixture();
     expect(fixture.cadenceMinutes).toBeLessThanOrEqual(5);
@@ -488,11 +555,45 @@ describe("Tier 1 — F21: 5 Post-Worker Scientific Sources + M6 Gate & national-
       "src/lib/ingest/lightning.ts",
     ]);
     expect(modPath, "MTG Lightning module must exist").not.toBeNull();
-    const src = readRepoFile(modPath!);
-    expect(src).not.toMatch(/observed\s+wildfire|confirmed\s+fire/i);
+
+    const liMod = await importRepoModule<{
+      MTG_LIGHTNING_ATTRIBUTION: string;
+      parseMtgLightningJson: (payload: unknown) => {
+        observations: Array<{
+          observationKind: string;
+          isWildfire: boolean;
+        }>;
+      };
+    }>("src/lib/ingest/mtg-lightning.ts");
+    expect(liMod.MTG_LIGHTNING_ATTRIBUTION).not.toMatch(
+      /observed\s+wildfire|confirmed\s+fire/i,
+    );
+    expect(() =>
+      liMod.parseMtgLightningJson({
+        published_at: "2026-11-24T12:00:00Z",
+        is_observed_wildfire: true,
+        features: [],
+      }),
+    ).toThrow(/not an observed wildfire/i);
 
     const fixture = buildMtgLightningFixture();
     expect(fixture.flashes.length).toBeGreaterThan(0);
+    const parsed = liMod.parseMtgLightningJson({
+      published_at: fixture.slotTime,
+      product_type: "L2-LFL",
+      flashes: fixture.flashes.map((f, idx) => ({
+        flash_id: `fl-${idx + 1}`,
+        observed_at: fixture.slotTime,
+        lat: f.lat,
+        lon: f.lon,
+        radiance: f.radianceJ,
+      })),
+    });
+    expect(parsed.observations.length).toBeGreaterThan(0);
+    for (const obs of parsed.observations) {
+      expect(obs.observationKind).toBe("lightning_observation");
+      expect(obs.isWildfire).toBe(false);
+    }
   });
 
   it("F21.3: gwis (GWIS NRT Burned Areas) has contract + parser, CC BY 4.0 attribution, and observational-estimate caveat", async () => {
@@ -558,9 +659,35 @@ describe("Tier 1 — F21: 5 Post-Worker Scientific Sources + M6 Gate & national-
       "src/lib/ingest/ghsl.server.ts",
     ]);
     expect(modPath, "GHSL module must exist").not.toBeNull();
-    const src = readRepoFile(modPath!);
-    expect(src).toMatch(/modeled|modelled|resident/i);
-    expect(src).not.toMatch(/people\s+currently\s+present/i);
+
+    const ghslMod = await importRepoModule<{
+      GHSL_ATTRIBUTION: string;
+      GHSL_EXPOSURE_LABEL: string;
+      parseGhslJson: (payload: unknown) => unknown;
+    }>("src/lib/ingest/ghsl.ts");
+    expect(ghslMod.GHSL_ATTRIBUTION).toMatch(/modeled|modelled|resident/i);
+    expect(ghslMod.GHSL_EXPOSURE_LABEL).toBe("modeled_residents");
+    expect(ghslMod.GHSL_ATTRIBUTION).not.toMatch(
+      /people\s+currently\s+present/i,
+    );
+    expect(() =>
+      ghslMod.parseGhslJson({
+        epoch_year: 2025,
+        resolution_m: 100,
+        published_at: "2026-11-24T00:00:00Z",
+        exposure_label: "people currently present",
+        communes: [],
+      }),
+    ).toThrow(/rejected|modeled_residents/i);
+    expect(() =>
+      ghslMod.parseGhslJson({
+        epoch_year: 2025,
+        resolution_m: 100,
+        published_at: "2026-11-24T00:00:00Z",
+        is_live_occupancy: true,
+        communes: [],
+      }),
+    ).toThrow(/not live occupancy|people currently present/i);
 
     const fixture = buildGhslFixture();
     expect(fixture.populationWithin5km).toBeGreaterThan(0);
@@ -676,7 +803,9 @@ describe("Tier 1 — F22: Law 18-07 / Law 25-11 (ANPDP) Privacy Compliance Harde
     ).not.toBeNull();
 
     const routeSrc = readRepoFile(exportRoutePath!);
-    expect(routeSrc).toMatch(/auth|session|user|getUser/i);
+    const helperSrc = readRepoFile("src/lib/privacy-consent.server.ts");
+    expect(routeSrc).toMatch(/handlePrivacyExport/);
+    expect(`${routeSrc}\n${helperSrc}`).toMatch(/auth|session|user|getUser/i);
 
     const unauthRes = await fetchText("/api/private/privacy-export", {
       method: "GET",
@@ -778,7 +907,11 @@ describe("Tier 1 — F23: Server-Side EXIF Stripping for User Uploads", () => {
 
     const routeSrc = readRepoFile("src/routes/api/private/report-photo.ts");
     const helperSrc = readRepoFile("src/lib/report-photo.server.ts");
-    expect(`${routeSrc}\n${helperSrc}`).toMatch(/stripImageMetadata/);
+    const metadataSrc = readRepoFile("src/lib/image-metadata.ts");
+    expect(`${routeSrc}\n${helperSrc}`).toMatch(/validateAndStripReportPhoto/);
+    expect(metadataSrc).toMatch(
+      /export function validateAndStripReportPhoto[\s\S]*stripImageMetadata/,
+    );
     expect(`${routeSrc}\n${helperSrc}`).toMatch(/auth|getUser|session/i);
 
     const unauthRes = await fetchBytes("/api/private/report-photo", {
@@ -888,6 +1021,7 @@ describe("Tier 1 — F24: Cloudflare Turnstile CAPTCHA Protection", () => {
         endpoint: `${mockVerify.url}/turnstile/v0/siteverify`,
       })) as { ok?: boolean; success?: boolean };
       expect(Boolean(invalidRes?.ok ?? invalidRes?.success)).toBe(false);
+      expect(mockVerify.requests.length).toBe(1);
     } finally {
       await mockVerify.close();
     }
@@ -925,6 +1059,7 @@ describe("Tier 1 — F24: Cloudflare Turnstile CAPTCHA Protection", () => {
       })) as { ok?: boolean; success?: boolean };
 
       expect(Boolean(res?.ok ?? res?.success)).toBe(false);
+      expect(mockVerify.requests.length).toBe(1);
     } finally {
       await mockVerify.close();
     }

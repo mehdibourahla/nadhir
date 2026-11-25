@@ -1,4 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -253,6 +255,74 @@ describe("F24 verifyTurnstileToken (fail-closed Cloudflare Turnstile verifier)",
       hostname: "nadhir.app",
       challengeTs: "2026-11-25T11:00:00Z",
     });
+  });
+
+  it("accepts loopback verifyUrl against a local mock server and rejects non-loopback custom verifyUrl (SSRF guard)", async () => {
+    let seenBody = "";
+    const server = createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on("data", (chunk: Buffer) => chunks.push(chunk));
+      req.on("end", () => {
+        seenBody = Buffer.concat(chunks).toString("utf8");
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(
+          JSON.stringify({
+            success: true,
+            action: "citizen_report",
+            hostname: "nadhir.app",
+          }),
+        );
+      });
+    });
+
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", () => resolve()),
+    );
+    const { port } = server.address() as AddressInfo;
+
+    try {
+      const loopbackOk = await verifyTurnstileToken({
+        token: "local-loopback-token",
+        secretKey: SECRET,
+        verifyUrl: `http://127.0.0.1:${port}/turnstile/v0/siteverify`,
+        expectedAction: "citizen_report",
+        expectedHostname: "nadhir.app",
+      });
+      expect(loopbackOk).toEqual({
+        ok: true,
+        action: "citizen_report",
+        hostname: "nadhir.app",
+      });
+      expect(seenBody).toContain("response=local-loopback-token");
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+
+    const fetchImpl = vi.fn();
+    for (const badUrl of [
+      "https://evil.example/siteverify",
+      "http://169.254.169.254/latest/meta-data",
+      "http://127.0.0.1.evil.example/siteverify",
+      "http://user:pass@127.0.0.1:8080/siteverify",
+      "file:///etc/passwd",
+      "not-a-url",
+      "",
+    ]) {
+      const rejected = await verifyTurnstileToken({
+        token: "valid-token",
+        secretKey: SECRET,
+        verifyUrl: badUrl,
+        fetchImpl,
+      });
+      expect(rejected, `custom verifyUrl "${badUrl}" must be rejected`).toEqual(
+        {
+          ok: false,
+          status: 503,
+          reason: "invalid_verify_url",
+        },
+      );
+    }
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
 

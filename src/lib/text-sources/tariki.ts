@@ -205,12 +205,20 @@ const ALL_VEHICLES_RE =
 const HEAVY_TRUCKS_HAZARD_GUARD_RE =
   /ارتفاع منسوب المياه|فيضان|سيول|مغمور بالمياه|هبوط|انهيار|تصدع|انجراف|انزلاق|تشقق|ثلوج|جليد|صخور/;
 const CLOSURE_RE = /غلق|مغلق|تحويل حركة المرور/;
-const OPEN_WORKS_RE = /وجود اشغال|اشغال|موكب|حمولة استثنائية|تمرير اسلاك/;
+const HEAVY_TRUCKS_RESTRICTION_RE =
+  /غلق|مغلق|تحويل حركة المرور|منع(?:\s+مؤقت)?\s+(?:ل?سير|مرور)/;
+const OPEN_WORKS_RE =
+  /وجود اشغال|اشغال|موكب|حمولة استثنائية|قافلة(?:\s+استثنائية)?|مرافقة\s+قافلة|تمرير اسلاك/;
 const GREETING_RE = /تحية صباحية|صباح الخير|مساء الخير|جمعة مباركة|عيد مبارك/;
 
 export function isTarikiHeavyTrucksOnlyClosure(text: string): boolean {
   const norm = normalizeArabicForMatch(text);
-  if (!HEAVY_TRUCKS_ONLY_RE.test(norm) || !CLOSURE_RE.test(norm)) return false;
+  if (
+    !HEAVY_TRUCKS_ONLY_RE.test(norm) ||
+    !HEAVY_TRUCKS_RESTRICTION_RE.test(norm)
+  ) {
+    return false;
+  }
   // Never suppress closures affecting all vehicles or caused by structural/weather hazards
   if (ALL_VEHICLES_RE.test(norm) || HEAVY_TRUCKS_HAZARD_GUARD_RE.test(norm)) {
     return false;

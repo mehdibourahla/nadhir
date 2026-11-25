@@ -8,6 +8,7 @@ export type TurnstileFailureReason =
   | "not_configured"
   | "missing_token"
   | "invalid_token_format"
+  | "invalid_verify_url"
   | "invalid_token"
   | "action_mismatch"
   | "hostname_mismatch"
@@ -36,6 +37,7 @@ export interface TurnstileVerifyInput {
   expectedHostname?: string | string[] | undefined;
   secretKey?: string | null | undefined;
   required?: boolean | undefined;
+  verifyUrl?: string | undefined;
   fetchImpl?: typeof fetch | undefined;
   timeoutMs?: number | undefined;
 }
@@ -109,6 +111,39 @@ export function resolveExpectedTurnstileHostnames(
   }
 }
 
+function resolveSiteverifyUrl(verifyUrl: string | undefined): string | null {
+  if (verifyUrl === undefined) return TURNSTILE_SITEVERIFY_URL;
+  const trimmed = verifyUrl.trim();
+  if (!trimmed) return null;
+  if (trimmed === TURNSTILE_SITEVERIFY_URL) return TURNSTILE_SITEVERIFY_URL;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return null;
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return null;
+  }
+  if (parsed.username !== "" || parsed.password !== "") {
+    return null;
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  if (
+    hostname !== "127.0.0.1" &&
+    hostname !== "localhost" &&
+    hostname !== "::1" &&
+    hostname !== "[::1]"
+  ) {
+    return null;
+  }
+
+  return parsed.toString();
+}
+
 export async function verifyTurnstileToken(
   input: TurnstileVerifyInput,
 ): Promise<TurnstileVerifyResult> {
@@ -121,6 +156,11 @@ export async function verifyTurnstileToken(
       return { ok: false, status: 503, reason: "not_configured" };
     }
     return { ok: true, skipped: true };
+  }
+
+  const siteverifyUrl = resolveSiteverifyUrl(input.verifyUrl);
+  if (!siteverifyUrl) {
+    return { ok: false, status: 503, reason: "invalid_verify_url" };
   }
 
   if (typeof input.token !== "string") {
@@ -156,7 +196,7 @@ export async function verifyTurnstileToken(
 
   let response: Response;
   try {
-    response = await fetchImpl(TURNSTILE_SITEVERIFY_URL, {
+    response = await fetchImpl(siteverifyUrl, {
       method: "POST",
       headers: {
         "content-type": "application/x-www-form-urlencoded",

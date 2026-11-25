@@ -8,6 +8,7 @@ import {
 } from "../lib/env.ts";
 import { loadAlgeriaAdmin, loadLoi2606 } from "../lib/fixtures.ts";
 import { fetchJson } from "../lib/http.ts";
+import { psqlJson } from "../lib/pg.ts";
 import { findBannedSafeLabels, findEmDashesInText } from "../lib/playwright.ts";
 
 type TranslationNode = string | { [key: string]: TranslationNode };
@@ -435,8 +436,24 @@ describe("Tier 1 — F2: Non-Negotiable Safety, Legal, 4-Locale I18N & Antislop 
     expect(String(civilRes.data.attribution ?? "").length).toBeGreaterThan(0);
     expect(findBannedSafeLabels(civilRes.rawText)).toEqual([]);
 
+    let weatherCommune = "0601";
+    try {
+      const seeded = psqlJson<{ code: string }>(`
+        SELECT code
+        FROM public.admin_units
+        WHERE level = 'commune'
+        ORDER BY CASE WHEN code = '1601' THEN 0 ELSE 1 END, code
+        LIMIT 1
+      `);
+      if (seeded[0]?.code) {
+        weatherCommune = seeded[0].code;
+      }
+    } catch {
+      // Fallback to seeded Akbou (0601) if local Postgres lookup is unavailable
+    }
+
     const weatherRes = await fetchJson<Record<string, unknown>>(
-      "/api/public/v1/weather?commune=1601",
+      `/api/public/v1/weather?commune=${encodeURIComponent(weatherCommune)}`,
     );
     expect([200, 503]).toContain(weatherRes.status);
     if (weatherRes.status === 200) {

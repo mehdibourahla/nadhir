@@ -442,6 +442,7 @@ export type OfficialCapInput = {
   sentAt: Date;
   asOf: Date;
   texts: CapText[];
+  kind?: string | undefined;
   category?: CapInfo["category"];
   severity?: "Extreme" | "Severe";
   phase?: "initial" | "end";
@@ -464,7 +465,8 @@ export function buildOfficialCap(input: OfficialCapInput): CapAlert {
   const isEnd = phase === "end";
   const sent = capDateTime(input.sentAt);
   const expiresHours = input.expiresHours ?? 24;
-  const category = input.category ?? "Fire";
+  const category =
+    input.category ?? (input.kind ? officialCapCategory(input.kind) : "Fire");
   const severity = input.severity ?? "Severe";
   const refs = input.references ?? [];
   return {

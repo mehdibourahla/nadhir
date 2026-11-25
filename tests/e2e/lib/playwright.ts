@@ -669,6 +669,7 @@ const ALLOWED_SAFE_PATTERNS: RegExp[] = [
   /not\s+(?:a\s+)?safe\s+(?:zone|area)/gi,
   /not\s+an?\s+all[-\s]clear/gi,
   /does\s+not\s+(?:publish|announce|issue|declare)\s+(?:a\s+|an\s+)?(?:per-commune\s+)?all[-\s]clear/gi,
+  /\bdo(?:es)?\s+not\s+imply\s+(?:an?\s+)?all[-\s]clear\b/gi,
   /never\s+(?:a\s+safe\s+(?:zone|area)|(?:implies|declares|means)\s+(?:an?\s+)?all[-\s]clear)/gi,
   // French ADR-0002 negated honesty disclaimers (e.g., fr.ts:324; kab.ts:323)
   /ne\s+signifie\s+pas\s+[^\n.!?]*zone\s+s[ûu]re/gi,

@@ -251,6 +251,37 @@ describe("F19 - Hardened Gendarmerie Tariki", () => {
         "#المدية غلق الطريق بسبب هبوط الطريق ومنع مرور شاحنات الوزن الثقيل.",
       ),
     ).toBe("candidate");
+
+    // Exceptional convoy escort without road danger is filtered out as open works
+    expect(
+      classifyTarikiPostPreFilter(
+        "🚛 #طريقي: مرافقة قافلة استثنائية لنقل معدات صناعية عبر الطريق الوطني رقم 5 بولاية سطيف.",
+      ),
+    ).toBe("ignore_open_works");
+
+    // Temporary heavy-trucks-only circulation ban (without closure word or hazard) is filtered out
+    expect(
+      classifyTarikiPostPreFilter(
+        "🚚 #طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط عبر الطريق الاجتنابي الجنوبي بالجزائر العاصمة خلال أوقات الذروة.",
+      ),
+    ).toBe("ignore_heavy_trucks_only");
+
+    // Genuine road closures & hazards remain candidate even if convoy/truck wording appears
+    expect(
+      classifyTarikiPostPreFilter(
+        "🌧️🚧 #طريقي: الطريق الوطني رقم 11 مغلق بسبب ارتفاع منسوب المياه ببلدية عين البنيان ولاية الجزائر.",
+      ),
+    ).toBe("candidate");
+    expect(
+      classifyTarikiPostPreFilter(
+        "❄️⚠️ #طريقي: منع مؤقت لسير شاحنات الوزن الثقيل فقط بسبب تراكم الثلوج والجليد بفج تيروردة.",
+      ),
+    ).toBe("candidate");
+    expect(
+      classifyTarikiPostPreFilter(
+        "⚠️ #طريقي: منع مؤقت لسير جميع المركبات بما فيها شاحنات الوزن الثقيل فقط عبر الطريق الوطني رقم 1.",
+      ),
+    ).toBe("candidate");
   });
 
   it("hardens dgpc-situation with tatweel stripping, #/_/emoji-resilient verbatim quote guard, and Tariki dangers-only prompt", async () => {

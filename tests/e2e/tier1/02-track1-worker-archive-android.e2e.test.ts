@@ -154,7 +154,7 @@ describe("Tier 1 — F3: Always-On EU Backend Worker (source_jobs)", () => {
         '2026-11-24T12:05:10Z'::timestamptz, 'succeeded',
         '2026-11-24T12:00:00Z'::timestamptz, '2026-11-24T11:50:00Z'::timestamptz, '2026-11-24T12:00:00Z'::timestamptz,
         '2026-11-24T12:05:05Z'::timestamptz, '2026-11-24T12:05:08Z'::timestamptz,
-        5, 5, 0, 0, 5, 'full', '{}'::jsonb,
+        5, 5, 0, 0, 5, 'complete', '{}'::jsonb,
         null, null, false
       );
 
@@ -661,8 +661,8 @@ describe("Tier 1 — F5: 2026-11-26 90-Day Cold-Archive Verification (6 Tables)"
 
         -- 6. source_jobs
         INSERT INTO public.source_jobs (id, contract_key, contract_version, trigger_kind, idempotency_key, scheduled_for, data_from, data_through, execution_target, enqueued_by, available_at, state, max_attempts, retry_base_seconds, retry_until, created_at, updated_at) VALUES
-          ('40000000-0000-4000-8000-000000000051', 'e2e.cold.six', 1, 'manual', 'e2e-cold-job-old', _old_ts, _old_ts, _old_ts, 'worker', array['worker'], _old_ts, 'succeeded', 3, 60, _old_ts + interval '1 hour', _old_ts, _old_ts),
-          ('40000000-0000-4000-8000-000000000052', 'e2e.cold.six', 1, 'manual', 'e2e-cold-job-active', _active_ts, _active_ts, _active_ts, 'worker', array['worker'], _active_ts, 'succeeded', 3, 60, _active_ts + interval '1 hour', _active_ts, _active_ts);
+          ('40000000-0000-4000-8000-000000000051', 'e2e.cold.six', 1, 'manual', 'e2e-cold-job-old', _old_ts, _old_ts - interval '5 minutes', _old_ts, 'worker', array['worker'], _old_ts, 'succeeded', 3, 60, _old_ts + interval '1 hour', _old_ts, _old_ts),
+          ('40000000-0000-4000-8000-000000000052', 'e2e.cold.six', 1, 'manual', 'e2e-cold-job-active', _active_ts, _active_ts - interval '5 minutes', _active_ts, 'worker', array['worker'], _active_ts, 'succeeded', 3, 60, _active_ts + interval '1 hour', _active_ts, _active_ts);
 
         -- Verify 2026-08-27 row appears in cold_candidates for weather_snapshots
         IF NOT EXISTS (
@@ -895,8 +895,25 @@ describe("Tier 1 — F6: Android app.nadhir Play Production Readiness", () => {
   it("F6.4: android/app/build.gradle configures env-driven release signing (zero hardcoded passwords) and valid versionCode/versionName", () => {
     const gradle = readRepoFile("android/app/build.gradle");
 
-    expect(gradle).toMatch(/versionCode\s+\d+/);
-    expect(gradle).toMatch(/versionName\s+["'][^"']+["']/);
+    const hasLiteralVersionCode = /versionCode\s+\d+/.test(gradle);
+    const hasValidatedEnvVersionCode =
+      /versionCode\s+[A-Za-z_][A-Za-z0-9_]*/.test(gradle) &&
+      /Integer\.parseInt/.test(gradle) &&
+      /rawVersionCode[^\n]*["']\d+["']/.test(gradle);
+    expect(
+      hasLiteralVersionCode || hasValidatedEnvVersionCode,
+      "build.gradle must declare a positive integer or validated env-driven versionCode",
+    ).toBe(true);
+
+    const hasLiteralVersionName = /versionName\s+["'][^"']+["']/.test(gradle);
+    const hasValidatedEnvVersionName =
+      /versionName\s+[A-Za-z_][A-Za-z0-9_]*/.test(gradle) &&
+      /resolvedVersionName[^\n]*["']\d+\.\d+\.\d+["']/.test(gradle);
+    expect(
+      hasLiteralVersionName || hasValidatedEnvVersionName,
+      "build.gradle must declare a valid semver or validated env-driven versionName",
+    ).toBe(true);
+
     expect(gradle).toMatch(/signingConfigs/);
     expect(gradle).toMatch(/System\.getenv|findProperty|project\.hasProperty/);
     expect(gradle).not.toMatch(/storePassword\s+["'][^$"']{4,}["']/);

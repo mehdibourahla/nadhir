@@ -69,6 +69,7 @@ export function deriveWilayaSlug(nameFr: string): string {
   return nameFr
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/['\u2019`]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
