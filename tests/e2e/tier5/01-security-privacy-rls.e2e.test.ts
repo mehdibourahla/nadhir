@@ -832,4 +832,112 @@ describe("Tier 5 — Security, Privacy & RLS Adversarial Hardening", () => {
       ).toBe(413);
     });
   });
+
+  describe("T5-R3-01: Kong HTTP 414 URI-length protection on <= 100-UUID PostgREST .in() batches", () => {
+    it("returns HTTP 200 on real local Supabase Kong for 250 UUIDs batched at <= 100 while an unbatched 250-UUID GET hits Kong's 414 limit", async () => {
+      assertPgReachable();
+      const supaUrl =
+        process.env["E2E_SUPABASE_URL"] ??
+        process.env["SUPABASE_URL"] ??
+        "http://127.0.0.1:54321";
+      const serviceKey =
+        process.env["E2E_SUPABASE_SERVICE_ROLE_KEY"] ??
+        process.env["SUPABASE_SERVICE_ROLE_KEY"] ??
+        "";
+      expect(serviceKey.length).toBeGreaterThan(20);
+
+      const uuids = Array.from(
+        { length: 250 },
+        (_, i) => `5e030000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`,
+      );
+      const headers = {
+        apikey: serviceKey,
+        authorization: `Bearer ${serviceKey}`,
+      };
+
+      // Confirm real Kong enforces the 8 KiB URI cap on unbatched 250-UUID GET
+      const unbatchedRes = await fetch(
+        `${supaUrl}/rest/v1/privacy_consents?select=user_id&user_id=in.(${uuids.join(",")})&consent_type=eq.zone_alerts&status=eq.withdrawn`,
+        { headers },
+      );
+      expect(unbatchedRes.status).toBe(414);
+
+      // Confirm <= 100-UUID batching succeeds with HTTP 200 across all 3 batches (100 + 100 + 50)
+      let batchCount = 0;
+      for (let i = 0; i < uuids.length; i += 100) {
+        const batch = uuids.slice(i, i + 100);
+        const batchRes = await fetch(
+          `${supaUrl}/rest/v1/privacy_consents?select=user_id&user_id=in.(${batch.join(",")})&consent_type=eq.zone_alerts&status=eq.withdrawn`,
+          { headers },
+        );
+        expect(batchRes.status, `batch ${batchCount}`).toBe(200);
+        const rows = (await batchRes.json()) as unknown[];
+        expect(Array.isArray(rows)).toBe(true);
+        batchCount += 1;
+      }
+      expect(batchCount).toBe(3);
+    });
+  });
+
+  describe("T5-R3-02: Zero ToPrimitive HTTP 500 crashes across all 4 public contribute endpoints", () => {
+    it("returns HTTP 400 (never 500) for {toString: null} and {toString: null, valueOf: null} on all 4 live /api/public/contribute/* routes", async () => {
+      const poison = { toString: null };
+      const poisonBoth = { toString: null, valueOf: null };
+
+      const cases: Array<{ path: string; body: Record<string, unknown> }> = [
+        {
+          path: "/api/public/contribute/my-translations",
+          body: { locale: poison, reviewerKey: "12345678" },
+        },
+        {
+          path: "/api/public/contribute/my-translations",
+          body: { locale: "fr", reviewerKey: poisonBoth },
+        },
+        {
+          path: "/api/public/contribute/translation",
+          body: {
+            locale: "fr",
+            reviewerKey: "reviewer12345",
+            rows: [{ keyPath: poison }],
+          },
+        },
+        {
+          path: "/api/public/contribute/translation",
+          body: {
+            locale: poisonBoth,
+            reviewerKey: "reviewer12345",
+            rows: [],
+          },
+        },
+        {
+          path: "/api/public/contribute/idea",
+          body: { lane: poison, message: "hello world test" },
+        },
+        {
+          path: "/api/public/contribute/idea",
+          body: { lane: "data", message: poisonBoth },
+        },
+        {
+          path: "/api/public/contribute/vote",
+          body: { ideaId: poison, voterKey: "12345678", value: 1 },
+        },
+        {
+          path: "/api/public/contribute/vote",
+          body: { ideaId: "idea-1", voterKey: "12345678", value: poisonBoth },
+        },
+      ];
+
+      for (const testCase of cases) {
+        const res = await fetchText(testCase.path, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(testCase.body),
+        });
+        expect(
+          res.status,
+          `${testCase.path} ${JSON.stringify(testCase.body)}`,
+        ).toBe(400);
+      }
+    });
+  });
 });

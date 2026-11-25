@@ -6,7 +6,7 @@ import {
   type VoteOutcome,
 } from "@/lib/contribute.server";
 import { readJsonBody } from "@/lib/request-body.server";
-import { submitSuggestions } from "@/lib/translate.server";
+import { readMySuggestions, submitSuggestions } from "@/lib/translate.server";
 import {
   extractTurnstileToken,
   resolveExpectedTurnstileHostnames,
@@ -17,6 +17,7 @@ import {
 
 const IDEA_MAX_BYTES = 16_384;
 const VOTE_MAX_BYTES = 16_384;
+const MY_TRANSLATIONS_MAX_BYTES = 16_384;
 const TRANSLATION_MAX_BYTES = 131_072;
 
 export interface ContributeRouteDeps {
@@ -26,6 +27,7 @@ export interface ContributeRouteDeps {
   submitIdea: typeof submitIdea;
   castVote: typeof castVote;
   submitSuggestions: typeof submitSuggestions;
+  readMySuggestions: typeof readMySuggestions;
 }
 
 const defaultDeps: ContributeRouteDeps = {
@@ -33,7 +35,47 @@ const defaultDeps: ContributeRouteDeps = {
   submitIdea,
   castVote,
   submitSuggestions,
+  readMySuggestions,
 };
+
+type ParsedField<T> = { ok: true; value: T } | { ok: false };
+
+/** Strict string field reader that never invokes ToPrimitive (e.g. `{"toString": null}`). */
+function readStringField(value: unknown, fallback = ""): ParsedField<string> {
+  if (value === undefined || value === null)
+    return { ok: true, value: fallback };
+  if (typeof value === "string") return { ok: true, value };
+  return { ok: false };
+}
+
+function readNullableStringField(value: unknown): ParsedField<string | null> {
+  if (value === undefined || value === null) return { ok: true, value: null };
+  if (typeof value === "string") return { ok: true, value: value || null };
+  return { ok: false };
+}
+
+function readOptionalStringField(
+  value: unknown,
+): ParsedField<string | undefined> {
+  if (value === undefined || value === null) {
+    return { ok: true, value: undefined };
+  }
+  if (typeof value === "string") return { ok: true, value: value || undefined };
+  return { ok: false };
+}
+
+/** Strict finite number reader that never invokes ToPrimitive (e.g. `{"valueOf": null}`). */
+function readFiniteNumberField(
+  value: unknown,
+  fallback = 0,
+): ParsedField<number> {
+  if (value === undefined || value === null)
+    return { ok: true, value: fallback };
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return { ok: true, value };
+  }
+  return { ok: false };
+}
 
 async function checkTurnstile(
   request: Request,
@@ -75,6 +117,16 @@ export async function handleContributeIdea(
     return Response.json({ ok: false, reason: "failed" }, { status: 400 });
   }
 
+  const input = body as Record<string, unknown>;
+  const lane = readStringField(input["lane"], "other");
+  const message = readStringField(input["message"], "");
+  const contact = readNullableStringField(input["contact"]);
+  const locale = readStringField(input["locale"], "en");
+  const website = readOptionalStringField(input["website"]);
+  if (!lane.ok || !message.ok || !contact.ok || !locale.ok || !website.ok) {
+    return Response.json({ ok: false, reason: "failed" }, { status: 400 });
+  }
+
   const captchaFailure = await checkTurnstile(
     request,
     body,
@@ -83,14 +135,13 @@ export async function handleContributeIdea(
   );
   if (captchaFailure) return captchaFailure;
 
-  const input = body as Record<string, unknown>;
   const outcome: SubmitOutcome = await deps.submitIdea(
     {
-      lane: String(input["lane"] ?? "other"),
-      message: String(input["message"] ?? ""),
-      contact: input["contact"] ? String(input["contact"]) : null,
-      locale: String(input["locale"] ?? "en"),
-      website: input["website"] ? String(input["website"]) : undefined,
+      lane: lane.value,
+      message: message.value,
+      contact: contact.value,
+      locale: locale.value,
+      website: website.value,
     },
     clientIp(request),
   );
@@ -118,6 +169,12 @@ export async function handleContributeTranslation(
   }
 
   const input = body as Record<string, unknown>;
+  const locale = readStringField(input["locale"], "");
+  const reviewerKey = readStringField(input["reviewerKey"], "");
+  const reviewerName = readNullableStringField(input["reviewerName"]);
+  if (!locale.ok || !reviewerKey.ok || !reviewerName.ok) {
+    return Response.json({ ok: false, reason: "failed" }, { status: 400 });
+  }
   if (
     "rows" in input &&
     input["rows"] !== undefined &&
@@ -139,13 +196,29 @@ export async function handleContributeTranslation(
       return Response.json({ ok: false, reason: "failed" }, { status: 400 });
     }
     const r = entry as Record<string, unknown>;
+    const keyPath = readStringField(r["keyPath"], "");
+    const sourceText = readStringField(r["sourceText"], "");
+    const currentText = readStringField(r["currentText"], "");
+    const suggestion = readNullableStringField(r["suggestion"]);
+    const verdict = readStringField(r["verdict"], "");
+    const note = readNullableStringField(r["note"]);
+    if (
+      !keyPath.ok ||
+      !sourceText.ok ||
+      !currentText.ok ||
+      !suggestion.ok ||
+      !verdict.ok ||
+      !note.ok
+    ) {
+      return Response.json({ ok: false, reason: "failed" }, { status: 400 });
+    }
     rows.push({
-      keyPath: String(r["keyPath"] ?? ""),
-      sourceText: String(r["sourceText"] ?? ""),
-      currentText: String(r["currentText"] ?? ""),
-      suggestion: r["suggestion"] ? String(r["suggestion"]) : null,
-      verdict: String(r["verdict"] ?? ""),
-      note: r["note"] ? String(r["note"]) : null,
+      keyPath: keyPath.value,
+      sourceText: sourceText.value,
+      currentText: currentText.value,
+      suggestion: suggestion.value,
+      verdict: verdict.value,
+      note: note.value,
     });
   }
 
@@ -158,9 +231,9 @@ export async function handleContributeTranslation(
   if (captchaFailure) return captchaFailure;
 
   const outcome = await deps.submitSuggestions(
-    String(input["locale"] ?? ""),
-    String(input["reviewerKey"] ?? ""),
-    input["reviewerName"] ? String(input["reviewerName"]) : null,
+    locale.value,
+    reviewerKey.value,
+    reviewerName.value,
     rows,
     clientIp(request),
   );
@@ -168,6 +241,29 @@ export async function handleContributeTranslation(
   return Response.json(outcome, {
     status: outcome.reason === "rateLimited" ? 429 : 400,
   });
+}
+
+export async function handleContributeMyTranslations(
+  request: Request,
+  overrides: Partial<ContributeRouteDeps> = {},
+): Promise<Response> {
+  const deps: ContributeRouteDeps = { ...defaultDeps, ...overrides };
+  const read = await readJsonBody(request, MY_TRANSLATIONS_MAX_BYTES);
+  if ("error" in read) {
+    return Response.json({ rows: [] }, { status: read.status });
+  }
+  const body = read.body;
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return Response.json({ rows: [] }, { status: 400 });
+  }
+  const input = body as Record<string, unknown>;
+  const locale = readStringField(input["locale"], "");
+  const reviewerKey = readStringField(input["reviewerKey"], "");
+  if (!locale.ok || !reviewerKey.ok) {
+    return Response.json({ rows: [] }, { status: 400 });
+  }
+  const rows = await deps.readMySuggestions(locale.value, reviewerKey.value);
+  return Response.json({ rows }, { headers: { "cache-control": "no-store" } });
 }
 
 export async function handleContributeVote(
@@ -187,6 +283,14 @@ export async function handleContributeVote(
     return Response.json({ ok: false, reason: "failed" }, { status: 400 });
   }
 
+  const input = body as Record<string, unknown>;
+  const ideaId = readStringField(input["ideaId"], "");
+  const voterKey = readStringField(input["voterKey"], "");
+  const value = readFiniteNumberField(input["value"], 0);
+  if (!ideaId.ok || !voterKey.ok || !value.ok) {
+    return Response.json({ ok: false, reason: "failed" }, { status: 400 });
+  }
+
   const captchaFailure = await checkTurnstile(
     request,
     body,
@@ -195,11 +299,10 @@ export async function handleContributeVote(
   );
   if (captchaFailure) return captchaFailure;
 
-  const input = body as Record<string, unknown>;
   const outcome: VoteOutcome = await deps.castVote(
-    String(input["ideaId"] ?? ""),
-    String(input["voterKey"] ?? ""),
-    Number(input["value"] ?? 0),
+    ideaId.value,
+    voterKey.value,
+    value.value,
     clientIp(request),
   );
   if (outcome.ok) return Response.json(outcome);

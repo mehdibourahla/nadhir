@@ -25,6 +25,7 @@ type PushState = "sent" | "pending" | "failed" | "no_device" | "skipped";
 const MAX_ATTEMPTS = 5;
 const CLAIM_LOST = "alert push claim lost";
 const DEVICE_TTL_MS = 60 * 86_400_000;
+const IN_BATCH_SIZE = 100;
 
 const store = {
   configured: fcmConfigured,
@@ -37,24 +38,39 @@ const store = {
   },
   withdrawnPushConsent: async (userIds: string[]): Promise<Set<string>> => {
     if (!userIds.length) return new Set();
-    const { data, error } = await supabaseAdmin
-      .from("privacy_consents")
-      .select("user_id")
-      .in("user_id", userIds)
-      .eq("consent_type", "push_alerts")
-      .eq("status", "withdrawn");
-    if (error) throw new Error(error.message);
-    return new Set((data ?? []).map((row) => row.user_id));
+    const withdrawn = new Set<string>();
+    for (let i = 0; i < userIds.length; i += IN_BATCH_SIZE) {
+      const batch = userIds.slice(i, i + IN_BATCH_SIZE);
+      const { data, error } = await supabaseAdmin
+        .from("privacy_consents")
+        .select("user_id")
+        .in("user_id", batch)
+        .eq("consent_type", "push_alerts")
+        .eq("status", "withdrawn");
+      if (error) throw new Error(error.message);
+      for (const row of data ?? []) {
+        withdrawn.add(row.user_id);
+      }
+    }
+    return withdrawn;
   },
   devices: async (userIds: string[]): Promise<Set<string>> => {
     if (!userIds.length) return new Set();
-    const { data, error } = await supabaseAdmin
-      .from("user_push_devices")
-      .select("user_id")
-      .in("user_id", userIds)
-      .gt("updated_at", new Date(Date.now() - DEVICE_TTL_MS).toISOString());
-    if (error) throw new Error(error.message);
-    return new Set((data ?? []).map((row) => row.user_id));
+    const reachable = new Set<string>();
+    const cutoff = new Date(Date.now() - DEVICE_TTL_MS).toISOString();
+    for (let i = 0; i < userIds.length; i += IN_BATCH_SIZE) {
+      const batch = userIds.slice(i, i + IN_BATCH_SIZE);
+      const { data, error } = await supabaseAdmin
+        .from("user_push_devices")
+        .select("user_id")
+        .in("user_id", batch)
+        .gt("updated_at", cutoff);
+      if (error) throw new Error(error.message);
+      for (const row of data ?? []) {
+        reachable.add(row.user_id);
+      }
+    }
+    return reachable;
   },
   send: async (row: ClaimedPush) =>
     fcmSend(fcmMessageForAlert(row, await pushReceipt(row.id))),

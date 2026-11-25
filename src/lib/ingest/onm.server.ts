@@ -159,6 +159,7 @@ const MAX_CAP_URL_LENGTH = 2048;
  * Resolve and validate an ONM CAP detail URL against FEED_URL:
  * - strictly https:
  * - no embedded credentials, non-default port, query string, or fragment
+ * - no percent-encoded path/query/fragment delimiters (%2f, %5c, %3f, %23)
  * - host must be ametvigilance.meteo.dz or a *.meteo.dz subdomain
  * - normalized pathname must contain /CAPs/<non-empty>.xml
  */
@@ -192,6 +193,7 @@ export function sanitizeOnmCapUrl(rawHref: string): string | null {
   ) {
     return null;
   }
+  if (/(?:%2f|%5c|%3f|%23)/i.test(parsed.pathname)) return null;
   const capsIdx = parsed.pathname.indexOf("/CAPs/");
   if (
     capsIdx === -1 ||

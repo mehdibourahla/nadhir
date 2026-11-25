@@ -29,6 +29,7 @@ type Patch = {
 };
 
 const LIFETIME_MS = 6 * 3_600_000;
+const IN_BATCH_SIZE = 100;
 
 const store = {
   waiting: async (ids?: string[]): Promise<Waiting[]> => {
@@ -47,14 +48,21 @@ const store = {
     userIds: string[],
   ): Promise<Set<string>> => {
     if (!userIds.length) return new Set();
-    const { data, error } = await supabaseAdmin
-      .from("privacy_consents")
-      .select("user_id")
-      .in("user_id", userIds)
-      .eq("consent_type", "citizen_reports")
-      .eq("status", "withdrawn");
-    if (error) throw new Error(error.message);
-    return new Set((data ?? []).map((row) => row.user_id));
+    const withdrawn = new Set<string>();
+    for (let i = 0; i < userIds.length; i += IN_BATCH_SIZE) {
+      const batch = userIds.slice(i, i + IN_BATCH_SIZE);
+      const { data, error } = await supabaseAdmin
+        .from("privacy_consents")
+        .select("user_id")
+        .in("user_id", batch)
+        .eq("consent_type", "citizen_reports")
+        .eq("status", "withdrawn");
+      if (error) throw new Error(error.message);
+      for (const row of data ?? []) {
+        withdrawn.add(row.user_id);
+      }
+    }
+    return withdrawn;
   },
   place: async (communeId: string | null): Promise<string | null> => {
     if (!communeId) return null;

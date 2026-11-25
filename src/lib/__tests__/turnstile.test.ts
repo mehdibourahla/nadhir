@@ -49,6 +49,7 @@ vi.mock("@/lib/report-publication.server", () => ({
 import { turnstileLanguage } from "@/lib/turnstile";
 import {
   handleContributeIdea,
+  handleContributeMyTranslations,
   handleContributeTranslation,
   handleContributeVote,
 } from "@/lib/contribute-routes.server";
@@ -648,6 +649,152 @@ describe("F24 wired write handlers enforce Turnstile", () => {
     );
     expect(oversizedTrans.status).toBe(413);
     expect(submitSuggestionsMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects ToPrimitive object payloads ({toString: null} / {toString: null, valueOf: null}) with HTTP 400 before Turnstile across all 4 contribute handlers (T5-R3-02)", async () => {
+    const verifyMock = vi.fn(async () => ({
+      ok: true as const,
+      skipped: true as const,
+    }));
+    const submitIdeaMock = vi.fn();
+    const submitSuggestionsMock = vi.fn();
+    const castVoteMock = vi.fn();
+    const readMySuggestionsMock = vi.fn(async () => []);
+    const deps = {
+      verifyTurnstile: verifyMock,
+      submitIdea: submitIdeaMock,
+      submitSuggestions: submitSuggestionsMock,
+      castVote: castVoteMock,
+      readMySuggestions: readMySuggestionsMock,
+    };
+
+    const poison = { toString: null };
+    const poisonBoth = { toString: null, valueOf: null };
+
+    // 1. my-translations
+    for (const payload of [
+      { locale: poison, reviewerKey: "12345678" },
+      { locale: "fr", reviewerKey: poisonBoth },
+      { locale: 123, reviewerKey: "12345678" },
+      { locale: "fr", reviewerKey: ["12345678"] },
+    ]) {
+      const res = await handleContributeMyTranslations(
+        new Request(
+          "https://nadhir.app/api/public/contribute/my-translations",
+          {
+            method: "POST",
+            body: JSON.stringify(payload),
+          },
+        ),
+        deps,
+      );
+      expect(res.status, JSON.stringify(payload)).toBe(400);
+      expect(await res.json()).toEqual({ rows: [] });
+    }
+    expect(readMySuggestionsMock).not.toHaveBeenCalled();
+
+    const okMyTrans = await handleContributeMyTranslations(
+      new Request("https://nadhir.app/api/public/contribute/my-translations", {
+        method: "POST",
+        body: JSON.stringify({ locale: "fr", reviewerKey: "12345678" }),
+      }),
+      deps,
+    );
+    expect(okMyTrans.status).toBe(200);
+    expect(okMyTrans.headers.get("cache-control")).toBe("no-store");
+    expect(readMySuggestionsMock).toHaveBeenCalledWith("fr", "12345678");
+
+    // 2. translation (top-level & row fields — must reject BEFORE Turnstile)
+    for (const payload of [
+      { locale: poison, reviewerKey: "reviewer12345", rows: [] },
+      { locale: "fr", reviewerKey: poisonBoth, rows: [] },
+      {
+        locale: "fr",
+        reviewerKey: "reviewer12345",
+        reviewerName: poison,
+        rows: [],
+      },
+      {
+        locale: "fr",
+        reviewerKey: "reviewer12345",
+        rows: [{ keyPath: poison }],
+      },
+      {
+        locale: "fr",
+        reviewerKey: "reviewer12345",
+        rows: [{ keyPath: "k", sourceText: poisonBoth }],
+      },
+      {
+        locale: "fr",
+        reviewerKey: "reviewer12345",
+        rows: [{ keyPath: "k", currentText: poison }],
+      },
+      {
+        locale: "fr",
+        reviewerKey: "reviewer12345",
+        rows: [{ keyPath: "k", suggestion: poisonBoth }],
+      },
+      {
+        locale: "fr",
+        reviewerKey: "reviewer12345",
+        rows: [{ keyPath: "k", verdict: poison }],
+      },
+      {
+        locale: "fr",
+        reviewerKey: "reviewer12345",
+        rows: [{ keyPath: "k", note: poisonBoth }],
+      },
+    ]) {
+      const res = await handleContributeTranslation(
+        new Request("https://nadhir.app/api/public/contribute/translation", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        }),
+        deps,
+      );
+      expect(res.status, JSON.stringify(payload)).toBe(400);
+    }
+
+    // 3. idea (must reject BEFORE Turnstile)
+    for (const payload of [
+      { lane: poison, message: "hello world test" },
+      { lane: "data", message: poisonBoth },
+      { lane: "data", message: "hello world test", contact: poison },
+      { lane: "data", message: "hello world test", locale: poisonBoth },
+      { lane: "data", message: "hello world test", website: poison },
+    ]) {
+      const res = await handleContributeIdea(
+        new Request("https://nadhir.app/api/public/contribute/idea", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        }),
+        deps,
+      );
+      expect(res.status, JSON.stringify(payload)).toBe(400);
+    }
+
+    // 4. vote (must reject BEFORE Turnstile)
+    for (const payload of [
+      { ideaId: poison, voterKey: "12345678", value: 1 },
+      { ideaId: "idea-1", voterKey: poisonBoth, value: 1 },
+      { ideaId: "idea-1", voterKey: "12345678", value: poisonBoth },
+      { ideaId: "idea-1", voterKey: "12345678", value: "1" },
+      { ideaId: "idea-1", voterKey: "12345678", value: [1] },
+    ]) {
+      const res = await handleContributeVote(
+        new Request("https://nadhir.app/api/public/contribute/vote", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        }),
+        deps,
+      );
+      expect(res.status, JSON.stringify(payload)).toBe(400);
+    }
+
+    expect(verifyMock).not.toHaveBeenCalled();
+    expect(submitIdeaMock).not.toHaveBeenCalled();
+    expect(submitSuggestionsMock).not.toHaveBeenCalled();
+    expect(castVoteMock).not.toHaveBeenCalled();
   });
 
   it("enforces Turnstile on handleReportPublish while still rejecting unknown fields like force: true", async () => {

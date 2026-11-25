@@ -28,6 +28,10 @@ describe("Tier 5 — Track 2 ONM CAP SSRF, XML & Provenance Hardening", () => {
         "https://ametvigilance.meteo.dz/CAPs/a.xml#frag",
         "https://ametvigilance.meteo.dz/CAPs/a.xml?",
         "https://ametvigilance.meteo.dz/CAPs/a.xml#",
+        "https://ametvigilance.meteo.dz/CAPs/a%3fredirect=1.xml",
+        "https://ametvigilance.meteo.dz/CAPs/a%23frag.xml",
+        "https://ametvigilance.meteo.dz/CAPs/..%2fetc%2fpasswd.xml",
+        "https://ametvigilance.meteo.dz/CAPs/a%5cb.xml",
       ];
       for (const url of hostile) {
         expect(mod.sanitizeOnmCapUrl(url), url).toBeNull();

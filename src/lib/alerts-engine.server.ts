@@ -171,6 +171,11 @@ type CapEvent = {
   place: string;
 };
 
+/** Keep PostgREST GET `.in(...)` UUID lists well under Kong's 8 KiB URI limit (100 UUIDs ≈ 3.8 KiB). */
+const IN_BATCH_SIZE = 100;
+/** Combined with `IN_BATCH_SIZE` user IDs in `alerts` history queries, 100 + 50 UUIDs stays under ~5.8 KiB. */
+const ALERT_CLUSTER_BATCH_SIZE = 50;
+
 /** One CAP object per fire event, shared by every alert raised for it. */
 async function ensureCapAlerts(
   events: CapEvent[],
@@ -219,16 +224,21 @@ async function ensureCapAlerts(
     .upsert(payload, { onConflict: "identifier", ignoreDuplicates: true });
   if (error) throw new Error(error.message);
 
-  const { data, error: readError } = await supabaseAdmin
-    .from("cap_alerts")
-    .select("id, identifier")
-    .in(
-      "identifier",
-      payload.map((p) => p.identifier),
-    );
-  if (readError) throw new Error(readError.message);
+  const identifiers = payload.map((p) => p.identifier);
+  const capIdByIdentifier = new Map<string, string>();
+  for (let i = 0; i < identifiers.length; i += IN_BATCH_SIZE) {
+    const batch = identifiers.slice(i, i + IN_BATCH_SIZE);
+    const { data, error: readError } = await supabaseAdmin
+      .from("cap_alerts")
+      .select("id, identifier")
+      .in("identifier", batch);
+    if (readError) throw new Error(readError.message);
+    for (const row of data ?? []) {
+      capIdByIdentifier.set(row.identifier, row.id);
+    }
+  }
 
-  return new Map((data ?? []).map((row) => [row.identifier, row.id]));
+  return capIdByIdentifier;
 }
 
 export type AlertRun = {
@@ -245,18 +255,31 @@ export type AlertRun = {
 
 const AUTHORITY_WINDOW_MS = 24 * 3_600_000;
 
+async function loadAdminUnits(communeIds: string[]): Promise<{
+  data: { id: string; code: string; parent_id: string | null }[];
+  error: { message: string } | null;
+}> {
+  if (!communeIds.length) return { data: [], error: null };
+  const rows: { id: string; code: string; parent_id: string | null }[] = [];
+  for (let i = 0; i < communeIds.length; i += IN_BATCH_SIZE) {
+    const batch = communeIds.slice(i, i + IN_BATCH_SIZE);
+    const { data, error } = await supabaseAdmin
+      .from("admin_units")
+      .select("id, code, parent_id")
+      .in("id", batch);
+    if (error) return { data: [], error };
+    rows.push(...(data ?? []));
+  }
+  return { data: rows, error: null };
+}
+
 async function loadHazardContext(
   communeIds: string[],
   now: Date,
 ): Promise<HazardContext> {
   const iso = now.toISOString();
   const [units, weather, official, authority, road] = await Promise.all([
-    communeIds.length
-      ? supabaseAdmin
-          .from("admin_units")
-          .select("id, code, parent_id")
-          .in("id", communeIds)
-      : Promise.resolve({ data: [], error: null }),
+    loadAdminUnits(communeIds),
     fetchAllPages<{
       id: string;
       severity: string;
@@ -346,8 +369,8 @@ async function loadHazardContext(
   );
   const votes: { report_id: string; user_id: string }[] = [];
   // chunked so the id list stays well under gateway URL limits
-  for (let i = 0; i < reports.length; i += 100) {
-    const ids = reports.slice(i, i + 100).map((r) => r.id);
+  for (let i = 0; i < reports.length; i += IN_BATCH_SIZE) {
+    const ids = reports.slice(i, i + IN_BATCH_SIZE).map((r) => r.id);
     votes.push(
       ...(await fetchAllPages<{ report_id: string; user_id: string }>(
         (from, to) =>
@@ -424,6 +447,15 @@ async function loadHazardContext(
   };
 }
 
+async function loadProfilesBatch(batch: string[]) {
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("*")
+    .in("id", batch);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 export async function evaluateAlerts(userId?: string): Promise<AlertRun> {
   if (!userId) await publishWaitingReports();
   let zoneQuery = supabaseAdmin.from("zones").select("*").eq("active", true);
@@ -437,8 +469,8 @@ export async function evaluateAlerts(userId?: string): Promise<AlertRun> {
   // who withdrew zone_alerts consent before matching hazards, creating alerts,
   // or triggering alerts_enqueue_webhooks.
   const withdrawnZoneAlertUsers = new Set<string>();
-  for (let i = 0; i < allUserIds.length; i += 500) {
-    const batch = allUserIds.slice(i, i + 500);
+  for (let i = 0; i < allUserIds.length; i += IN_BATCH_SIZE) {
+    const batch = allUserIds.slice(i, i + IN_BATCH_SIZE);
     const { data: withdrawnConsents, error: consentError } = await supabaseAdmin
       .from("privacy_consents")
       .select("user_id")
@@ -456,12 +488,14 @@ export async function evaluateAlerts(userId?: string): Promise<AlertRun> {
   if (!eligibleZones.length) return { evaluated: 0, created: 0, suppressed: 0 };
 
   const userIds = [...new Set(eligibleZones.map((z) => z.user_id))];
-  const { data: profiles, error: profilesError } = await supabaseAdmin
-    .from("profiles")
-    .select("*")
-    .in("id", userIds);
-  if (profilesError) throw new Error(profilesError.message);
-  const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+  const profileRows: NonNullable<
+    Awaited<ReturnType<typeof loadProfilesBatch>>
+  > = [];
+  for (let i = 0; i < userIds.length; i += IN_BATCH_SIZE) {
+    const batch = userIds.slice(i, i + IN_BATCH_SIZE);
+    profileRows.push(...(await loadProfilesBatch(batch)));
+  }
+  const profileById = new Map(profileRows.map((p) => [p.id, p]));
 
   const { data: allLive, error: liveError } = await supabaseAdmin
     .from("fire_clusters")
@@ -472,34 +506,47 @@ export async function evaluateAlerts(userId?: string): Promise<AlertRun> {
   if (liveError) throw new Error(liveError.message);
   const now = new Date();
   const liveIds = (allLive ?? []).map((c) => c.id);
-  const history = liveIds.length
-    ? await fetchAllPages<ZoneFireHistory>((from, to) =>
-        supabaseAdmin
-          .from("alerts")
-          .select("id, user_id, zone_id, cluster_id, created_at, payload")
-          .in("user_id", userIds)
-          .in("cluster_id", liveIds)
-          .eq("kind", "fire")
-          .order("id")
-          .range(from, to),
-      )
-    : [];
-  if (history.length >= 40_000)
-    throw new Error("Zone alert history exceeds pagination limit");
+  const history: ZoneFireHistory[] = [];
+  if (liveIds.length) {
+    for (let i = 0; i < userIds.length; i += IN_BATCH_SIZE) {
+      const userBatch = userIds.slice(i, i + IN_BATCH_SIZE);
+      for (let j = 0; j < liveIds.length; j += ALERT_CLUSTER_BATCH_SIZE) {
+        const clusterBatch = liveIds.slice(j, j + ALERT_CLUSTER_BATCH_SIZE);
+        history.push(
+          ...(await fetchAllPages<ZoneFireHistory>((from, to) =>
+            supabaseAdmin
+              .from("alerts")
+              .select("id, user_id, zone_id, cluster_id, created_at, payload")
+              .in("user_id", userBatch)
+              .in("cluster_id", clusterBatch)
+              .eq("kind", "fire")
+              .order("id")
+              .range(from, to),
+          )),
+        );
+        if (history.length >= 40_000)
+          throw new Error("Zone alert history exceeds pagination limit");
+      }
+    }
+  }
   const quietClusterIds = (allLive ?? [])
     .filter((c) => c.state === "contained_guess")
     .map((c) => c.id);
-  const stateEvents = quietClusterIds.length
-    ? await fetchAllPages<ZoneStateEvent>((from, to) =>
+  const stateEvents: ZoneStateEvent[] = [];
+  for (let i = 0; i < quietClusterIds.length; i += IN_BATCH_SIZE) {
+    const clusterBatch = quietClusterIds.slice(i, i + IN_BATCH_SIZE);
+    stateEvents.push(
+      ...(await fetchAllPages<ZoneStateEvent>((from, to) =>
         supabaseAdmin
           .from("cluster_events")
           .select("id, cluster_id, event, at, payload")
-          .in("cluster_id", quietClusterIds)
+          .in("cluster_id", clusterBatch)
           .eq("event", "state:contained_guess")
           .order("id")
           .range(from, to),
-      )
-    : [];
+      )),
+    );
+  }
 
   const alertable = (allLive ?? []).filter((c) =>
     ALERTING_STATES.includes(c.state),
@@ -524,25 +571,26 @@ export async function evaluateAlerts(userId?: string): Promise<AlertRun> {
   // kilometres for a spread-out fire, which silently skips the emergency escalation.
   const frontByCluster = new Map<string, { lat: number; lon: number }[]>();
   if (alertable.length) {
-    const points = await fetchAllPages<{
-      cluster_id: string | null;
-      lat: number;
-      lon: number;
-    }>((from, to) =>
-      supabaseAdmin
-        .from("detections")
-        .select("cluster_id, lat, lon")
-        .in(
-          "cluster_id",
-          alertable.map((c) => c.id),
-        )
-        .range(from, to),
-    );
-    for (const p of points) {
-      if (!p.cluster_id) continue;
-      const bucket = frontByCluster.get(p.cluster_id);
-      if (bucket) bucket.push({ lat: p.lat, lon: p.lon });
-      else frontByCluster.set(p.cluster_id, [{ lat: p.lat, lon: p.lon }]);
+    const alertableIds = alertable.map((c) => c.id);
+    for (let i = 0; i < alertableIds.length; i += IN_BATCH_SIZE) {
+      const clusterBatch = alertableIds.slice(i, i + IN_BATCH_SIZE);
+      const points = await fetchAllPages<{
+        cluster_id: string | null;
+        lat: number;
+        lon: number;
+      }>((from, to) =>
+        supabaseAdmin
+          .from("detections")
+          .select("cluster_id, lat, lon")
+          .in("cluster_id", clusterBatch)
+          .range(from, to),
+      );
+      for (const p of points) {
+        if (!p.cluster_id) continue;
+        const bucket = frontByCluster.get(p.cluster_id);
+        if (bucket) bucket.push({ lat: p.lat, lon: p.lon });
+        else frontByCluster.set(p.cluster_id, [{ lat: p.lat, lon: p.lon }]);
+      }
     }
   }
 
@@ -572,26 +620,32 @@ export async function evaluateAlerts(userId?: string): Promise<AlertRun> {
   const target = checkpointError
     ? null
     : publishedRiskTarget(checkpoint, today);
-  const { data: forecasts, error: forecastError } = target
-    ? await supabaseAdmin
+  const forecastByCommune = new Map<
+    string,
+    { commune_id: string; danger_level: number; fuel_limited: boolean }
+  >();
+  if (target) {
+    let forecastFailed = false;
+    for (let i = 0; i < communeIds.length; i += IN_BATCH_SIZE) {
+      const batch = communeIds.slice(i, i + IN_BATCH_SIZE);
+      const { data: forecasts, error: forecastError } = await supabaseAdmin
         .from("risk_forecasts")
         .select("commune_id, forecast_date, danger_level, fuel_limited")
         .eq("source", "local_fwi")
         .eq("snapshot_id", target.snapshotId)
         .eq("forecast_date", target.forecastDate)
         .eq("horizon_days", target.horizon)
-        .in("commune_id", communeIds)
-    : {
-        data: [] as {
-          commune_id: string;
-          danger_level: number;
-          fuel_limited: boolean;
-        }[],
-        error: null,
-      };
-  const forecastByCommune = new Map(
-    (forecastError ? [] : (forecasts ?? [])).map((f) => [f.commune_id, f]),
-  );
+        .in("commune_id", batch);
+      if (forecastError) {
+        forecastFailed = true;
+        break;
+      }
+      for (const f of forecasts ?? []) {
+        forecastByCommune.set(f.commune_id, f);
+      }
+    }
+    if (forecastFailed) forecastByCommune.clear();
+  }
 
   const placeByCluster = new Map<string, string>();
   for (const cluster of alertable) {
