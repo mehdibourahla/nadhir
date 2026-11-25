@@ -16,10 +16,12 @@ import {
 import {
   CARD_REVISION,
   MAX_SHARE_CARD_BYTES,
+  OFFICIAL_AUTHORITY_TIERS,
   SHARE_FORMATS,
   UNIVERSAL_SHARE_FORMATS,
   cardVersion,
   codecContentType,
+  effectiveFireConfirmedAt,
   fireCardModel,
   isEligibleEarthquake,
   isEligibleOfficialIncident,
@@ -49,6 +51,7 @@ import {
 } from "@/lib/share-cdp.server";
 import { quantizePngToIndexed } from "@/lib/share-png-quantize.server";
 import { shareTranslator } from "@/lib/share-translator";
+import { FIRE_KINDS } from "@/lib/text-sources/merge";
 import { fetchWilayaSnapshot, isSupabaseConfigured } from "@/lib/wilaya-data";
 import { wilayaByCode, wilayaBySlug } from "@/lib/wilaya-slugs";
 import type { AnyLocale } from "@/i18n/locales-list";
@@ -387,17 +390,26 @@ async function loadOnmModel(
   return onmCardModel(warning, wilayaLabel, shareTranslator(lang), lang);
 }
 
-async function loadFireModel(
+const LINK_BEFORE_MS = 24 * 3_600_000;
+const LINK_AFTER_MS = 6 * 3_600_000;
+
+type PublicSupabaseClient = ReturnType<
+  typeof import("@/lib/public-api.server").publicSupabase
+>;
+
+export async function loadFireModel(
   id: string,
   lang: AnyLocale,
   nowMs: number,
+  injectedClient?: PublicSupabaseClient,
 ): Promise<UniversalShareCardModel | null> {
-  if (!isSupabaseConfigured()) return null;
+  if (!injectedClient && !isSupabaseConfigured()) return null;
   const isUuid = UUID_RE.test(id);
   if (!isUuid && !SHORT_ID_RE.test(id)) return null;
 
-  const { publicSupabase } = await import("@/lib/public-api.server");
-  const client = publicSupabase();
+  const client =
+    injectedClient ??
+    (await import("@/lib/public-api.server")).publicSupabase();
 
   const { data, error } = isUuid
     ? await client
@@ -418,24 +430,39 @@ async function loadFireModel(
     confirmed_mention_id: string | null;
   };
 
-  // Verify confirmation mention tier so media/ITA can NEVER confirm a fire
+  // Verify confirmation mention tier strictly against official authority tiers (fail closed)
   let confirmedMentionTier: string | null = null;
+  let confirmedSourceLabel: string | null = null;
   if (cluster.confirmed_mention_id) {
-    const { data: mentionData } = await client
+    const { data: mentionData, error: mentionError } = await client
       .from("incident_mentions")
-      .select("source:text_sources(authority_tier)")
+      .select("source:text_sources(authority_tier, label)")
       .eq("id", cluster.confirmed_mention_id)
       .maybeSingle();
-    const source = (
-      mentionData as { source?: { authority_tier?: string } | null } | null
-    )?.source;
-    confirmedMentionTier = source?.authority_tier ?? null;
+    const source = mentionError
+      ? null
+      : (
+          mentionData as {
+            source?: {
+              authority_tier?: string | null;
+              label?: string | null;
+            } | null;
+          } | null
+        )?.source;
+    const tier = source?.authority_tier ?? null;
+    if (tier && OFFICIAL_AUTHORITY_TIERS.has(tier)) {
+      confirmedMentionTier = tier;
+      confirmedSourceLabel = source?.label ?? null;
+    } else {
+      confirmedMentionTier = "unknown";
+    }
   }
 
-  // Load commune/wilaya context, fire danger, nearby sightings, and non-media official incidents
+  // Load commune/wilaya context, fire danger, nearby sightings, and wilaya-level fire incidents
   const unitIds = [cluster.commune_id, cluster.wilaya_id].filter(
     (v): v is string => Boolean(v),
   );
+  const lastDetectedMs = Date.parse(cluster.last_detected_at);
   const [unitsRes, checkpointRes, reportsRes, incidentsRes] = await Promise.all(
     [
       unitIds.length > 0
@@ -452,15 +479,17 @@ async function loadFireModel(
         .eq("kind", "sighting")
         .gte("observed_at", new Date(nowMs - 72 * 3_600_000).toISOString())
         .limit(200),
-      cluster.wilaya_id
+      cluster.wilaya_id && Number.isFinite(lastDetectedMs)
         ? client
             .from("official_incidents")
             .select("wilaya_id, commune_id, authority_tier, first_reported_at")
             .eq("wilaya_id", cluster.wilaya_id)
+            .in("kind", [...FIRE_KINDS])
+            .is("commune_id", null)
             .neq("authority_tier", "media")
             .gte(
               "first_reported_at",
-              new Date(nowMs - 72 * 3_600_000).toISOString(),
+              new Date(lastDetectedMs - LINK_AFTER_MS).toISOString(),
             )
             .limit(50)
         : Promise.resolve({ data: [], error: null }),
@@ -501,28 +530,74 @@ async function loadFireModel(
   }[];
   const nearbySighting = hasSightingNear(cluster, reports);
 
-  const officialIncidents = (incidentsRes.data ?? []) as unknown as {
-    wilaya_id: string;
-    commune_id: string | null;
-    authority_tier: string;
-    first_reported_at: string;
-  }[];
-  const linked = singleCandidateLinks(officialIncidents, [
-    {
-      id: cluster.id,
-      wilaya_id: cluster.wilaya_id,
-      state: cluster.state,
-      confirmed_at:
-        confirmedMentionTier === "media" ? null : cluster.confirmed_at,
-      last_detected_at: cluster.last_detected_at,
-    },
-  ]);
+  const officialIncidents = incidentsRes.error
+    ? []
+    : ((incidentsRes.data ?? []) as unknown as {
+        wilaya_id: string;
+        commune_id: string | null;
+        authority_tier: string;
+        first_reported_at: string;
+      }[]);
+
+  const effectiveConfirmedAt = effectiveFireConfirmedAt(
+    cluster.confirmed_at,
+    confirmedMentionTier,
+  );
+
+  let officialMention = false;
+  if (officialIncidents.length > 0 && cluster.wilaya_id) {
+    const reported = officialIncidents
+      .map((incident) => Date.parse(incident.first_reported_at))
+      .filter(Number.isFinite);
+    if (reported.length > 0) {
+      const { data: siblingRows, error: siblingError } = await client
+        .from("fire_clusters")
+        .select("id, wilaya_id, state, confirmed_at, last_detected_at")
+        .eq("wilaya_id", cluster.wilaya_id)
+        .neq("state", "false_positive")
+        .neq("state", "extinguished")
+        .gte(
+          "last_detected_at",
+          new Date(Math.min(...reported) - LINK_BEFORE_MS).toISOString(),
+        )
+        .lte(
+          "last_detected_at",
+          new Date(Math.max(...reported) + LINK_AFTER_MS).toISOString(),
+        )
+        .limit(200);
+
+      if (!siblingError) {
+        type LinkCandidate = {
+          id: string;
+          wilaya_id: string | null;
+          state: string;
+          confirmed_at: string | null;
+          last_detected_at: string;
+        };
+        const candidateMap = new Map<string, LinkCandidate>();
+        for (const row of (siblingRows ?? []) as unknown as LinkCandidate[]) {
+          candidateMap.set(row.id, row);
+        }
+        candidateMap.set(cluster.id, {
+          id: cluster.id,
+          wilaya_id: cluster.wilaya_id,
+          state: cluster.state,
+          confirmed_at: effectiveConfirmedAt,
+          last_detected_at: cluster.last_detected_at,
+        });
+        const linked = singleCandidateLinks(officialIncidents, [
+          ...candidateMap.values(),
+        ]);
+        officialMention = linked.has(cluster.id);
+      }
+    }
+  }
 
   const ctx: FireContext = {
     forestFraction: commune?.forest_fraction ?? null,
     dangerLevel,
     nearbySighting,
-    officialMention: linked.has(cluster.id),
+    officialMention,
   };
 
   const level = isEligibleProbableFire(cluster, ctx, confirmedMentionTier);
@@ -536,7 +611,14 @@ async function loadFireModel(
   }
   const placeLabel = placeParts.length > 0 ? placeParts.join(" · ") : null;
 
-  return fireCardModel(cluster, level, placeLabel, shareTranslator(lang), lang);
+  return fireCardModel(
+    cluster,
+    level,
+    placeLabel,
+    shareTranslator(lang),
+    lang,
+    confirmedSourceLabel,
+  );
 }
 
 async function loadQuakeModel(
@@ -683,7 +765,26 @@ export async function handleUniversalShareRequest(
     deps && "cache" in deps ? (deps.cache ?? null) : defaultShareCache();
   const limit = deps?.limit ?? (() => safeEnforceRateLimit(request));
 
-  const model = await loadModel(parsed.kind, parsed.id, parsed.lang, nowMs);
+  let model: UniversalShareCardModel | null;
+  try {
+    model = await loadModel(parsed.kind, parsed.id, parsed.lang, nowMs);
+  } catch (failure) {
+    console.error(
+      "universal share card model load failed",
+      parsed.kind,
+      parsed.id,
+      failure,
+    );
+    return new Response("upstream unavailable", {
+      status: 503,
+      headers: {
+        "retry-after": "30",
+        "cache-control": "no-store",
+        "access-control-allow-origin": "*",
+        "x-content-type-options": "nosniff",
+      },
+    });
+  }
   if (!model) {
     return new Response("not found", {
       status: 404,

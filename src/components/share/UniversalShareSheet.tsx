@@ -150,7 +150,7 @@ export function UniversalShareSheet({
           <SheetTitle>{t("track3.share.title")}</SheetTitle>
         </SheetHeader>
 
-        <div className="space-y-4 px-4 pb-5">
+        <div className="mt-3 space-y-4 px-4 pb-5">
           <div className="grid grid-cols-2 gap-2" role="group">
             {FORMATS.map((format) => (
               <button

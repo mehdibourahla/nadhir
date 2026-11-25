@@ -490,27 +490,37 @@ async function launchLocalBrowser(): Promise<LocalCdpBrowser | null> {
     });
   });
 
-  const ws = await new Promise<WebSocket>((resolve, reject) => {
-    const socket = new WebSocket(wsUrl);
-    const timer = setTimeout(() => {
-      try {
-        socket.close();
-      } catch {
-        // ignore
-      }
-      reject(new Error("Timed out connecting to Chromium CDP WebSocket"));
-    }, LAUNCH_TIMEOUT_MS);
-    if (typeof timer.unref === "function") timer.unref();
+  let ws: WebSocket;
+  try {
+    ws = await new Promise<WebSocket>((resolve, reject) => {
+      const socket = new WebSocket(wsUrl);
+      const timer = setTimeout(() => {
+        try {
+          socket.close();
+        } catch {
+          // ignore
+        }
+        reject(new Error("Timed out connecting to Chromium CDP WebSocket"));
+      }, LAUNCH_TIMEOUT_MS);
+      if (typeof timer.unref === "function") timer.unref();
 
-    socket.addEventListener("open", () => {
-      clearTimeout(timer);
-      resolve(socket);
+      socket.addEventListener("open", () => {
+        clearTimeout(timer);
+        resolve(socket);
+      });
+      socket.addEventListener("error", () => {
+        clearTimeout(timer);
+        reject(new Error("Failed to connect to Chromium CDP WebSocket"));
+      });
     });
-    socket.addEventListener("error", () => {
-      clearTimeout(timer);
-      reject(new Error("Failed to connect to Chromium CDP WebSocket"));
-    });
-  });
+  } catch (err) {
+    try {
+      proc.kill("SIGKILL");
+    } catch {
+      // ignore
+    }
+    throw err;
+  }
 
   const instance = new LocalCdpBrowser(proc, ws, () => {
     if (sharedBrowser === instance) {

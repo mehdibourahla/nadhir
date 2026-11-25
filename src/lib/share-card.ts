@@ -120,7 +120,31 @@ export function codecContentType(
   return "image/png";
 }
 
-const OFFICIAL_AUTHORITY_TIERS = new Set(["national", "wilaya", "forestry"]);
+export const OFFICIAL_AUTHORITY_TIERS = new Set([
+  "national",
+  "wilaya",
+  "forestry",
+]);
+
+export function effectiveFireConfirmedAt(
+  confirmedAt: string | null | undefined,
+  confirmedMentionTier?: string | null,
+): string | null {
+  if (
+    typeof confirmedAt !== "string" ||
+    confirmedAt.trim().length === 0 ||
+    !Number.isFinite(Date.parse(confirmedAt))
+  ) {
+    return null;
+  }
+  if (
+    confirmedMentionTier != null &&
+    !OFFICIAL_AUTHORITY_TIERS.has(confirmedMentionTier)
+  ) {
+    return null;
+  }
+  return confirmedAt;
+}
 
 export const isShareable = (
   incident: Pick<OfficialIncident, "authority_tier">,
@@ -659,10 +683,10 @@ export function isEligibleProbableFire(
     return null;
   }
 
-  const effectiveConfirmedAt =
-    cluster.confirmed_at !== null && confirmedMentionTier !== "media"
-      ? cluster.confirmed_at
-      : null;
+  const effectiveConfirmedAt = effectiveFireConfirmedAt(
+    cluster.confirmed_at,
+    confirmedMentionTier,
+  );
 
   if (cluster.suspected_persistent_source === true && !effectiveConfirmedAt) {
     return null;
@@ -688,10 +712,14 @@ const SATELLITE_SOURCE_LABELS: Record<string, string> = {
 export function fireSourceAttribution(
   sources: readonly string[],
   level: Extract<FireLevel, "probable" | "confirmed">,
+  confirmedSourceLabel?: string | null,
 ): string {
   const mapped: string[] = [];
   if (level === "confirmed") {
-    mapped.push("DGPC");
+    const cleanAuthority = confirmedSourceLabel
+      ? sanitizeCardText(confirmedSourceLabel)
+      : "";
+    mapped.push(cleanAuthority || "DGPC");
   }
   for (const src of sources) {
     const label = SATELLITE_SOURCE_LABELS[src.trim().toLowerCase()];
@@ -711,6 +739,7 @@ export function fireCardModel(
   placeLabel: string | null,
   t: Translate,
   lang: AnyLocale,
+  confirmedSourceLabel?: string | null,
 ): UniversalShareCardModel {
   const confirmed = level === "confirmed";
   const detections = Math.max(
@@ -724,6 +753,11 @@ export function fireCardModel(
   const subtitle = cleanPlace
     ? sanitizeCardText(t("track3.share.fireTitle"))
     : "";
+  const eyebrow = fireSourceAttribution(
+    cluster.sources,
+    level,
+    confirmedSourceLabel,
+  );
 
   return {
     kind: "fire",
@@ -737,8 +771,8 @@ export function fireCardModel(
     accentHex: confirmed ? "#f87171" : "#fb923c",
     badgeBgHex: confirmed ? "#b91c1c" : "#f16a00",
     badgeFgHex: confirmed ? "#ffffff" : "#0b0d10",
-    eyebrow: fireSourceAttribution(cluster.sources, level),
-    eyebrowLtr: true,
+    eyebrow,
+    eyebrowLtr: !/[\u0600-\u06FF]/.test(eyebrow),
     badge: sanitizeCardText(
       confirmed
         ? t("track3.share.confirmedFireBadge")
@@ -818,7 +852,7 @@ export function quakeCardModel(
     badge: `M${mag.toFixed(1)}`,
     badgeLtr: true,
     title: cleanPlace || sanitizeCardText(t("track3.share.quakeTitle")),
-    subtitle: sanitizeCardText(t("track3.share.quakeTitle")),
+    subtitle: cleanPlace ? sanitizeCardText(t("track3.share.quakeTitle")) : "",
     coordsLtr: formatPlainCoords(quake.lat, quake.lon),
     metaLine: sanitizeCardText(metaParts.join(" · ")),
     timestamp: sanitizeCardText(

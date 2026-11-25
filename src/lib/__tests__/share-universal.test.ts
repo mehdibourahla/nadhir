@@ -27,9 +27,11 @@ import { renderUniversalShareCardHtml } from "@/lib/share-card-html";
 import { quantizePngToIndexed } from "@/lib/share-png-quantize.server";
 import {
   handleUniversalShareRequest,
+  loadFireModel,
   loadUniversalShareModel,
 } from "@/lib/share-render.server";
 import { shareTranslator } from "@/lib/share-translator";
+import { FIRE_KINDS } from "@/lib/text-sources/merge";
 import type { WilayaSnapshot } from "@/lib/wilaya-data";
 import { WILAYA_REGISTRY, wilayaBySlug } from "@/lib/wilaya-slugs";
 
@@ -461,12 +463,63 @@ describe("ADR-0002 strict eligibility & 5-entity models", () => {
       ),
     ).toBe("probable");
 
+    // Empty or unparseable confirmed_at NEVER grants "confirmed"
+    expect(
+      isEligibleProbableFire(makeFire({ confirmed_at: "" }), emptyCtx, null),
+    ).toBeNull();
+    expect(
+      isEligibleProbableFire(
+        makeFire({ confirmed_at: "   " }),
+        emptyCtx,
+        "national",
+      ),
+    ).toBeNull();
+    expect(
+      isEligibleProbableFire(
+        makeFire({ confirmed_at: "not-a-date" }),
+        emptyCtx,
+        "national",
+      ),
+    ).toBeNull();
+    expect(
+      isEligibleProbableFire(
+        makeFire({ confirmed_at: "" }),
+        forestCtx,
+        "national",
+      ),
+    ).toBe("probable");
+
+    // Non-official authority tiers ("citizen", "unknown", "") NEVER grant "confirmed"
+    for (const badTier of ["citizen", "unknown", ""]) {
+      expect(
+        isEligibleProbableFire(
+          makeFire({ confirmed_at: "2026-11-25T11:00:00Z" }),
+          emptyCtx,
+          badTier,
+        ),
+      ).toBeNull();
+      expect(
+        isEligibleProbableFire(
+          makeFire({ confirmed_at: "2026-11-25T11:00:00Z" }),
+          forestCtx,
+          badTier,
+        ),
+      ).toBe("probable");
+    }
+
     // Official national authority DOES grant "confirmed"
     expect(
       isEligibleProbableFire(
         makeFire({ confirmed_at: "2026-11-25T11:00:00Z" }),
         emptyCtx,
         "national",
+      ),
+    ).toBe("confirmed");
+    expect(
+      isEligibleProbableFire(
+        makeFire({ confirmed_at: "2026-11-25T11:00:00Z" }),
+        emptyCtx,
+        "forestry",
       ),
     ).toBe("confirmed");
 
@@ -507,6 +560,16 @@ describe("ADR-0002 strict eligibility & 5-entity models", () => {
     expect(modelNoDepth.badge).toBe("M4.8");
     expect(modelNoDepth.metaLine).not.toContain("0 km");
     expect(modelNoDepth.metaLine).toContain("Offshore");
+
+    // Empty placeLabel + empty region must NOT duplicate localized "Earthquake" in subtitle
+    const modelNoPlace = quakeCardModel(
+      makeQuake({ region: "" }),
+      null,
+      shareTranslator("en"),
+      "en",
+    );
+    expect(modelNoPlace.title).toBe("Earthquake");
+    expect(modelNoPlace.subtitle).toBe("");
   });
 
   it("enforces Official Incident eligibility (rejects authority_tier=media)", () => {
@@ -733,5 +796,376 @@ describe("handleUniversalShareRequest (GET, HEAD, cache, rate-limit, errors)", (
     expect(res503.status).toBe(503);
     expect(res503.headers.get("retry-after")).toBe("30");
     expect(MAX_SHARE_CARD_BYTES).toBe(37_888);
+  });
+
+  it("returns HTTP 503 with retry-after, no-store, CORS, nosniff and skips cache when loadModel throws", async () => {
+    const put = vi.fn(async () => {});
+    const match = vi.fn(async () => undefined);
+    const render = vi.fn(async () => new Uint8Array([1]));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const req = new Request(
+      `https://nadhir.app/api/public/share/incident/${sampleModel.id}.whatsapp.webp?lang=fr`,
+    );
+    const res = await handleUniversalShareRequest(req, parsedTarget, {
+      loadModel: async () => {
+        throw new Error("postgrest connection refused");
+      },
+      render,
+      cache: { match, put },
+      limit: async () => null,
+    });
+
+    expect(res.status).toBe(503);
+    expect(res.headers.get("retry-after")).toBe("30");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(match).not.toHaveBeenCalled();
+    expect(put).not.toHaveBeenCalled();
+    expect(render).not.toHaveBeenCalled();
+  });
+});
+
+type MockRow = Record<string, unknown>;
+type RecordedQuery = {
+  table: string;
+  select: string | null;
+  filters: { op: string; col: string; val: unknown }[];
+};
+
+function createMockFireSupabase(fixtures: {
+  fire_clusters?: MockRow[];
+  official_incidents?: MockRow[];
+  incident_mentions?: MockRow[];
+  mentionError?: { message: string } | null;
+  admin_units?: MockRow[];
+  hazard_reports?: MockRow[];
+}) {
+  const queries: RecordedQuery[] = [];
+  const tables: Record<string, MockRow[]> = {
+    fire_clusters: fixtures.fire_clusters ?? [],
+    official_incidents: fixtures.official_incidents ?? [],
+    incident_mentions: fixtures.incident_mentions ?? [],
+    admin_units: fixtures.admin_units ?? [],
+    hazard_reports: fixtures.hazard_reports ?? [],
+    risk_publication_checkpoint: [],
+  };
+
+  const makeBuilder = (table: string) => {
+    const record: RecordedQuery = { table, select: null, filters: [] };
+    queries.push(record);
+    let maxRows: number | null = null;
+
+    const evaluate = () => {
+      if (table === "incident_mentions" && fixtures.mentionError) {
+        return { data: null, error: fixtures.mentionError };
+      }
+      let rows = [...(tables[table] ?? [])];
+      for (const f of record.filters) {
+        rows = rows.filter((row) => {
+          const v = row[f.col];
+          switch (f.op) {
+            case "eq":
+              return v === f.val;
+            case "neq":
+              return v !== f.val;
+            case "is":
+              return v === f.val;
+            case "in":
+              return Array.isArray(f.val) && f.val.includes(v);
+            case "gte":
+              return typeof v === "string" && typeof f.val === "string"
+                ? v >= f.val
+                : Number(v) >= Number(f.val);
+            case "lte":
+              return typeof v === "string" && typeof f.val === "string"
+                ? v <= f.val
+                : Number(v) <= Number(f.val);
+            default:
+              return true;
+          }
+        });
+      }
+      if (maxRows !== null) rows = rows.slice(0, maxRows);
+      return { data: rows, error: null };
+    };
+
+    const builder = {
+      select(cols: string) {
+        record.select = cols;
+        return builder;
+      },
+      eq(col: string, val: unknown) {
+        record.filters.push({ op: "eq", col, val });
+        return builder;
+      },
+      neq(col: string, val: unknown) {
+        record.filters.push({ op: "neq", col, val });
+        return builder;
+      },
+      is(col: string, val: unknown) {
+        record.filters.push({ op: "is", col, val });
+        return builder;
+      },
+      in(col: string, val: unknown) {
+        record.filters.push({ op: "in", col, val });
+        return builder;
+      },
+      gte(col: string, val: unknown) {
+        record.filters.push({ op: "gte", col, val });
+        return builder;
+      },
+      lte(col: string, val: unknown) {
+        record.filters.push({ op: "lte", col, val });
+        return builder;
+      },
+      limit(n: number) {
+        maxRows = n;
+        return builder;
+      },
+      maybeSingle() {
+        const res = evaluate();
+        if (res.error) return Promise.resolve({ data: null, error: res.error });
+        const rows = res.data as MockRow[];
+        return Promise.resolve({ data: rows[0] ?? null, error: null });
+      },
+      then<TResult1 = unknown, TResult2 = never>(
+        onfulfilled?:
+          | ((value: { data: MockRow[] | null; error: unknown }) => TResult1)
+          | null,
+        onrejected?: ((reason: unknown) => TResult2) | null,
+      ) {
+        return Promise.resolve(evaluate()).then(onfulfilled, onrejected);
+      },
+    };
+    return builder;
+  };
+
+  return {
+    queries,
+    client: {
+      from: (table: string) => makeBuilder(table),
+      rpc: () => makeBuilder("risk_forecasts"),
+    } as unknown as Parameters<typeof loadFireModel>[3],
+  };
+}
+
+describe("loadFireModel (ADR-0002 corroboration, multi-cluster ambiguity, mention guards)", () => {
+  const wilayaUnit = {
+    id: "w-15",
+    level: "wilaya",
+    code: "15",
+    name_ar: "تيزي وزو",
+    name_fr: "Tizi Ouzou",
+    name_en: "Tizi Ouzou",
+    name_kab: "Tizi Wezzu",
+    parent_id: null,
+    forest_fraction: 0.02,
+  };
+  const lowForestCommune = {
+    id: "c-1501",
+    level: "commune",
+    code: "1501",
+    name_ar: "عزازقة",
+    name_fr: "Azazga",
+    name_en: "Azazga",
+    name_kab: "Iɛeẓẓugen",
+    parent_id: "w-15",
+    forest_fraction: 0.02,
+  };
+
+  const baseClusterRow = (over: MockRow = {}): MockRow => ({
+    ...makeFire({
+      id: "fire-heat-1",
+      short_id: "F-HEAT-1",
+      state: "active",
+      confirmed_at: null,
+      last_detected_at: "2026-11-25T10:30:00Z",
+    }),
+    commune_id: "c-1501",
+    wilaya_id: "w-15",
+    confirmed_mention_id: null,
+    ...over,
+  });
+
+  it("does NOT promote a satellite heat_signal on wilaya-level DGPC flood/storm/road or commune-level incidents", async () => {
+    const mock = createMockFireSupabase({
+      fire_clusters: [baseClusterRow()],
+      admin_units: [wilayaUnit, lowForestCommune],
+      official_incidents: [
+        {
+          wilaya_id: "w-15",
+          commune_id: null,
+          kind: "flood",
+          authority_tier: "national",
+          first_reported_at: "2026-11-25T10:00:00Z",
+        },
+        {
+          wilaya_id: "w-15",
+          commune_id: null,
+          kind: "storm",
+          authority_tier: "national",
+          first_reported_at: "2026-11-25T10:05:00Z",
+        },
+        {
+          wilaya_id: "w-15",
+          commune_id: null,
+          kind: "road",
+          authority_tier: "national",
+          first_reported_at: "2026-11-25T10:10:00Z",
+        },
+        {
+          wilaya_id: "w-15",
+          commune_id: "c-1501",
+          kind: "vegetation",
+          authority_tier: "national",
+          first_reported_at: "2026-11-25T10:15:00Z",
+        },
+      ],
+    });
+
+    const model = await loadFireModel("F-HEAT-1", "en", NOW_MS, mock.client);
+    expect(model).toBeNull();
+
+    const incQuery = mock.queries.find((q) => q.table === "official_incidents");
+    expect(incQuery).toBeDefined();
+    expect(incQuery?.filters).toContainEqual({
+      op: "in",
+      col: "kind",
+      val: [...FIRE_KINDS],
+    });
+    expect(incQuery?.filters).toContainEqual({
+      op: "is",
+      col: "commune_id",
+      val: null,
+    });
+    expect(incQuery?.filters).toContainEqual({
+      op: "neq",
+      col: "authority_tier",
+      val: "media",
+    });
+  });
+
+  it("rejects BOTH heat signals when 2 active clusters share a wilaya with 1 wilaya-level fire incident", async () => {
+    const f1 = baseClusterRow({
+      id: "fire-heat-1",
+      short_id: "F-HEAT-1",
+      last_detected_at: "2026-11-25T10:30:00Z",
+    });
+    const f2 = baseClusterRow({
+      id: "fire-heat-2",
+      short_id: "F-HEAT-2",
+      last_detected_at: "2026-11-25T10:45:00Z",
+    });
+    const fireIncident = {
+      wilaya_id: "w-15",
+      commune_id: null,
+      kind: "vegetation",
+      authority_tier: "national",
+      first_reported_at: "2026-11-25T10:00:00Z",
+    };
+
+    const mock1 = createMockFireSupabase({
+      fire_clusters: [f1, f2],
+      admin_units: [wilayaUnit, lowForestCommune],
+      official_incidents: [fireIncident],
+    });
+    const mock2 = createMockFireSupabase({
+      fire_clusters: [f1, f2],
+      admin_units: [wilayaUnit, lowForestCommune],
+      official_incidents: [fireIncident],
+    });
+
+    expect(
+      await loadFireModel("F-HEAT-1", "en", NOW_MS, mock1.client),
+    ).toBeNull();
+    expect(
+      await loadFireModel("F-HEAT-2", "en", NOW_MS, mock2.client),
+    ).toBeNull();
+  });
+
+  it("promotes 1 unique active cluster in a wilaya with 1 wilaya-level fire incident to 'probable' (NEVER 'confirmed')", async () => {
+    const mock = createMockFireSupabase({
+      fire_clusters: [baseClusterRow()],
+      admin_units: [wilayaUnit, lowForestCommune],
+      official_incidents: [
+        {
+          wilaya_id: "w-15",
+          commune_id: null,
+          kind: "vegetation",
+          authority_tier: "national",
+          first_reported_at: "2026-11-25T10:00:00Z",
+        },
+      ],
+    });
+
+    const model = await loadFireModel("F-HEAT-1", "en", NOW_MS, mock.client);
+    expect(model).not.toBeNull();
+    expect(model?.badge).toBe("Probable fire");
+    expect(model?.badge.toLowerCase()).not.toContain("confirmed");
+    expect(model?.eyebrow).not.toContain("DGPC");
+  });
+
+  it("fails closed when confirmed_mention_id lookup errors, is missing, or has a non-official tier", async () => {
+    const confirmedRow = baseClusterRow({
+      confirmed_at: "2026-11-25T10:20:00Z",
+      confirmed_mention_id: "mention-1",
+    });
+
+    const mockError = createMockFireSupabase({
+      fire_clusters: [confirmedRow],
+      admin_units: [wilayaUnit, lowForestCommune],
+      mentionError: { message: "db error" },
+    });
+    expect(
+      await loadFireModel("F-HEAT-1", "en", NOW_MS, mockError.client),
+    ).toBeNull();
+
+    const mockMissing = createMockFireSupabase({
+      fire_clusters: [confirmedRow],
+      admin_units: [wilayaUnit, lowForestCommune],
+      incident_mentions: [],
+    });
+    expect(
+      await loadFireModel("F-HEAT-1", "en", NOW_MS, mockMissing.client),
+    ).toBeNull();
+
+    const mockCitizen = createMockFireSupabase({
+      fire_clusters: [confirmedRow],
+      admin_units: [wilayaUnit, lowForestCommune],
+      incident_mentions: [
+        {
+          id: "mention-1",
+          source: { authority_tier: "citizen", label: "Community Report" },
+        },
+      ],
+    });
+    expect(
+      await loadFireModel("F-HEAT-1", "en", NOW_MS, mockCitizen.client),
+    ).toBeNull();
+  });
+
+  it("uses official confirming source label (e.g. 'DGF') in eyebrow instead of hardcoded 'DGPC'", async () => {
+    const confirmedRow = baseClusterRow({
+      confirmed_at: "2026-11-25T10:20:00Z",
+      confirmed_mention_id: "mention-dgf",
+    });
+    const mockDgf = createMockFireSupabase({
+      fire_clusters: [confirmedRow],
+      admin_units: [wilayaUnit, lowForestCommune],
+      incident_mentions: [
+        {
+          id: "mention-dgf",
+          source: { authority_tier: "forestry", label: "DGF" },
+        },
+      ],
+    });
+
+    const model = await loadFireModel("F-HEAT-1", "en", NOW_MS, mockDgf.client);
+    expect(model).not.toBeNull();
+    expect(model?.eyebrow).toContain("DGF");
+    expect(model?.eyebrow).not.toContain("DGPC");
+    expect(model?.eyebrowLtr).toBe(true);
   });
 });
