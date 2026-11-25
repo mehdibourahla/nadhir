@@ -134,7 +134,7 @@ function ForecastPage() {
   const units = useQuery(adminUnitsQuery);
   const zones = useQuery(zonesQuery);
   const onm = useQuery({ ...onmVigilanceQuery, retry: false });
-  const today = useQuery(todayRiskForecastsQuery);
+  const today = useQuery({ ...todayRiskForecastsQuery, retry: false });
   const incidents = useQuery({ ...officialIncidentsQuery, retry: false });
   const earthquakes = useQuery({ ...earthquakesQuery, retry: false });
   const airportWeather = useQuery({ ...airportWeatherQuery, retry: false });
@@ -345,11 +345,40 @@ function ForecastPage() {
 
       <NationalOutlook
         rows={ranking}
-        loading={units.isPending || today.isPending || onm.isPending}
-        failed={units.isError || today.isError || onm.isError}
+        loading={
+          units.isPending ||
+          (onm.isPending &&
+            today.isPending &&
+            incidents.isPending &&
+            earthquakes.isPending)
+        }
+        failed={
+          units.isError ||
+          (today.isError &&
+            onm.isError &&
+            incidents.isError &&
+            earthquakes.isError)
+        }
+        partialFailure={
+          !(
+            units.isError ||
+            (today.isError &&
+              onm.isError &&
+              incidents.isError &&
+              earthquakes.isError)
+          ) &&
+          (today.isError ||
+            onm.isError ||
+            incidents.isError ||
+            earthquakes.isError)
+        }
+        lang={search.lang}
         onRetry={() => {
+          void units.refetch();
           void today.refetch();
           void onm.refetch();
+          void incidents.refetch();
+          void earthquakes.refetch();
         }}
         onPick={(row) => {
           const commune = communes.find((c) => c.id === row.targetCommuneId);

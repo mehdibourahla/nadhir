@@ -211,6 +211,8 @@ export const track3Fr: Track3Translation = {
       stationVisibility: "Visibilité {{km}} km",
       nationalIncidents: "{{count}} incident(s) officiel(s)",
       nationalQuake: "Séisme M{{magnitude}}",
+      nationalPartialError:
+        "Certains flux nationaux d'aléas n'ont pas pu être chargés. Les vigilances et alertes officielles disponibles restent affichées.",
       wilayaDirectoryTitle: "Parcourir les 69 wilayas",
       wilayaDirectoryBody:
         "Pages bilingues directes de suivi des aléas pour chaque wilaya algérienne selon la loi 26-06.",

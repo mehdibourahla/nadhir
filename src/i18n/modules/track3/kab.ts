@@ -208,6 +208,8 @@ export const track3Kab: Track3Translation = {
       stationVisibility: "Tamuɣli {{km}} km",
       nationalIncidents: "{{count}} n tedyanin tunṣibin",
       nationalQuake: "Zzelzla M{{magnitude}}",
+      nationalPartialError:
+        "Kra n yiɣbula iɣelnawen n wuguren ur zmiren ara ad d-alin. Ilɣa tunṣibin yellan mazal banen-d.",
       wilayaDirectoryTitle: "Wali akk 69 n twilayin",
       wilayaDirectoryBody:
         "Isebtar s snat n tutlayin i uḍfar n wuguren i yal tawilayt n Lezzayer s usaḍuf 26-06.",

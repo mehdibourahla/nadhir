@@ -207,6 +207,8 @@ export const track3Ar: Track3Translation = {
       stationVisibility: "الرؤية {{km}} كلم",
       nationalIncidents: "{{count}} حادث رسمي",
       nationalQuake: "زلزال M{{magnitude}}",
+      nationalPartialError:
+        "تعذّر تحميل بعض مصادر الأخطار الوطنية. تبقى النشريات والتنبيهات الرسمية المتاحة ظاهرة.",
       wilayaDirectoryTitle: "تصفّح جميع الولايات الـ 69",
       wilayaDirectoryBody:
         "صفحات مباشرة ثنائية اللغة لمتابعة الأخطار في كل ولايات الجزائر وفق القانون 26-06.",

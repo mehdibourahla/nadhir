@@ -95,8 +95,9 @@ export function ForecastHazardContext({
     ? filterActiveOfficialIncidents(
         incidents.data.filter(
           (item) =>
-            item.wilaya_id === selected.parent_id ||
-            item.commune_id === selected.id,
+            item.authority_tier !== "media" &&
+            (item.wilaya_id === selected.parent_id ||
+              item.commune_id === selected.id),
         ),
       ).slice(0, 5)
     : [];
@@ -159,10 +160,7 @@ export function ForecastHazardContext({
                   ? unitName(item.commune, locale)
                   : (item.place_text ?? unitName(item.wilaya, locale));
                 const source =
-                  item.latest_mention?.source?.label?.trim() ||
-                  (item.authority_tier === "media"
-                    ? "Info Trafic Algérie"
-                    : "DGPC");
+                  item.latest_mention?.source?.label?.trim() || "DGPC";
                 return (
                   <li
                     key={item.id}
@@ -282,37 +280,37 @@ export function ForecastHazardContext({
               <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
                 {nearestStation.temp_c !== null &&
                 Number.isFinite(nearestStation.temp_c) ? (
-                  <bdi dir="ltr" className="font-semibold text-foreground">
+                  <span className="font-semibold text-foreground tabular-nums">
                     {t("track3.forecast.stationTemp", {
                       temp: Math.round(nearestStation.temp_c),
                     })}
-                  </bdi>
+                  </span>
                 ) : null}
                 {nearestStation.wind_kt !== null &&
                 Number.isFinite(nearestStation.wind_kt) ? (
-                  <bdi dir="ltr">
+                  <span className="tabular-nums">
                     {t("track3.forecast.stationWind", {
                       wind: Math.round(nearestStation.wind_kt * 1.852),
                     })}
-                  </bdi>
+                  </span>
                 ) : null}
                 {nearestStation.gust_kt !== null &&
                 Number.isFinite(nearestStation.gust_kt) ? (
-                  <bdi dir="ltr">
+                  <span className="tabular-nums">
                     {t("track3.forecast.stationGust", {
                       gust: Math.round(nearestStation.gust_kt * 1.852),
                     })}
-                  </bdi>
+                  </span>
                 ) : null}
                 {nearestStation.visibility_m !== null &&
                 Number.isFinite(nearestStation.visibility_m) ? (
-                  <bdi dir="ltr">
+                  <span className="tabular-nums">
                     {t("track3.forecast.stationVisibility", {
                       km:
                         Math.round((nearestStation.visibility_m / 1000) * 10) /
                         10,
                     })}
-                  </bdi>
+                  </span>
                 ) : null}
               </div>
               <p className="mt-2 text-muted-foreground">

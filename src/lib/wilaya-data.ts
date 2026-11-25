@@ -151,6 +151,7 @@ export function filterActiveOfficialIncidents(
   nowMs: number = Date.now(),
 ): OfficialIncident[] {
   return incidents.filter((incident) => {
+    if (incident.authority_tier === "media") return false;
     const phase = officialPhase(incident, nowMs);
     return phase !== "ended" && phase !== "archived";
   });
@@ -175,7 +176,9 @@ export function classifyWilayaFires(
   for (const cluster of clusters) {
     if (
       cluster.state === "false_positive" ||
-      (cluster.state === "extinguished" && cluster.resolved_at !== null)
+      cluster.state === "extinguished" ||
+      !Number.isFinite(cluster.lat) ||
+      !Number.isFinite(cluster.lon)
     ) {
       continue;
     }
@@ -437,6 +440,7 @@ export async function fetchWilayaSnapshot(
           .from("official_incidents")
           .select(OFFICIAL_INCIDENT_FIELDS)
           .eq("wilaya_id", wilayaRow.id)
+          .neq("authority_tier", "media")
           .gte("last_reported_at", since72h)
           .order("last_reported_at", { ascending: false })
           .limit(50),
@@ -448,6 +452,7 @@ export async function fetchWilayaSnapshot(
           .select(FIRE_CLUSTER_FIELDS)
           .eq("wilaya_id", wilayaRow.id)
           .neq("state", "false_positive")
+          .neq("state", "extinguished")
           .gte("last_detected_at", since72h)
           .order("last_detected_at", { ascending: false })
           .limit(100),

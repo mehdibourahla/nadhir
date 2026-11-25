@@ -392,4 +392,71 @@ describe("M3B winter multi-hazard & finite guards", () => {
     expect(cells[0]).toEqual({ state: "warning", level: 4, events: ["snow"] });
     expect(wCells[0]).toEqual({ tempC: 10, windKmh: 5, rainMm: 0 });
   });
+
+  it("fails closed on invalid ONM expires or onset timestamps across all 6 outlook days", () => {
+    const badExpires = onmCells(
+      [warning({ expires: "not-a-valid-date", severity: "Severe" })],
+      "w-batna",
+      DAYS,
+    );
+    expect(badExpires.some((c) => c.state === "warning")).toBe(false);
+    expect(badExpires.slice(0, 2)).toEqual([
+      { state: "none" },
+      { state: "none" },
+    ]);
+    expect(badExpires.slice(2).every((c) => c.state === "not_issued")).toBe(
+      true,
+    );
+
+    const badOnset = onmCells(
+      [warning({ onset: "not-a-valid-date", severity: "Extreme" })],
+      "w-batna",
+      DAYS,
+    );
+    expect(badOnset.some((c) => c.state === "warning")).toBe(false);
+
+    const badSentFallback = onmCells(
+      [
+        warning({
+          onset: null,
+          sent: "not-a-valid-date",
+          severity: "Extreme",
+        }),
+      ],
+      "w-batna",
+      DAYS,
+    );
+    expect(badSentFallback.some((c) => c.state === "warning")).toBe(false);
+  });
+
+  it("fails closed on invalid earthquake occurred_at timestamps in nationalRanking", () => {
+    const nowMs = Date.parse("2026-09-25T12:00:00Z");
+    const units = [
+      unit({
+        id: "w-alger",
+        level: "wilaya",
+        code: "16",
+        lat: 36.7,
+        lon: 3.03,
+      }),
+      unit({ id: "c-alger", parent_id: "w-alger", population: 500 }),
+    ];
+    const invalidDateQuake: Earthquake = {
+      id: "q-bad-date",
+      occurred_at: "not-a-date",
+      lat: 36.7,
+      lon: 3.03,
+      depth_km: 10,
+      magnitude: 5.5,
+      magnitude_type: "ML",
+      region: "Algiers",
+      network: "EMSC",
+      commune_id: "c-alger",
+      offshore: false,
+    };
+
+    expect(
+      nationalRanking(units, [], [], DAYS, [], [invalidDateQuake], nowMs),
+    ).toEqual([]);
+  });
 });

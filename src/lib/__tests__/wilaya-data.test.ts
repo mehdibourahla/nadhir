@@ -12,6 +12,7 @@ import type {
 import {
   classifyWilayaFires,
   fetchWilayaSnapshot,
+  filterActiveOfficialIncidents,
   filterActiveOnmWarnings,
   filterWilayaEarthquakes,
   selectNearbyAirportWeather,
@@ -172,6 +173,129 @@ describe("wilaya-data", () => {
       ["prob-1", "probable"],
       ["conf-1", "confirmed"],
     ]);
+  });
+
+  it("excludes state=extinguished unconditionally (even with resolved_at=null) and drops non-finite fire coords", () => {
+    const communeForest: AdminUnit = {
+      id: "c-forest",
+      level: "commune",
+      code: "1501",
+      name_ar: "تيزي وزو",
+      name_fr: "Tizi Ouzou",
+      name_en: "Tizi Ouzou",
+      name_kab: "Tizi Wezzu",
+      parent_id: "w-15",
+      lat: 36.7,
+      lon: 4.05,
+      forest_fraction: 0.4,
+      population: 100000,
+    };
+
+    const baseCluster: FireCluster = {
+      id: "fc-base",
+      short_id: "F9",
+      state: "active",
+      first_detected_at: "2026-11-25T09:00:00Z",
+      last_detected_at: "2026-11-25T11:00:00Z",
+      lat: 36.7,
+      lon: 4.05,
+      detection_count: 3,
+      sources: ["firms"],
+      max_frp_mw: 20,
+      confidence: 80,
+      est_area_ha: null,
+      fci_growth: null,
+      wind_speed_kmh: null,
+      wind_dir_deg: null,
+      spread_bearing_deg: null,
+      wind_gust_kmh: null,
+      vpd_kpa: null,
+      soil_moisture_m3m3: null,
+      commune_id: "c-forest",
+      wilaya_id: "w-15",
+      nearest_settlement_id: null,
+      nearest_settlement_km: null,
+      confirmed_at: null,
+      resolved_at: null,
+      confirmed_mention_id: null,
+    };
+
+    const { probableFires, heatSignalCount } = classifyWilayaFires(
+      [
+        {
+          ...baseCluster,
+          id: "ext-null-resolved",
+          state: "extinguished",
+          resolved_at: null,
+        },
+        {
+          ...baseCluster,
+          id: "nan-coord",
+          state: "active",
+          lat: Number.NaN,
+          lon: Number.NaN,
+        },
+        {
+          ...baseCluster,
+          id: "inf-coord",
+          state: "active",
+          lat: 36.7,
+          lon: Number.POSITIVE_INFINITY,
+        },
+      ],
+      new Map([[communeForest.id, communeForest]]),
+      new Map(),
+      [] as OfficialIncident[],
+    );
+
+    expect(probableFires).toEqual([]);
+    expect(heatSignalCount).toBe(0);
+  });
+
+  it("excludes authority_tier=media (ita_facebook) from filterActiveOfficialIncidents (ADR-0002)", () => {
+    const baseIncident: OfficialIncident = {
+      id: "inc-dgpc",
+      wilaya_id: "w-16",
+      commune_id: "c-1601",
+      kind: "flood",
+      status: "ongoing",
+      precision: "commune",
+      authority_tier: "national",
+      place_text: "Bab El Oued",
+      first_reported_at: "2026-11-25T09:00:00Z",
+      last_reported_at: "2026-11-25T11:30:00Z",
+      as_of: "2026-11-25T11:30:00Z",
+      updated_at: "2026-11-25T11:30:00Z",
+      unlisted_at: null,
+      mention_count: 1,
+      evidence: "DGPC flood response",
+      commune: null,
+      wilaya: {
+        name_ar: "الجزائر",
+        name_fr: "Alger",
+        name_en: "Algiers",
+        name_kab: "Dzayer",
+        lat: 36.7,
+        lon: 3.03,
+      },
+      latest_mention: null,
+    };
+
+    const filtered = filterActiveOfficialIncidents(
+      [
+        baseIncident,
+        {
+          ...baseIncident,
+          id: "inc-ita-media",
+          kind: "road",
+          authority_tier: "media",
+          evidence: "Info Trafic Algérie post",
+        },
+      ],
+      NOW_MS,
+    );
+
+    expect(filtered.map((item) => item.id)).toEqual(["inc-dgpc"]);
   });
 
   it("matches earthquakes within 100 km and preserves CRAAG/EMSC attribution", () => {

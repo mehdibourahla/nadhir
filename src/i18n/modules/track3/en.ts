@@ -206,6 +206,8 @@ export const track3En = {
       stationVisibility: "Visibility {{km}} km",
       nationalIncidents: "{{count}} official incident(s)",
       nationalQuake: "M{{magnitude}} earthquake",
+      nationalPartialError:
+        "Some national hazard feeds could not be loaded. Available official warnings and alerts remain visible.",
       wilayaDirectoryTitle: "Browse all 69 wilayas",
       wilayaDirectoryBody:
         "Direct bilingual hazard pages for every Algerian wilaya under Law 26-06.",

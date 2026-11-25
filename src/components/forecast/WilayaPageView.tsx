@@ -121,9 +121,13 @@ export function WilayaPageView({
     ? snapshot.communes
     : snapshot.communes.slice(0, INITIAL_COMMUNES);
 
+  const officialIncidents = snapshot.officialIncidents.filter(
+    (incident) => incident.authority_tier !== "media",
+  );
+
   const hasActiveHazards =
     snapshot.onmWarnings.length > 0 ||
-    snapshot.officialIncidents.length > 0 ||
+    officialIncidents.length > 0 ||
     snapshot.probableFires.length > 0 ||
     snapshot.earthquakes.length > 0;
 
@@ -202,9 +206,12 @@ export function WilayaPageView({
           </Link>
           <Link
             to="/forecast"
-            search={
-              snapshot.communes[0] ? { commune: snapshot.communes[0].code } : {}
-            }
+            search={{
+              ...(snapshot.communes[0]
+                ? { commune: snapshot.communes[0].code }
+                : {}),
+              ...(explicitLang ? { lang: explicitLang } : {}),
+            }}
             className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3.5 text-sm font-medium transition-colors hover:bg-muted"
           >
             <Compass aria-hidden className="size-4 shrink-0" />
@@ -294,7 +301,10 @@ export function WilayaPageView({
               <span>{t("track3.wilaya.onmSectionTitle")}</span>
             </h3>
             {snapshot.onmWarnings.map((warning) => {
-              const level = ONM_SEVERITY[warning.severity] ?? 2;
+              const level = Math.min(
+                4,
+                Math.max(1, ONM_SEVERITY[warning.severity] ?? 2),
+              );
               const headline =
                 locale === "fr" && warning.headline_fr
                   ? warning.headline_fr
@@ -311,7 +321,7 @@ export function WilayaPageView({
                     >
                       <ShieldAlert aria-hidden className="size-3.5 shrink-0" />
                       <span className="tabular-nums">{level}</span>
-                      <span>{warning.severity}</span>
+                      <span>{t(`weather:outlook.onmLevel.${level}`)}</span>
                     </span>
                     <span className="text-xs font-medium text-foreground">
                       {t("track3.wilaya.onmAttribution")}
@@ -348,13 +358,13 @@ export function WilayaPageView({
           </div>
         ) : null}
 
-        {snapshot.officialIncidents.length > 0 ? (
+        {officialIncidents.length > 0 ? (
           <div className="mt-5 space-y-3">
             <h3 className="flex items-center gap-2 text-base font-semibold">
               <ShieldAlert aria-hidden className="size-4 shrink-0" />
               <span>{t("track3.wilaya.incidentsSectionTitle")}</span>
             </h3>
-            {snapshot.officialIncidents.map((incident) => {
+            {officialIncidents.map((incident) => {
               const kindKey = KNOWN_INCIDENT_KINDS.has(incident.kind)
                 ? incident.kind
                 : "other";
@@ -362,10 +372,7 @@ export function WilayaPageView({
                 ? unitName(incident.commune, locale)
                 : (incident.place_text ?? localizedName);
               const sourceLabel =
-                incident.latest_mention?.source?.label?.trim() ||
-                (incident.authority_tier === "media"
-                  ? "Info Trafic Algérie"
-                  : "DGPC");
+                incident.latest_mention?.source?.label?.trim() || "DGPC";
               return (
                 <article key={incident.id} className="card p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -391,10 +398,7 @@ export function WilayaPageView({
                     provenance={provenanceForBroadcast({
                       kind: "official",
                       hazard: incident.kind,
-                      sourceKey:
-                        incident.authority_tier === "media"
-                          ? "ita_facebook"
-                          : "dgpc_telegram",
+                      sourceKey: "dgpc_telegram",
                       sourceAttribution: sourceLabel,
                       areaLabel: placeText,
                       observedAt: incident.last_reported_at,
@@ -448,11 +452,15 @@ export function WilayaPageView({
                   <p className="mt-1 text-xs text-muted-foreground">
                     {t("track3.wilaya.firesDetections", {
                       count: fire.detectionCount,
-                    })}{" "}
-                    ·{" "}
-                    <bdi dir="ltr" className="tabular-nums font-mono">
-                      {fire.lat.toFixed(3)}, {fire.lon.toFixed(3)}
-                    </bdi>
+                    })}
+                    {Number.isFinite(fire.lat) && Number.isFinite(fire.lon) ? (
+                      <>
+                        {" · "}
+                        <bdi dir="ltr" className="tabular-nums font-mono">
+                          {fire.lat.toFixed(3)}, {fire.lon.toFixed(3)}
+                        </bdi>
+                      </>
+                    ) : null}
                   </p>
                   <AlertProvenance
                     className="mt-3"
@@ -558,21 +566,17 @@ export function WilayaPageView({
                   <div className="mt-3 flex flex-wrap items-center gap-3">
                     <RiskChip level={snapshot.fireDanger.dangerLevel} />
                     <span className="text-sm font-medium tabular-nums">
-                      <bdi dir="ltr">
-                        {t("track3.wilaya.fireDangerFwi", {
-                          fwi: Math.round(snapshot.fireDanger.fwi),
-                        })}
-                      </bdi>
+                      {t("track3.wilaya.fireDangerFwi", {
+                        fwi: Math.round(snapshot.fireDanger.fwi),
+                      })}
                     </span>
                     {snapshot.fireDanger.percentile !== null ? (
                       <span className="text-sm text-muted-foreground tabular-nums">
-                        <bdi dir="ltr">
-                          {t("track3.wilaya.fireDangerPercentile", {
-                            percentile: Math.round(
-                              snapshot.fireDanger.percentile,
-                            ),
-                          })}
-                        </bdi>
+                        {t("track3.wilaya.fireDangerPercentile", {
+                          percentile: Math.round(
+                            snapshot.fireDanger.percentile,
+                          ),
+                        })}
                       </span>
                     ) : null}
                   </div>
@@ -628,28 +632,25 @@ export function WilayaPageView({
                       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                         {station.temp_c !== null &&
                         Number.isFinite(station.temp_c) ? (
-                          <bdi
-                            dir="ltr"
-                            className="font-medium text-foreground"
-                          >
+                          <span className="font-medium text-foreground tabular-nums">
                             {t("track3.forecast.stationTemp", {
                               temp: Math.round(station.temp_c),
                             })}
-                          </bdi>
+                          </span>
                         ) : null}
                         {windKmh !== null ? (
-                          <bdi dir="ltr">
+                          <span className="tabular-nums">
                             {t("track3.forecast.stationWind", {
                               wind: windKmh,
                             })}
-                          </bdi>
+                          </span>
                         ) : null}
                         {gustKmh !== null ? (
-                          <bdi dir="ltr">
+                          <span className="tabular-nums">
                             {t("track3.forecast.stationGust", {
                               gust: gustKmh,
                             })}
-                          </bdi>
+                          </span>
                         ) : null}
                         <time dateTime={station.observed_at}>
                           {algiersTime(station.observed_at)}
@@ -688,6 +689,7 @@ export function WilayaPageView({
             </p>
             <Link
               to="/forecast"
+              search={explicitLang ? { lang: explicitLang } : {}}
               className="inline-flex min-h-11 items-center rounded-lg border border-border px-3.5 text-sm font-medium hover:bg-muted"
             >
               {t("track3.wilaya.openForecast")}
@@ -700,7 +702,10 @@ export function WilayaPageView({
                 <li key={commune.id}>
                   <Link
                     to="/forecast"
-                    search={{ commune: commune.code }}
+                    search={{
+                      commune: commune.code,
+                      ...(explicitLang ? { lang: explicitLang } : {}),
+                    }}
                     className="flex min-h-11 items-center justify-between gap-2 rounded-lg border border-border/80 px-3 py-2 text-sm transition-colors hover:bg-muted"
                   >
                     <span className="truncate font-medium" dir="auto">

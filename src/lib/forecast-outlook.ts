@@ -114,7 +114,9 @@ function warningsOn(warnings: OnmVigilance[], day: string) {
       continue;
     if (!w.expires) continue;
     const start = Date.parse(w.onset ?? w.sent);
-    if (start >= to || Date.parse(w.expires) <= from) continue;
+    const expires = Date.parse(w.expires);
+    if (!Number.isFinite(start) || !Number.isFinite(expires)) continue;
+    if (start >= to || expires <= from) continue;
     seen.set(`${w.event}|${w.severity}|${w.onset ?? w.expires}`, w);
   }
   return [...seen.values()];
@@ -314,7 +316,7 @@ export function nationalRanking(
     }
     const occurredMs = Date.parse(q.occurred_at);
     return (
-      !Number.isFinite(occurredMs) || nowMs - occurredMs <= QUAKE_RANK_WINDOW_MS
+      Number.isFinite(occurredMs) && nowMs - occurredMs <= QUAKE_RANK_WINDOW_MS
     );
   });
 

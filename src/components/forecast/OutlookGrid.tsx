@@ -178,25 +178,19 @@ export function OutlookGrid({
             cell ? (
               <div className="tabular text-sm">
                 <span className="block font-medium">
-                  <bdi dir="ltr">
-                    {t("outlook.weatherTemp", {
-                      temp: Math.round(cell.tempC),
-                    })}
-                  </bdi>
+                  {t("outlook.weatherTemp", {
+                    temp: Math.round(cell.tempC),
+                  })}
                 </span>
                 <span className="block text-muted-foreground">
-                  <bdi dir="ltr">
-                    {t("outlook.weatherWind", {
-                      wind: Math.round(cell.windKmh),
-                    })}
-                  </bdi>
+                  {t("outlook.weatherWind", {
+                    wind: Math.round(cell.windKmh),
+                  })}
                 </span>
                 <span className="block text-muted-foreground">
-                  <bdi dir="ltr">
-                    {t("outlook.weatherRain", {
-                      rain: Math.round(cell.rainMm * 10) / 10,
-                    })}
-                  </bdi>
+                  {t("outlook.weatherRain", {
+                    rain: Math.round(cell.rainMm * 10) / 10,
+                  })}
                 </span>
               </div>
             ) : (
