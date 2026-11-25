@@ -269,9 +269,12 @@ export function SiteHeader() {
     userId !== null && !roles.isError && canReachPanel(roles.data ?? []);
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-surface/95 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-1 px-1.5 sm:gap-3 sm:px-4">
+      <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-0.5 px-1 sm:gap-3 sm:px-4">
         <MobileNav hasPanelAccess={hasPanelAccess} />
-        <Link to="/" className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+        <Link
+          to="/"
+          className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 sm:justify-start sm:gap-2"
+        >
           <BrandMark className="h-7 w-7 shrink-0 rounded-[7px]" />
           {/* below 360px the wordmark plus the controls no longer fit; the logo carries it */}
           <span className="truncate font-display text-lg font-semibold max-[359px]:hidden">
@@ -440,37 +443,37 @@ export function SiteFooter() {
         <span>{t("common.appName")}</span>
         <Link
           to="/about"
-          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11"
+          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
         >
           {t("nav.about")}
         </Link>
         <Link
           to="/developers"
-          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11"
+          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
         >
           {t("nav.developers")}
         </Link>
         <Link
           to="/status"
-          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11"
+          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
         >
           {t("nav.status")}
         </Link>
         <Link
           to="/contribute"
-          className="inline-flex items-center font-semibold text-[var(--accent)] hover:opacity-80 pointer-coarse:min-h-11"
+          className="inline-flex items-center font-semibold text-[var(--accent)] hover:opacity-80 pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
         >
           {t("nav.contribute")}
         </Link>
         <Link
           to="/terms"
-          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11"
+          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
         >
           {t("legal.terms")}
         </Link>
         <Link
           to="/privacy"
-          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11"
+          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
         >
           {t("legal.privacy")}
         </Link>

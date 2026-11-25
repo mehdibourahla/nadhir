@@ -83,11 +83,19 @@ export function nearestThreat(
   clusters: FireCluster[],
   maxKm: number = SURVIVAL_THREAT_KM,
 ): Threat | null {
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lon) ||
+    !Number.isFinite(maxKm)
+  ) {
+    return null;
+  }
   let best: { cluster: FireCluster; km: number } | null = null;
   for (const c of clusters) {
     if (!LIVE_STATES.includes(c.state)) continue;
+    if (!Number.isFinite(c.lat) || !Number.isFinite(c.lon)) continue;
     const km = haversineKm(lat, lon, c.lat, c.lon);
-    if (km > maxKm) continue;
+    if (!Number.isFinite(km) || km > maxKm) continue;
     if (!best || km < best.km) best = { cluster: c, km };
   }
   if (!best) return null;
@@ -338,9 +346,9 @@ const OFFICIAL_FRESH_MS = 12 * 3_600_000;
 const QUAKE_PROMPT_KM = 100;
 const QUAKE_FRESH_MS = 6 * 3_600_000;
 const ONM_RAIN_RE =
-  /\b(rain|flood|pluie|pluies|inondation|crue)\b|أمطار|فيضان/i;
+  /\b(rains?|floods?|pluies?|inondations?|crues?|averses?)\b|[أإا]مطار|فيضان(?:ات)?|سيول/i;
 const ONM_STORM_RE =
-  /\b(storm|thunder|wind|gale|sand|orage|vent|tempête|rafale)\b|عاصفة|رعد|رياح/i;
+  /\b(storms?|thunder(?:storms?)?|winds?|gales?|sands?(?:storms?)?|orages?|vents?|temp[êe]tes?|rafales?)\b|عاصفة|عواصف|رعد(?:ية)?|رياح/i;
 
 export function selectEmergencyThreat(
   lat: number,
@@ -354,6 +362,7 @@ export function selectEmergencyThreat(
     now?: number;
   },
 ): EmergencyThreat | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
   const now = input.now ?? Date.now();
   const units = input.units ?? [];
   const candidates: Array<{
@@ -392,8 +401,9 @@ export function selectEmergencyThreat(
   let nearestCommuneKm = Infinity;
   for (const unit of units) {
     if (unit.level !== "commune") continue;
+    if (!Number.isFinite(unit.lat) || !Number.isFinite(unit.lon)) continue;
     const km = haversineKm(lat, lon, unit.lat, unit.lon);
-    if (km < nearestCommuneKm) {
+    if (Number.isFinite(km) && km < nearestCommuneKm) {
       nearestCommune = unit;
       nearestCommuneKm = km;
     }
@@ -404,6 +414,9 @@ export function selectEmergencyThreat(
   // 2. Ongoing non-media DGPC official incidents within 15 km & <= 12h fresh
   for (const inc of input.official ?? []) {
     if (inc.status !== "ongoing" || inc.authority_tier === "media") continue;
+    if (inc.kind !== "flood" && inc.kind !== "storm" && !isFireKind(inc.kind)) {
+      continue;
+    }
     const asOfMs = Date.parse(inc.as_of ?? inc.last_reported_at);
     if (
       Number.isNaN(asOfMs) ||
@@ -416,22 +429,19 @@ export function selectEmergencyThreat(
       (inc.commune_id ? units.find((u) => u.id === inc.commune_id) : null) ??
       inc.wilaya ??
       units.find((u) => u.id === inc.wilaya_id);
-    if (!anchor) continue;
+    if (!anchor || !Number.isFinite(anchor.lat) || !Number.isFinite(anchor.lon))
+      continue;
     const km = haversineKm(lat, lon, anchor.lat, anchor.lon);
     const sameCommune =
       nearestCommune !== null && inc.commune_id === nearestCommune.id;
-    if (km > OFFICIAL_PROMPT_KM && !sameCommune) continue;
+    if (!Number.isFinite(km) || (km > OFFICIAL_PROMPT_KM && !sameCommune))
+      continue;
 
     const hazard: Exclude<EmergencyHazardKind, "general"> = isFireKind(inc.kind)
       ? "fire"
       : inc.kind === "flood"
         ? "flood"
-        : inc.kind === "storm"
-          ? "storm"
-          : "flood";
-    if (inc.kind !== "flood" && inc.kind !== "storm" && !isFireKind(inc.kind)) {
-      continue;
-    }
+        : "storm";
     candidates.push({
       priority: 1,
       distance: km,
@@ -461,6 +471,7 @@ export function selectEmergencyThreat(
   // 3. Recent M4.0+ earthquakes within 100 km and 6h
   for (const quake of input.earthquakes ?? []) {
     if (!Number.isFinite(quake.magnitude) || quake.magnitude < 4.0) continue;
+    if (!Number.isFinite(quake.lat) || !Number.isFinite(quake.lon)) continue;
     const occurredMs = Date.parse(quake.occurred_at);
     if (
       Number.isNaN(occurredMs) ||
@@ -469,7 +480,7 @@ export function selectEmergencyThreat(
     )
       continue;
     const km = haversineKm(lat, lon, quake.lat, quake.lon);
-    if (km > QUAKE_PROMPT_KM) continue;
+    if (!Number.isFinite(km) || km > QUAKE_PROMPT_KM) continue;
     const offshoreM5Plus = isOffshoreTsunamiEligible(quake);
     candidates.push({
       priority: quake.magnitude >= 5.0 ? 1 : 2,

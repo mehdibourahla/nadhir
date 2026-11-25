@@ -128,8 +128,17 @@ export function MapSurvivalPrompt({
   };
 
   const ThreatIcon = interstitial ? THREAT_ICON[interstitial.hazard] : Flame;
-  const kmText = (interstitial?.km ?? 0).toFixed(1);
-  const magText = (interstitial?.magnitude ?? 4).toFixed(1);
+  const kmText = (
+    typeof interstitial?.km === "number" && Number.isFinite(interstitial.km)
+      ? interstitial.km
+      : 0
+  ).toFixed(1);
+  const magText = (
+    typeof interstitial?.magnitude === "number" &&
+    Number.isFinite(interstitial.magnitude)
+      ? interstitial.magnitude
+      : 4
+  ).toFixed(1);
 
   return (
     <Dialog.Root

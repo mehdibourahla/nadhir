@@ -477,4 +477,132 @@ describe("selectEmergencyThreat (multi-hazard on-device evaluation)", () => {
     });
     expect(cancelledThreat).toBeNull();
   });
+
+  it("rejects NaN, Infinity, and -Infinity user or hazard coordinates cleanly instead of failing open", () => {
+    const validFire = cluster({ id: "valid-fire", lat: 36.52, lon: 4.05 });
+    const validQuake: Earthquake = {
+      id: "eq-valid",
+      magnitude: 5.5,
+      magnitude_type: "Mw",
+      depth_km: 10,
+      lat: 36.55,
+      lon: 4.05,
+      occurred_at: "2026-11-25T11:30:00Z",
+      network: "EMSC",
+      region: "ALGERIA",
+      commune_id: null,
+      offshore: true,
+    };
+    const validOfficial = {
+      id: "off-valid",
+      wilaya_id: "w1",
+      commune_id: "u1",
+      kind: "flood",
+      status: "ongoing",
+      authority_tier: "national",
+      as_of: "2026-11-25T11:30:00Z",
+      last_reported_at: "2026-11-25T11:30:00Z",
+      commune: {
+        name_ar: commune.name_ar,
+        name_fr: commune.name_fr,
+        name_en: commune.name_en,
+        name_kab: commune.name_kab,
+        lat: commune.lat,
+        lon: commune.lon,
+      },
+      wilaya: null,
+    } as unknown as OfficialIncident;
+
+    for (const bad of [Number.NaN, Infinity, -Infinity]) {
+      expect(nearestThreat(bad, 4.05, [validFire])).toBeNull();
+      expect(nearestThreat(36.52, bad, [validFire])).toBeNull();
+      expect(
+        nearestThreat(36.52, 4.05, [
+          cluster({ id: "bad-fire", lat: bad, lon: 4.05 }),
+        ]),
+      ).toBeNull();
+      expect(
+        selectEmergencyThreat(bad, 4.05, {
+          fires: [validFire],
+          official: [validOfficial],
+          earthquakes: [validQuake],
+          units: [wilaya, commune],
+          now,
+        }),
+      ).toBeNull();
+      expect(
+        selectEmergencyThreat(36.52, bad, {
+          fires: [validFire],
+          official: [validOfficial],
+          earthquakes: [validQuake],
+          units: [wilaya, commune],
+          now,
+        }),
+      ).toBeNull();
+      expect(
+        selectEmergencyThreat(36.52, 4.05, {
+          fires: [cluster({ id: "bad-f", lat: bad, lon: 4.05 })],
+          earthquakes: [{ ...validQuake, lat: 36.55, lon: bad }],
+          official: [
+            {
+              ...validOfficial,
+              commune: {
+                ...validOfficial.commune!,
+                lat: bad,
+              },
+            } as unknown as OfficialIncident,
+          ],
+          units: [wilaya, { ...commune, lat: bad }],
+          now,
+        }),
+      ).toBeNull();
+    }
+  });
+
+  it("matches ONM French plural and Arabic spelling variants for flood and storm bulletins", () => {
+    const baseWarning = {
+      id: "onm-var",
+      wilaya_id: "w1",
+      severity: "Extreme",
+      sent: "2026-11-25T10:00:00Z",
+      expires: "2026-11-25T20:00:00Z",
+      area_desc: "Tizi Ouzou",
+      cancelled_at: null,
+      superseded_by: null,
+      msg_type: "Alert",
+    };
+
+    const floodSamples = [
+      { event: "Inondations", title: "Risque d'inondations", headline_fr: "" },
+      { event: "Crues", title: "Crues rapides", headline_fr: "" },
+      { event: "Averses", title: "Fortes averses", headline_fr: "" },
+      { event: "سيول", title: "خطر سيول", headline_fr: "" },
+      { event: "امطار", title: "امطار غزيرة", headline_fr: "" },
+      { event: "فيضانات", title: "فيضانات محلية", headline_fr: "" },
+    ];
+    for (const sample of floodSamples) {
+      const threat = selectEmergencyThreat(36.521, 4.052, {
+        warnings: [{ ...baseWarning, ...sample } as unknown as OnmVigilance],
+        units: [wilaya, commune],
+        now,
+      });
+      expect(threat?.hazard, sample.event).toBe("flood");
+    }
+
+    const stormSamples = [
+      { event: "Orages", title: "Orages violents", headline_fr: "" },
+      { event: "Vents", title: "Vents forts", headline_fr: "" },
+      { event: "Rafales", title: "Rafales de vent", headline_fr: "" },
+      { event: "Tempêtes", title: "Tempêtes locales", headline_fr: "" },
+      { event: "عواصف", title: "عواصف رعدية", headline_fr: "" },
+    ];
+    for (const sample of stormSamples) {
+      const threat = selectEmergencyThreat(36.521, 4.052, {
+        warnings: [{ ...baseWarning, ...sample } as unknown as OnmVigilance],
+        units: [wilaya, commune],
+        now,
+      });
+      expect(threat?.hazard, sample.event).toBe("storm");
+    }
+  });
 });

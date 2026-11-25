@@ -27,10 +27,8 @@ import {
 } from "lucide-react";
 import { MapCanvas } from "@/components/MapCanvas";
 import { useGrantedPosition } from "@/lib/granted-position";
-import {
-  MapWorkspacePanel,
-  type SheetDetent,
-} from "@/components/nadhir/MapWorkspacePanel";
+import { MapWorkspacePanel } from "@/components/nadhir/MapWorkspacePanel";
+import type { SheetDetent } from "@/lib/sheet-detent";
 import {
   SituationCard,
   SituationDetails,
@@ -767,7 +765,7 @@ function LiveMapPage() {
                 <Link
                   to="/report"
                   aria-label={t("reports.reportButton")}
-                  className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-border px-2.5 text-xs font-medium hover:bg-muted sm:px-3 sm:text-sm"
+                  className="flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-border px-2.5 text-xs font-medium hover:bg-muted sm:px-3 sm:text-sm"
                 >
                   <Megaphone aria-hidden className="size-4 shrink-0" />
                   <span className="max-[359px]:hidden">

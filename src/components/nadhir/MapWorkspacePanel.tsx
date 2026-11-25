@@ -1,55 +1,22 @@
 import { useRef, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-export const SHEET_DETENTS = ["peek", "half", "full"] as const;
-export type SheetDetent = (typeof SHEET_DETENTS)[number];
+import {
+  SHEET_DETENTS,
+  handleSheetHandleClick,
+  handleSheetPointerCancel,
+  handleSheetPointerDown,
+  handleSheetPointerUp,
+  resolveKeyDetent,
+  type SheetDetent,
+  type SheetDragState,
+} from "@/lib/sheet-detent";
 
 const DETENT_HEIGHT_CLASS: Record<SheetDetent, string> = {
   peek: "h-[176px]",
   half: "h-[52%]",
   full: "h-[86%]",
 };
-
-export function stepSheetDetent(
-  current: SheetDetent,
-  delta: -1 | 1,
-): SheetDetent {
-  const index = SHEET_DETENTS.indexOf(current);
-  const next = Math.max(0, Math.min(SHEET_DETENTS.length - 1, index + delta));
-  return SHEET_DETENTS[next]!;
-}
-
-export function nextCycleDetent(current: SheetDetent): SheetDetent {
-  if (current === "peek") return "half";
-  if (current === "half") return "full";
-  return "peek";
-}
-
-export function resolveDragDetent(
-  current: SheetDetent,
-  deltaY: number,
-  velocityPxPerMs: number,
-): SheetDetent | null {
-  if (Math.abs(deltaY) >= 180) {
-    return deltaY < 0 ? "full" : "peek";
-  }
-  if (Math.abs(deltaY) >= 36 || Math.abs(velocityPxPerMs) >= 0.35) {
-    return stepSheetDetent(current, deltaY < 0 ? 1 : -1);
-  }
-  return null;
-}
-
-export function resolveKeyDetent(
-  current: SheetDetent,
-  key: string,
-): SheetDetent | null {
-  if (key === "ArrowUp") return stepSheetDetent(current, 1);
-  if (key === "ArrowDown") return stepSheetDetent(current, -1);
-  if (key === "Home") return "full";
-  if (key === "End") return "peek";
-  if (key === "Escape" && current !== "peek") return "peek";
-  return null;
-}
 
 function handleActionLabelKey(detent: SheetDetent): string {
   if (detent === "peek") return "track3.sheet.expandToHalf";
@@ -71,8 +38,7 @@ export function MapWorkspacePanel({
   children: ReactNode;
 }) {
   const { t } = useTranslation();
-  const dragStart = useRef<{ y: number; t: number } | null>(null);
-  const dragged = useRef(false);
+  const dragState = useRef<SheetDragState>({ start: null, dragged: false });
 
   const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     const next = resolveKeyDetent(detent, event.key);
@@ -95,35 +61,24 @@ export function MapWorkspacePanel({
           aria-label={t(handleActionLabelKey(detent))}
           aria-expanded={detent !== "peek"}
           className="map-workspace-handle flex min-h-11 min-w-11 flex-1 touch-none items-center justify-center focus-visible:outline-2 focus-visible:outline-primary"
-          onPointerDown={(event) => {
-            dragStart.current = { y: event.clientY, t: performance.now() };
-            dragged.current = false;
-            event.currentTarget.setPointerCapture?.(event.pointerId);
-          }}
-          onPointerUp={(event) => {
-            if (dragStart.current !== null) {
-              const dy = event.clientY - dragStart.current.y;
-              const dt = Math.max(1, performance.now() - dragStart.current.t);
-              const next = resolveDragDetent(detent, dy, dy / dt);
-              if (next !== null) {
-                dragged.current = true;
-                onDetentChange(next);
-              }
-            }
-            dragStart.current = null;
-          }}
-          onPointerCancel={() => {
-            dragStart.current = null;
-            dragged.current = false;
-          }}
+          onPointerDown={(event) =>
+            handleSheetPointerDown(dragState.current, event)
+          }
+          onPointerUp={(event) =>
+            handleSheetPointerUp(
+              dragState.current,
+              detent,
+              event,
+              onDetentChange,
+            )
+          }
+          onPointerCancel={(event) =>
+            handleSheetPointerCancel(dragState.current, event)
+          }
           onKeyDown={handleKeyDown}
-          onClick={() => {
-            if (dragged.current) {
-              dragged.current = false;
-              return;
-            }
-            onDetentChange(nextCycleDetent(detent));
-          }}
+          onClick={() =>
+            handleSheetHandleClick(dragState.current, detent, onDetentChange)
+          }
         >
           <span className="h-1.5 w-10 rounded-full bg-border" />
         </button>
@@ -142,7 +97,7 @@ export function MapWorkspacePanel({
                 data-detent-trigger={level}
                 aria-pressed={active}
                 onClick={() => onDetentChange(level)}
-                className={`inline-flex min-h-11 items-center rounded-lg px-2 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-primary ${
+                className={`inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-primary ${
                   active
                     ? "bg-[var(--accent-tint)] font-semibold text-[var(--accent)]"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"

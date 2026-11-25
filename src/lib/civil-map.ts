@@ -355,7 +355,7 @@ function distanceKm(aLat: number, aLon: number, bLat: number, bLon: number) {
 }
 
 const ONM_FLOOD_RE =
-  /\b(rain|flood|pluie|pluies|inondation|crue|averse|averses)\b|أمطار|فيضان|سيول/i;
+  /\b(rains?|floods?|pluies?|inondations?|crues?|averses?)\b|[أإا]مطار|فيضان(?:ات)?|سيول/i;
 
 export function matchesHazardCategory(
   item: Situation,

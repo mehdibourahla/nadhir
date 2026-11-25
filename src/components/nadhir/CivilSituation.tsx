@@ -304,20 +304,25 @@ export function useSituationLabels(units: AdminUnit[], now: number) {
       ? `${item.lat.toFixed(3)}, ${item.lon.toFixed(3)}`
       : t("civilMap.unknownLocation");
   };
-  const title = (item: Situation) =>
-    item.source === "civil"
+  const title = (item: Situation) => {
+    const placeLabel = place(item);
+    const titlePlace = COORD_FALLBACK_RE.test(placeLabel)
+      ? `\u2066${placeLabel}\u2069`
+      : placeLabel;
+    return item.source === "civil"
       ? item.data.summary
       : item.source === "onm"
         ? item.data.headline_fr || item.data.title
         : item.source === "satellite" && item.level === "heat_signal"
-          ? `${t("civilMap.heatSignalShort")} · ${place(item)}`
+          ? `${t("civilMap.heatSignalShort")} · ${titlePlace}`
           : item.source === "citizen"
-            ? `${t(`reports.hazardName.${item.data.hazard ?? "other"}`)} · ${place(item)}`
+            ? `${t(`reports.hazardName.${item.data.hazard ?? "other"}`)} · ${titlePlace}`
             : item.source === "seismic"
-              ? `${t("quake.title", { mag: item.data.magnitude.toFixed(1) })} · ${place(item)}`
+              ? `${t("quake.title", { mag: item.data.magnitude.toFixed(1) })} · ${titlePlace}`
               : item.source === "station"
-                ? t("station.sandstorm", { airport: place(item) })
-                : `${item.category === "flood" ? t("track3.filters.flood") : t(`civilMap.${item.category}`)} · ${place(item)}`;
+                ? t("station.sandstorm", { airport: titlePlace })
+                : `${item.category === "flood" ? t("track3.filters.flood") : t(`civilMap.${item.category}`)} · ${titlePlace}`;
+  };
   const source = (item: Situation) =>
     t(
       item.source === "official" && item.data.authority_tier === "media"

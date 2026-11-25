@@ -272,5 +272,16 @@ describe("situation status wording", () => {
     const coordFallback = card(satellite("live", "probable"));
     expect(coordFallback).toContain('dir="ltr"');
     expect(coordFallback).toContain("36.700, 4.000");
+
+    // Negative west longitude (Tlemcen/Oran) is LTR-isolated in both title and place lines
+    const westCoordCard = card({
+      ...satellite("live", "probable"),
+      lat: 34.883,
+      lon: -1.523,
+    });
+    expect(westCoordCard).toContain("\u206634.883, -1.523\u2069");
+    expect(westCoordCard).toContain(
+      '<span dir="ltr" class="inline-block tabular-nums">34.883, -1.523</span>',
+    );
   });
 });

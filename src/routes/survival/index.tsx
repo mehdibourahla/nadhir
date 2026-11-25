@@ -251,6 +251,7 @@ function SurvivalHub() {
           </Link>
           <Link
             to="/survival/areas"
+            search={hazard !== "general" ? { hazard } : {}}
             className="card flex min-h-12 items-center justify-center gap-2 px-3 text-sm font-semibold hover:bg-muted"
           >
             <MapPin aria-hidden className="size-4 shrink-0" />

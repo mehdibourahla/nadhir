@@ -624,6 +624,54 @@ describe("civil situations", () => {
     expect(counts.weather).toBe(2);
     expect(counts.fire).toBe(0);
   });
+
+  it("matches ONM French plurals (Inondations, Crues, Averses) and hamza-less Arabic (امطار, سيول) under flood", () => {
+    const items = build({
+      warnings: [
+        warning({
+          id: "onm-inondations",
+          event: "Inondations",
+          title: "Risque d'inondations",
+          headline_fr: "Inondations",
+        }),
+        warning({
+          id: "onm-crues",
+          event: "Crues",
+          title: "Crues soudaines",
+          headline_fr: "Crues",
+        }),
+        warning({
+          id: "onm-averses",
+          event: "Averses",
+          title: "Fortes averses",
+          headline_fr: "Averses",
+        }),
+        warning({
+          id: "onm-ar-nohamza",
+          event: "امطار",
+          title: "امطار رعدية",
+          headline_fr: "امطار",
+        }),
+        warning({
+          id: "onm-ar-suyul",
+          event: "سيول",
+          title: "سيول وفيضانات",
+          headline_fr: "سيول",
+        }),
+      ],
+    });
+    expect(
+      filterSituations(items, { ...filters, category: "flood" }, units)
+        .map((x) => x.id)
+        .sort(),
+    ).toEqual([
+      "weather:onm-ar-nohamza",
+      "weather:onm-ar-suyul",
+      "weather:onm-averses",
+      "weather:onm-crues",
+      "weather:onm-inondations",
+    ]);
+  });
   it("includes wilaya-wide warnings and incidents in a commune without pulling other communes", () => {
     const items = build({
       official: [
