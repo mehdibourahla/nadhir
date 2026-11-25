@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { importRepoModule } from "../lib/env.ts";
+import { importRepoModule, readRepoFile } from "../lib/env.ts";
+import { startMockHttpServer } from "../lib/http.ts";
 
 const CAP_NS = "urn:oasis:names:tc:emergency:cap:1.2";
 
@@ -23,6 +24,10 @@ describe("Tier 5 — Track 2 ONM CAP SSRF, XML & Provenance Hardening", () => {
         "https://user:pass@ametvigilance.meteo.dz/CAPs/creds.xml",
         "https://ametvigilance.meteo.dz.evil.test/CAPs/spoof.xml",
         "https://ametvigilance.meteo.dz/CAPs/../etc/passwd.xml",
+        "https://ametvigilance.meteo.dz/CAPs/a.xml?redirect=http://169.254.169.254",
+        "https://ametvigilance.meteo.dz/CAPs/a.xml#frag",
+        "https://ametvigilance.meteo.dz/CAPs/a.xml?",
+        "https://ametvigilance.meteo.dz/CAPs/a.xml#",
       ];
       for (const url of hostile) {
         expect(mod.sanitizeOnmCapUrl(url), url).toBeNull();
@@ -142,6 +147,60 @@ describe("Tier 5 — Track 2 ONM CAP SSRF, XML & Provenance Hardening", () => {
       expect(unclosed?.headline_fr).toBeNull();
       expect(performance.now() - started).toBeLessThan(100);
     });
+
+    it("T5-R2-04: blocks HTTP 302 redirect SSRF with redirect: 'manual' (zero hits to internal target)", async () => {
+      const archiveMod = await importRepoModule<{
+        createArchivedFetch: (store: {
+          putObject: (
+            path: string,
+            bytes: Uint8Array,
+            mediaType: string,
+          ) => Promise<void>;
+          capture: (row: Record<string, unknown>) => Promise<void>;
+        }) => (
+          sourceKey: string,
+          endpoint: string,
+          input: RequestInfo | URL,
+          init?: RequestInit,
+        ) => Promise<Response>;
+      }>("src/lib/source-archive.server.ts");
+
+      // Verify onm.server.ts passes redirect: "manual" on both CAP detail & Atom feed fetches
+      const onmSource = readRepoFile("src/lib/ingest/onm.server.ts");
+      const manualMatches = onmSource.match(/redirect:\s*"manual"/g) ?? [];
+      expect(manualMatches.length).toBeGreaterThanOrEqual(2);
+
+      // Empirical local HTTP 302 redirect probe proving internal target hit count === 0
+      const internalTarget = await startMockHttpServer(() => ({
+        status: 200,
+        headers: { "content-type": "text/plain" },
+        body: "SECRET_METADATA",
+      }));
+      const redirector = await startMockHttpServer(() => ({
+        status: 302,
+        headers: { location: `${internalTarget.url}/latest/meta-data/` },
+        body: "",
+      }));
+
+      try {
+        const archived = archiveMod.createArchivedFetch({
+          putObject: async () => undefined,
+          capture: async () => undefined,
+        });
+        const res = await archived(
+          "onm",
+          "cap_detail",
+          `${redirector.url}/CAPs/redirect.xml`,
+          { redirect: "manual" },
+        );
+        expect(res.status).toBe(302);
+        expect(res.ok).toBe(false);
+        expect(internalTarget.requests).toHaveLength(0);
+      } finally {
+        await redirector.close();
+        await internalTarget.close();
+      }
+    });
   });
 
   describe("T5-06: Anchored ONM provenance & em-dash prohibition", () => {
@@ -156,6 +215,9 @@ describe("Tier 5 — Track 2 ONM CAP SSRF, XML & Provenance Hardening", () => {
         "Not ONM model output",
         "Fake ONM spoof",
         "Unofficial ONM summary",
+        "ONM\nFake",
+        "ONM\rFake",
+        "ONM\tFake",
       ]) {
         const violations = mod.validateProvenanceInvariants({
           triggerKind: "wilaya_warning",

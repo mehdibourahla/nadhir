@@ -183,4 +183,39 @@ describe("public push subscription API", () => {
       true,
     );
   });
+
+  it("rejects JSON null bodies with 400 and oversized payloads (>16 KiB) with 413 (T5-R2-02)", async () => {
+    adminRpc.mockResolvedValue({ data: true, error: null });
+    fcmConfigured.mockReturnValue(true);
+
+    const nullRes = await handlers().POST({
+      request: new Request("https://nadhir.test/api/public/v1/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "null",
+      }),
+    });
+    expect(nullRes.status).toBe(400);
+    await expect(nullRes.json()).resolves.toEqual({
+      error: "invalid JSON body",
+    });
+
+    const largeRes = await handlers().POST({
+      request: new Request("https://nadhir.test/api/public/v1/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: "t".repeat(20_000),
+          communes: ["1601"],
+          lang: "en",
+          action: "subscribe",
+        }),
+      }),
+    });
+    expect(largeRes.status).toBe(413);
+    await expect(largeRes.json()).resolves.toEqual({
+      error: "body too large",
+    });
+    expect(fcmSubscribeTopics).not.toHaveBeenCalled();
+  });
 });

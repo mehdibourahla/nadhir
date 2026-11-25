@@ -298,6 +298,66 @@ describe("Tier 5 — Track 4 Parsers, Watermarks & Coordinates Adversarial Harde
           contentType: "application/octet-stream",
         }),
       ).rejects.toThrow(/HTML\/XML error page/i);
+      expect(() =>
+        imergMod.assertNotUpstreamErrorBody(
+          "<!-- ok --> 502 Bad Gateway",
+          "application/octet-stream",
+          "IMERG",
+        ),
+      ).toThrow(/plain-text error response/i);
+    });
+  });
+
+  describe("T5-R2-03: Tariki M6 parser strict calendar non-rollover & watermark integrity", () => {
+    it("rejects impossible calendar dates and non-ISO strings in both captured items and Facebook page batches", async () => {
+      const tarikiMod = await importRepoModule<{
+        tarikiPostsFromCapturedItems: (raw: unknown) => {
+          posts: Array<{ publishedAt: string }>;
+          upstreamPublishedAt: string | null;
+        };
+        tarikiPostsFromFacebookPage: (
+          posts: Array<{ id: string; created_time: string; message: string }>,
+        ) => {
+          posts: Array<{ publishedAt: string }>;
+          upstreamPublishedAt: string | null;
+        };
+      }>("src/lib/text-sources/tariki.ts");
+
+      for (const bad of IMPOSSIBLE_ISO_DATES) {
+        expect(
+          () =>
+            tarikiMod.tarikiPostsFromCapturedItems([
+              {
+                postId: "t5-tariki-bad",
+                time: bad,
+                text: "فيضان بالطريق الوطني رقم 11",
+              },
+            ]),
+          `captured:${bad}`,
+        ).toThrow(/Tariki schema invalid/i);
+
+        expect(
+          () =>
+            tarikiMod.tarikiPostsFromFacebookPage([
+              {
+                id: "t5-fb-bad",
+                created_time: bad,
+                message: "فيضان بالطريق الوطني رقم 11",
+              },
+            ]),
+          `facebook:${bad}`,
+        ).toThrow(/Tariki schema invalid/i);
+      }
+
+      const validLeap = tarikiMod.tarikiPostsFromCapturedItems([
+        {
+          postId: "t5-tariki-leap",
+          time: "2024-02-29T12:00:00Z",
+          text: "فيضان بالطريق الوطني رقم 11",
+        },
+      ]);
+      expect(validLeap.upstreamPublishedAt).toBe("2024-02-29T12:00:00.000Z");
+      expect(validLeap.posts[0]?.publishedAt).toBe("2024-02-29T12:00:00.000Z");
     });
   });
 });

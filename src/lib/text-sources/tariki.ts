@@ -1,3 +1,4 @@
+import { parseIsoTimestamp } from "@/lib/ingest/imerg";
 import type { ItaFeedPost } from "./ita-feed";
 import { isFireKind, type IncidentKind } from "./merge";
 import type { TelegramPost } from "./telegram-public";
@@ -44,14 +45,7 @@ function maxIsoTimestamp(values: readonly string[]): string | null {
 }
 
 function normalizeIso(value: unknown, field: string): string {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`Tariki schema invalid: missing ${field}`);
-  }
-  const ms = Date.parse(value);
-  if (!Number.isFinite(ms)) {
-    throw new Error(`Tariki schema invalid: invalid ${field} "${value}"`);
-  }
-  return new Date(ms).toISOString();
+  return parseIsoTimestamp(value, field, "Tariki");
 }
 
 function buildTarikiPostUrl(
@@ -74,14 +68,11 @@ export function tarikiPostsFromFacebookPage(
   knownExternalIds?: ReadonlySet<string>,
 ): TarikiNormalizedBatch {
   const slug = extractFacebookPageSlug(pageOrUrl);
-  // Pre-filter freshness watermark BEFORE filtering blank messages or already-known IDs
-  const upstreamPublishedAt = maxIsoTimestamp(
-    posts.map((post) => post.created_time),
-  );
-
+  const timestamps: string[] = [];
   const normalized: TelegramPost[] = [];
   for (const post of posts) {
     const publishedAt = normalizeIso(post.created_time, "created_time");
+    timestamps.push(publishedAt);
     if (knownExternalIds?.has(post.id)) continue;
     const text = post.message.trim();
     if (!text) continue;
@@ -92,6 +83,8 @@ export function tarikiPostsFromFacebookPage(
       url: buildTarikiPostUrl(post.id, slug),
     });
   }
+  // Pre-filter freshness watermark across ALL strictly validated posts BEFORE dedupe/blank filtering
+  const upstreamPublishedAt = maxIsoTimestamp(timestamps);
 
   return {
     posts: normalized,

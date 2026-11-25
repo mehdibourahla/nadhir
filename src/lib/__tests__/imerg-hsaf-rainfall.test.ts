@@ -557,5 +557,10 @@ describe("F18 - IMERG & H-SAF Observed 30-Min Satellite Rainfall", () => {
         contentType: "application/vnd.ogc.se_xml",
       }),
     ).rejects.toThrow(/error content-type/i);
+    await expect(
+      parseImergPayload("<!-- ok --> 502 Bad Gateway", {
+        contentType: "application/octet-stream",
+      }),
+    ).rejects.toThrow(/plain-text error response/i);
   });
 });

@@ -16,14 +16,29 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
     auth: { getUser: reportMocks.getUser },
     rpc: reportMocks.rpc,
-    from: () => ({
-      select: (columns: string) => ({
-        eq: () =>
-          columns === "id"
-            ? { eq: () => ({ maybeSingle: reportMocks.owned }) }
-            : { single: reportMocks.state },
-      }),
-    }),
+    from: (table: string) => {
+      if (table === "privacy_consents") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({ data: null, error: null }),
+                }),
+              }),
+            }),
+          }),
+        };
+      }
+      return {
+        select: (columns: string) => ({
+          eq: () =>
+            columns === "id"
+              ? { eq: () => ({ maybeSingle: reportMocks.owned }) }
+              : { single: reportMocks.state },
+        }),
+      };
+    },
   },
 }));
 
@@ -545,6 +560,94 @@ describe("F24 wired write handlers enforce Turnstile", () => {
     );
     expect(voteValid.status).toBe(200);
     expect(castVoteMock).toHaveBeenCalledOnce();
+  });
+
+  it("rejects null/malformed rows and oversized payloads cleanly on contribute routes without crashing (T5-R2-02)", async () => {
+    const submitIdeaMock = vi.fn();
+    const submitSuggestionsMock = vi.fn();
+    const castVoteMock = vi.fn();
+    const skipVerify = vi.fn(async () => ({
+      ok: true as const,
+      skipped: true as const,
+    }));
+
+    const nullRowRes = await handleContributeTranslation(
+      new Request("https://nadhir.app/api/public/contribute/translation", {
+        method: "POST",
+        body: JSON.stringify({
+          locale: "fr",
+          reviewerKey: "reviewer12345",
+          rows: [null],
+        }),
+      }),
+      {
+        verifyTurnstile: skipVerify,
+        submitSuggestions: submitSuggestionsMock,
+      },
+    );
+    expect(nullRowRes.status).toBe(400);
+    expect(submitSuggestionsMock).not.toHaveBeenCalled();
+
+    const nonArrayRowsRes = await handleContributeTranslation(
+      new Request("https://nadhir.app/api/public/contribute/translation", {
+        method: "POST",
+        body: JSON.stringify({
+          locale: "fr",
+          reviewerKey: "reviewer12345",
+          rows: "not-an-array",
+        }),
+      }),
+      {
+        verifyTurnstile: skipVerify,
+        submitSuggestions: submitSuggestionsMock,
+      },
+    );
+    expect(nonArrayRowsRes.status).toBe(400);
+
+    const oversizedIdea = await handleContributeIdea(
+      new Request("https://nadhir.app/api/public/contribute/idea", {
+        method: "POST",
+        body: JSON.stringify({
+          lane: "data",
+          message: "a".repeat(20_000),
+          locale: "en",
+        }),
+      }),
+      { verifyTurnstile: skipVerify, submitIdea: submitIdeaMock },
+    );
+    expect(oversizedIdea.status).toBe(413);
+    expect(submitIdeaMock).not.toHaveBeenCalled();
+
+    const oversizedVote = await handleContributeVote(
+      new Request("https://nadhir.app/api/public/contribute/vote", {
+        method: "POST",
+        body: JSON.stringify({
+          ideaId: "idea-1",
+          voterKey: "v".repeat(20_000),
+          value: 1,
+        }),
+      }),
+      { verifyTurnstile: skipVerify, castVote: castVoteMock },
+    );
+    expect(oversizedVote.status).toBe(413);
+    expect(castVoteMock).not.toHaveBeenCalled();
+
+    const oversizedTrans = await handleContributeTranslation(
+      new Request("https://nadhir.app/api/public/contribute/translation", {
+        method: "POST",
+        body: JSON.stringify({
+          locale: "fr",
+          reviewerKey: "reviewer12345",
+          rows: [{ keyPath: "k", suggestion: "x".repeat(140_000) }],
+        }),
+      }),
+      {
+        verifyTurnstile: skipVerify,
+        submitSuggestions: submitSuggestionsMock,
+      },
+    );
+    expect(oversizedTrans.status).toBe(413);
+    expect(submitSuggestionsMock).not.toHaveBeenCalled();
   });
 
   it("enforces Turnstile on handleReportPublish while still rejecting unknown fields like force: true", async () => {

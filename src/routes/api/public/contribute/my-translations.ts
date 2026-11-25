@@ -10,11 +10,16 @@ export const Route = createFileRoute("/api/public/contribute/my-translations")({
         return postOnlyMethodNotAllowed();
       },
       POST: async ({ request }) => {
-        const { readMySuggestions } = await import("@/lib/translate.server");
-        let body: unknown;
-        try {
-          body = await request.json();
-        } catch {
+        const [{ readMySuggestions }, { readJsonBody }] = await Promise.all([
+          import("@/lib/translate.server"),
+          import("@/lib/request-body.server"),
+        ]);
+        const read = await readJsonBody(request, 16_384);
+        if ("error" in read) {
+          return Response.json({ rows: [] }, { status: read.status });
+        }
+        const body = read.body;
+        if (!body || typeof body !== "object" || Array.isArray(body)) {
           return Response.json({ rows: [] }, { status: 400 });
         }
         const input = body as Record<string, unknown>;

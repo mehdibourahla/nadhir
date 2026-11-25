@@ -6,6 +6,7 @@ import {
   createPngWithExif,
   inspectImageForMetadata,
 } from "../lib/exif.ts";
+import { fetchText } from "../lib/http.ts";
 import { assertPgReachable, psqlQuery, runInRolledBackTx } from "../lib/pg.ts";
 
 function asciiBytes(value: string): number[] {
@@ -443,6 +444,392 @@ describe("Tier 5 — Security, Privacy & RLS Adversarial Hardening", () => {
         expect(result.reason, verifyUrl).toBe("invalid_verify_url");
       }
       expect(fetchCalls).toBe(0);
+    });
+  });
+
+  describe("T5-R2-01: Law 18-07 / Law 25-11 consent withdrawal for zone_alerts & citizen_reports", () => {
+    it("enforces citizen_reports withdrawal & fail-closed checks in publishWaitingReports and handleReportPhotoUpload", async () => {
+      const pubMod = await importRepoModule<{
+        publishWaitingReports: (
+          ids?: string[],
+          deps?: Record<string, unknown>,
+        ) => Promise<{ published: number; held: number; waiting: number }>;
+      }>("src/lib/report-publication.server.ts");
+      const photoMod = await importRepoModule<{
+        handleReportPhotoUpload: (
+          request: Request,
+          overrides?: Record<string, unknown>,
+        ) => Promise<Response>;
+      }>("src/lib/report-photo.server.ts");
+
+      let llmCalls = 0;
+      const saved: Array<[string, Record<string, unknown>]> = [];
+      const tally = await pubMod.publishWaitingReports(undefined, {
+        store: {
+          waiting: async () => [
+            {
+              id: "t5-r2-withdrawn",
+              user_id: "5e020000-0000-4000-8000-000000000001",
+              kind: "flooding",
+              note: "water on road",
+              commune_id: null,
+            },
+          ],
+          withdrawnCitizenReportConsent: async () =>
+            new Set(["5e020000-0000-4000-8000-000000000001"]),
+          place: async () => null,
+          save: async (id: string, patch: Record<string, unknown>) => {
+            saved.push([id, patch]);
+          },
+        },
+        classifier: {
+          model: "test-model",
+          complete: async () => {
+            llmCalls += 1;
+            return JSON.stringify({
+              publishable: true,
+              hazard: "flooding",
+              summary: "Water",
+              severity: 3,
+              reason: "ok",
+            });
+          },
+        },
+        now: () => Date.parse("2026-11-25T15:00:00Z"),
+      });
+      expect(tally).toEqual({ published: 0, held: 1, waiting: 0 });
+      expect(llmCalls).toBe(0);
+      expect(saved[0]?.[1]?.["publish_state"]).toBe("held");
+      expect(saved[0]?.[1]?.["classifier"]).toBe("consent_withdrawn");
+
+      // Fail-closed on consent DB error in publishWaitingReports
+      await expect(
+        pubMod.publishWaitingReports(undefined, {
+          store: {
+            waiting: async () => [
+              {
+                id: "t5-r2-err",
+                user_id: "5e020000-0000-4000-8000-000000000002",
+                kind: "flooding",
+                note: "water",
+                commune_id: null,
+              },
+            ],
+            withdrawnCitizenReportConsent: async () => {
+              throw new Error("consent lookup failed");
+            },
+            place: async () => null,
+            save: async () => undefined,
+          },
+          classifier: {
+            model: "test-model",
+            complete: async () => {
+              llmCalls += 1;
+              return "{}";
+            },
+          },
+        }),
+      ).rejects.toThrow("consent lookup failed");
+      expect(llmCalls).toBe(0);
+
+      // handleReportPhotoUpload: 403 on withdrawn, 503 fail-closed on DB error, 0 storage writes
+      let uploads = 0;
+      const makePhotoReq = () => {
+        const form = new FormData();
+        form.append(
+          "file",
+          new File(
+            [
+              Buffer.from(
+                createJpegWithExif({ latitude: 36.75, longitude: 3.05 }),
+              ),
+            ],
+            "photo.jpg",
+            { type: "image/jpeg" },
+          ),
+        );
+        return new Request("http://127.0.0.1:4173/api/private/report-photo", {
+          method: "POST",
+          headers: { authorization: "Bearer test-token" },
+          body: form,
+        });
+      };
+
+      const photoWithdrawn = await photoMod.handleReportPhotoUpload(
+        makePhotoReq(),
+        {
+          getUser: async () => ({
+            data: { user: { id: "5e020000-0000-4000-8000-000000000001" } },
+            error: null,
+          }),
+          consumeRateLimit: async () => ({ data: true, error: null }),
+          hasWithdrawnCitizenReportsConsent: async () => ({
+            withdrawn: true,
+            error: null,
+          }),
+          uploadObject: async () => {
+            uploads += 1;
+            return { error: null };
+          },
+          randomUuid: () => "11111111-1111-4111-8111-111111111199",
+        },
+      );
+      expect(photoWithdrawn.status).toBe(403);
+      expect(await photoWithdrawn.json()).toEqual({
+        error: "consent_withdrawn",
+      });
+
+      const photoErr = await photoMod.handleReportPhotoUpload(makePhotoReq(), {
+        getUser: async () => ({
+          data: { user: { id: "5e020000-0000-4000-8000-000000000001" } },
+          error: null,
+        }),
+        consumeRateLimit: async () => ({ data: true, error: null }),
+        hasWithdrawnCitizenReportsConsent: async () => ({
+          withdrawn: false,
+          error: { message: "db error" },
+        }),
+        uploadObject: async () => {
+          uploads += 1;
+          return { error: null };
+        },
+        randomUuid: () => "11111111-1111-4111-8111-111111111198",
+      });
+      expect(photoErr.status).toBe(503);
+      expect(await photoErr.json()).toEqual({
+        error: "consent_unavailable",
+      });
+      expect(uploads).toBe(0);
+    });
+
+    it("enforces zone_alerts and citizen_reports withdrawal end-to-end against live local Supabase & HTTP APIs with zero DB residue", async () => {
+      assertPgReachable();
+      const supaMod = await importRepoModule<{
+        supabaseAdmin: {
+          auth: {
+            admin: {
+              createUser: (args: {
+                email: string;
+                password: string;
+                email_confirm: boolean;
+              }) => Promise<{
+                data: { user: { id: string } | null };
+                error: { message: string } | null;
+              }>;
+              deleteUser: (id: string) => Promise<{ error: unknown }>;
+            };
+          };
+          from: (table: string) => {
+            insert: (
+              row: Record<string, unknown>,
+            ) => Promise<{ error: { message: string } | null }>;
+            delete: () => {
+              eq: (col: string, val: string) => Promise<{ error: unknown }>;
+              in: (col: string, vals: string[]) => Promise<{ error: unknown }>;
+            };
+          };
+        };
+      }>("src/integrations/supabase/client.server.ts");
+      const alertsMod = await importRepoModule<{
+        evaluateAlerts: (userId?: string) => Promise<{
+          evaluated: number;
+          created: number;
+          suppressed: number;
+        }>;
+      }>("src/lib/alerts-engine.server.ts");
+
+      const email = `t5-r2-consent-${Date.now()}@example.invalid`;
+      const password = "TestPassword#2026!";
+      const created = await supaMod.supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+      });
+      expect(created.error).toBeNull();
+      const userId = created.data.user!.id;
+
+      try {
+        // Sign in against local Supabase GoTrue to get a real JWT
+        const supaUrl =
+          process.env["E2E_SUPABASE_URL"] ??
+          process.env["SUPABASE_URL"] ??
+          "http://127.0.0.1:54321";
+        const publishableKey =
+          process.env["SUPABASE_PUBLISHABLE_KEY"] ??
+          process.env["VITE_SUPABASE_PUBLISHABLE_KEY"] ??
+          "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
+        const tokenRes = await fetch(
+          `${supaUrl}/auth/v1/token?grant_type=password`,
+          {
+            method: "POST",
+            headers: {
+              apikey: publishableKey,
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({ email, password }),
+          },
+        );
+        expect(tokenRes.status).toBe(200);
+        const tokenBody = (await tokenRes.json()) as { access_token: string };
+        const bearer = tokenBody.access_token;
+
+        // Seed an active watch zone + withdrawn consents for zone_alerts & citizen_reports
+        const zoneInsert = await supaMod.supabaseAdmin.from("zones").insert({
+          user_id: userId,
+          name: "T5-R2 Watch Zone",
+          lat: 36.7538,
+          lon: 3.0588,
+          radius_km: 15,
+          active: true,
+        });
+        expect(zoneInsert.error).toBeNull();
+
+        const consentZone = await supaMod.supabaseAdmin
+          .from("privacy_consents")
+          .insert({
+            user_id: userId,
+            consent_type: "zone_alerts",
+            policy_version: "2026-11-25",
+            status: "withdrawn",
+            withdrawn_at: new Date().toISOString(),
+            locale: "fr",
+            source_surface: "settings",
+          });
+        expect(consentZone.error).toBeNull();
+
+        const consentReport = await supaMod.supabaseAdmin
+          .from("privacy_consents")
+          .insert({
+            user_id: userId,
+            consent_type: "citizen_reports",
+            policy_version: "2026-11-25",
+            status: "withdrawn",
+            withdrawn_at: new Date().toISOString(),
+            locale: "fr",
+            source_surface: "settings",
+          });
+        expect(consentReport.error).toBeNull();
+
+        // 1. evaluateAlerts must skip the withdrawn user's active watch zone completely
+        const evalRes = await alertsMod.evaluateAlerts(userId);
+        expect(evalRes).toEqual({ evaluated: 0, created: 0, suppressed: 0 });
+
+        // 2. Live POST /api/private/report-publish must return 403 { error: "consent_withdrawn" }
+        const publishRes = await fetchText("/api/private/report-publish", {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${bearer}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ id: "3c100000-0000-4000-8000-000000000001" }),
+        });
+        expect(publishRes.status).toBe(403);
+        expect(JSON.parse(publishRes.text)).toEqual({
+          error: "consent_withdrawn",
+        });
+
+        // 3. Live POST /api/private/report-photo must return 403 { error: "consent_withdrawn" }
+        const photoForm = new FormData();
+        photoForm.append(
+          "file",
+          new File(
+            [
+              Buffer.from(
+                createJpegWithExif({ latitude: 36.75, longitude: 3.05 }),
+              ),
+            ],
+            "report.jpg",
+            { type: "image/jpeg" },
+          ),
+        );
+        const photoRes = await fetchText("/api/private/report-photo", {
+          method: "POST",
+          headers: { authorization: `Bearer ${bearer}` },
+          body: photoForm,
+        });
+        expect(photoRes.status).toBe(403);
+        expect(JSON.parse(photoRes.text)).toEqual({
+          error: "consent_withdrawn",
+        });
+      } finally {
+        psqlQuery(
+          `DELETE FROM private.api_rate_limit WHERE bucket IN ('report-publish:${userId}', 'report-photo:${userId}');`,
+        );
+        await supaMod.supabaseAdmin.auth.admin.deleteUser(userId);
+      }
+    });
+  });
+
+  describe("T5-R2-02: Public contribute & subscribe null guards and bounded JSON body reads", () => {
+    it("rejects rows: [null], JSON null body, and oversized payloads cleanly without HTTP 500 crashes", async () => {
+      // 1. Live POST /api/public/contribute/translation with rows: [null] -> 400 (no TypeError 500)
+      const nullRowRes = await fetchText("/api/public/contribute/translation", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          locale: "fr",
+          reviewerKey: "reviewer12345",
+          rows: [null],
+        }),
+      });
+      expect(nullRowRes.status).toBe(400);
+
+      // 2. Live POST /api/public/contribute/my-translations with JSON null body -> 400 (no TypeError 500)
+      const myTransNull = await fetchText(
+        "/api/public/contribute/my-translations",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "null",
+        },
+      );
+      expect(myTransNull.status).toBe(400);
+
+      // 3. Live oversized payloads (>16 KiB on idea/vote/my-translations; >128 KiB on translation) -> 413
+      const big16k = JSON.stringify({
+        locale: "fr",
+        reviewerKey: "k".repeat(20_000),
+      });
+      expect(
+        (
+          await fetchText("/api/public/contribute/my-translations", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: big16k,
+          })
+        ).status,
+      ).toBe(413);
+      expect(
+        (
+          await fetchText("/api/public/contribute/idea", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: big16k,
+          })
+        ).status,
+      ).toBe(413);
+      expect(
+        (
+          await fetchText("/api/public/contribute/vote", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: big16k,
+          })
+        ).status,
+      ).toBe(413);
+      expect(
+        (
+          await fetchText("/api/public/contribute/translation", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              locale: "fr",
+              reviewerKey: "reviewer12345",
+              rows: [{ keyPath: "a", suggestion: "x".repeat(140_000) }],
+            }),
+          })
+        ).status,
+      ).toBe(413);
     });
   });
 });

@@ -23,6 +23,9 @@ export interface ReportPhotoDeps {
   consumeRateLimit: (
     userId: string,
   ) => Promise<{ data: boolean | null; error: unknown }>;
+  hasWithdrawnCitizenReportsConsent: (
+    userId: string,
+  ) => Promise<{ withdrawn: boolean; error: unknown }>;
   uploadObject: (
     path: string,
     bytes: Uint8Array<ArrayBuffer>,
@@ -40,6 +43,16 @@ const defaultDeps: ReportPhotoDeps = {
       _window_seconds: 600,
     });
     return { data: res.data, error: res.error };
+  },
+  hasWithdrawnCitizenReportsConsent: async (userId) => {
+    const { data, error } = await supabaseAdmin
+      .from("privacy_consents")
+      .select("status")
+      .eq("user_id", userId)
+      .eq("consent_type", "citizen_reports")
+      .eq("status", "withdrawn")
+      .maybeSingle();
+    return { withdrawn: Boolean(data), error };
   },
   uploadObject: (path, bytes, contentType) =>
     supabaseAdmin.storage.from("report-photos").upload(path, bytes, {
@@ -72,6 +85,16 @@ export async function handleReportPhotoUpload(
   }
   if (quota.data !== true) {
     return json({ error: "rate_limited" }, 429);
+  }
+
+  // Fail-closed (Law 18-07 / Law 25-11): block report photo processing if
+  // citizen_reports consent is withdrawn or cannot be verified.
+  const consent = await deps.hasWithdrawnCitizenReportsConsent(userId);
+  if (consent.error) {
+    return json({ error: "consent_unavailable" }, 503);
+  }
+  if (consent.withdrawn) {
+    return json({ error: "consent_withdrawn" }, 403);
   }
 
   const contentLengthHeader = request.headers.get("content-length");

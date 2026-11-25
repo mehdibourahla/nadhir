@@ -3,6 +3,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   rpc: vi.fn(),
+  consent: vi.fn(),
   owned: vi.fn(),
   state: vi.fn(),
 }));
@@ -10,14 +11,27 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
     auth: { getUser: mocks.getUser },
     rpc: mocks.rpc,
-    from: () => ({
-      select: (columns: string) => ({
-        eq: () =>
-          columns === "id"
-            ? { eq: () => ({ maybeSingle: mocks.owned }) }
-            : { single: mocks.state },
-      }),
-    }),
+    from: (table: string) => {
+      if (table === "privacy_consents") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                eq: () => ({ maybeSingle: mocks.consent }),
+              }),
+            }),
+          }),
+        };
+      }
+      return {
+        select: (columns: string) => ({
+          eq: () =>
+            columns === "id"
+              ? { eq: () => ({ maybeSingle: mocks.owned }) }
+              : { single: mocks.state },
+        }),
+      };
+    },
   },
 }));
 vi.mock("@/lib/report-publication.server", () => ({
@@ -41,6 +55,7 @@ beforeEach(() => {
     error: null,
   });
   mocks.rpc.mockResolvedValue({ data: true, error: null });
+  mocks.consent.mockResolvedValue({ data: null, error: null });
   mocks.owned.mockResolvedValue({ data: { id: ID }, error: null });
   mocks.state.mockResolvedValue({
     data: { publish_state: "published", hazard: "flooding", summary: "Water" },
@@ -84,4 +99,25 @@ it("classifies the caller's report and returns where it stands", async () => {
     hazard: "flooding",
     summary: "Water",
   });
+});
+
+it("rejects report publish with 403 when citizen_reports consent is withdrawn and fails closed with 503 on DB error (T5-R2-01)", async () => {
+  const publish = vi.fn();
+  mocks.consent.mockResolvedValueOnce({
+    data: { status: "withdrawn" },
+    error: null,
+  });
+  const withdrawnRes = await handleReportPublish(request({ id: ID }), publish);
+  expect(withdrawnRes.status).toBe(403);
+  expect(await withdrawnRes.json()).toEqual({ error: "consent_withdrawn" });
+  expect(publish).not.toHaveBeenCalled();
+
+  mocks.consent.mockResolvedValueOnce({
+    data: null,
+    error: { message: "consent table timeout" },
+  });
+  const errorRes = await handleReportPublish(request({ id: ID }), publish);
+  expect(errorRes.status).toBe(503);
+  expect(await errorRes.json()).toEqual({ error: "consent_unavailable" });
+  expect(publish).not.toHaveBeenCalled();
 });

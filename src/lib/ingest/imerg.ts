@@ -242,7 +242,7 @@ export function assertNotUpstreamErrorBody(
       `${sourceName} upstream returned HTML/XML error page instead of rainfall data`,
     );
   }
-  if (PLAIN_ERROR_TEXT.test(sample)) {
+  if (PLAIN_ERROR_TEXT.test(sample) || PLAIN_ERROR_TEXT.test(stripped)) {
     throw new Error(
       `${sourceName} upstream returned plain-text error response instead of rainfall data`,
     );

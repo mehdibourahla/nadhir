@@ -194,7 +194,16 @@ function normalizeAuthorityStatus(
   return isAuthorityStatus(normalized) ? normalized : undefined;
 }
 
+function hasAsciiControlChar(value: string): boolean {
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i);
+    if (code <= 0x1f || code === 0x7f) return true;
+  }
+  return false;
+}
+
 function hasValidOnmAttribution(attribution: string): boolean {
+  if (hasAsciiControlChar(attribution)) return false;
   const normalized = attribution.trim().normalize("NFC");
   return ONM_ATTRIBUTION_PATTERNS.some((pattern) => pattern.test(normalized));
 }
@@ -282,6 +291,9 @@ export function validateProvenanceInvariants(
   ) {
     violations.push("sourceAttribution must be non-empty");
   } else {
+    if (hasAsciiControlChar(data.sourceAttribution)) {
+      violations.push("sourceAttribution contains ASCII control characters");
+    }
     if (data.sourceAttribution.includes(EM_DASH)) {
       violations.push("sourceAttribution contains banned em dash");
     }

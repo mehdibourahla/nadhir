@@ -535,4 +535,84 @@ describe("zone hazard alerts reach the alert table", () => {
   it("fails loudly when a hazard source cannot be read", async () => {
     await written({}, "civil_publications");
   });
+
+  it("excludes watch zones for users who withdrew zone_alerts consent and fails closed on consent lookup errors (T5-R2-01)", async () => {
+    const onmRow = {
+      id: "onm1",
+      severity: "Severe",
+      event: "Rain",
+      onset: "2026-09-08T15:00:00Z",
+      title: "Rain Severe warning for the wilaya: ALGER",
+      headline_fr: null,
+      area: null,
+      wilaya_id: "w16",
+      expires: "2026-09-09T12:00:00Z",
+      episode_id: "ep1",
+      episode_peak: 3,
+    };
+
+    const withdrawnRows = await written({
+      privacy_consents: [{ user_id: "u1" }],
+      onm_vigilance: [onmRow],
+    });
+    expect(withdrawnRows).toEqual([]);
+    expect(drainWebhookDeliveries).not.toHaveBeenCalled();
+
+    // Multi-user run: withdrawn user excluded while consented user still receives alerts
+    const multiWrites: Record<string, unknown>[] = [];
+    const multiData: Record<string, unknown> = {
+      zones: [
+        {
+          id: "z-withdrawn",
+          user_id: "u-withdrawn",
+          name: "Withdrawn Zone",
+          notify_fires: false,
+          notify_risk: false,
+          notify_weather: true,
+          lat: 36.6,
+          lon: 3.1,
+          radius_km: 5,
+          commune_id: "k1",
+        },
+        {
+          id: "z-granted",
+          user_id: "u-granted",
+          name: "Granted Zone",
+          notify_fires: false,
+          notify_risk: false,
+          notify_weather: true,
+          lat: 36.6,
+          lon: 3.1,
+          radius_km: 5,
+          commune_id: "k1",
+        },
+      ],
+      privacy_consents: [{ user_id: "u-withdrawn" }],
+      profiles: [
+        { id: "u-withdrawn", locale: "en" },
+        { id: "u-granted", locale: "en" },
+      ],
+      admin_units: [{ id: "k1", code: "1601", parent_id: "w16" }],
+      onm_vigilance: [onmRow],
+    };
+    fromMock.mockImplementation((table: string) => {
+      const builder = query(
+        table,
+        { data: multiData[table] ?? [], error: null },
+        [],
+      );
+      const upsert = builder["upsert"] as (rows: unknown) => unknown;
+      builder["upsert"] = (next: Record<string, unknown>[]) => {
+        if (table === "alerts") multiWrites.push(...next);
+        return upsert(next);
+      };
+      return builder;
+    });
+    const multiResult = await evaluateAlerts("u-granted");
+    expect(multiResult.evaluated).toBe(1);
+    expect(multiWrites.map((r) => r["user_id"])).toEqual(["u-granted"]);
+
+    // Fail-closed: DB error on privacy_consents must throw before inserting any alert
+    await written({ onm_vigilance: [onmRow] }, "privacy_consents");
+  });
 });

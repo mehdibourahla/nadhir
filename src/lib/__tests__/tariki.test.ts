@@ -908,4 +908,58 @@ describe("F19 - Hardened Gendarmerie Tariki", () => {
       "provenance.rule.dgpcNonFire",
     );
   });
+
+  it("rejects impossible calendar dates and non-ISO garbage without rolling over or corrupting upstreamPublishedAt (T5-R2-03)", () => {
+    const invalidDates = [
+      "2026-02-30T12:00:00Z",
+      "2026-04-31T00:00:00Z",
+      "2026-02-29T12:00:00Z",
+      "1",
+      "May 2026",
+      "2026-10-02T25:00:00Z",
+    ];
+
+    for (const badDate of invalidDates) {
+      expect(
+        () =>
+          tarikiPostsFromCapturedItems([
+            {
+              postId: "tariki-bad-1",
+              time: badDate,
+              text: "فيضان بالطريق الوطني رقم 11",
+            },
+          ]),
+        `captured:${badDate}`,
+      ).toThrow(/Tariki schema invalid/i);
+
+      expect(
+        () =>
+          tarikiPostsFromFacebookPage([
+            {
+              id: "fb-bad-1",
+              uri: "https://www.facebook.com/tariki.GN/posts/fb-bad-1",
+              created_time: badDate,
+              message: "فيضان بالطريق الوطني رقم 11",
+              region: "16",
+              type: ["road"],
+            },
+          ]),
+        `fb:${badDate}`,
+      ).toThrow(/Tariki schema invalid/i);
+    }
+
+    // Valid leap-year date still passes cleanly
+    const leapBatch = tarikiPostsFromFacebookPage([
+      {
+        id: "fb-leap-1",
+        uri: "https://www.facebook.com/tariki.GN/posts/fb-leap-1",
+        created_time: "2024-02-29T12:00:00Z",
+        message: "فيضان بالطريق الوطني رقم 11",
+        region: "16",
+        type: ["road"],
+      },
+    ]);
+    expect(leapBatch.upstreamPublishedAt).toBe("2024-02-29T12:00:00.000Z");
+    expect(leapBatch.posts[0]?.publishedAt).toBe("2024-02-29T12:00:00.000Z");
+  });
 });

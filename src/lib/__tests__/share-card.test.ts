@@ -95,8 +95,15 @@ describe("incidentCardModel", () => {
     expect(incidentCardModel(incident(), t, "en").time).toContain("14:32");
   });
 
-  it("returns empty string without throwing on invalid or NaN dates (T5-09)", () => {
-    for (const bad of ["", "not-a-date", "2026-99-99"]) {
+  it("returns empty string without throwing on invalid, null, or NaN dates (T5-09)", () => {
+    for (const bad of [
+      "",
+      "   ",
+      "not-a-date",
+      "2026-99-99",
+      null as unknown as string,
+      undefined as unknown as string,
+    ]) {
       expect(algiersTime(bad)).toBe("");
       expect(relativeTime(bad, "fr")).toBe("");
       expect(algiersDateTime(bad, "ar")).toBe("");

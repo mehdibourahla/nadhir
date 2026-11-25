@@ -13,6 +13,7 @@ import {
 
 type Waiting = {
   id: string;
+  user_id?: string | null;
   kind: string;
   note: string | null;
   commune_id: string | null;
@@ -33,7 +34,7 @@ const store = {
   waiting: async (ids?: string[]): Promise<Waiting[]> => {
     let query = supabaseAdmin
       .from("citizen_reports")
-      .select("id, kind, note, commune_id")
+      .select("id, user_id, kind, note, commune_id")
       .eq("publish_state", "classifying")
       .order("created_at")
       .limit(20);
@@ -41,6 +42,19 @@ const store = {
     const { data, error } = await query;
     if (error) throw new Error(error.message);
     return data ?? [];
+  },
+  withdrawnCitizenReportConsent: async (
+    userIds: string[],
+  ): Promise<Set<string>> => {
+    if (!userIds.length) return new Set();
+    const { data, error } = await supabaseAdmin
+      .from("privacy_consents")
+      .select("user_id")
+      .in("user_id", userIds)
+      .eq("consent_type", "citizen_reports")
+      .eq("status", "withdrawn");
+    if (error) throw new Error(error.message);
+    return new Set((data ?? []).map((row) => row.user_id));
   },
   place: async (communeId: string | null): Promise<string | null> => {
     if (!communeId) return null;
@@ -74,10 +88,36 @@ export async function publishWaitingReports(
   const classifier = dependencies.classifier ?? defaultClassifier();
   const now = dependencies.now ?? Date.now;
   const tally = { published: 0, held: 0, waiting: 0 };
+  const waitingReports = await deps.waiting(ids);
+  if (!waitingReports.length) return tally;
+
+  const userIds = [
+    ...new Set(
+      waitingReports
+        .map((report) => report.user_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    ),
+  ];
+  // Fail-closed (Law 18-07 / Law 25-11): check citizen_reports consent before
+  // invoking external LLM classification or publishing any waiting report.
+  const withdrawnUsers = userIds.length
+    ? await deps.withdrawnCitizenReportConsent(userIds)
+    : new Set<string>();
+
   // one unavailable gateway degrades the whole batch, so the alert engine never waits 8 s a report
   let down: GatewayReason | null = null;
-  for (const report of await deps.waiting(ids)) {
+  for (const report of waitingReports) {
     const at = new Date(now()).toISOString();
+    if (report.user_id && withdrawnUsers.has(report.user_id)) {
+      await deps.save(report.id, {
+        publish_state: "held",
+        summary: null,
+        classified_at: at,
+        classifier: "consent_withdrawn",
+      });
+      tally.held += 1;
+      continue;
+    }
     let patch: Patch;
     try {
       if (down) throw new GatewayPending(down, null);

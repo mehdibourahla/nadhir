@@ -167,6 +167,10 @@ function createDeps() {
       error: null,
     })),
     consumeRateLimit: vi.fn(async () => ({ data: true, error: null })),
+    hasWithdrawnCitizenReportsConsent: vi.fn(async () => ({
+      withdrawn: false,
+      error: null,
+    })),
     uploadObject: vi.fn(async (path, bytes, contentType) => {
       uploaded.push({ path, bytes, contentType });
       return { error: null };
@@ -364,6 +368,34 @@ describe("F23 server-side EXIF stripping (/api/private/report-photo)", () => {
       deps,
     );
     expect(res.status).toBe(429);
+    expect(uploaded).toHaveLength(0);
+  });
+
+  it("blocks uploads with 403 when citizen_reports consent is withdrawn and fails closed with 503 on DB error (T5-R2-01)", async () => {
+    const { deps, uploaded } = createDeps();
+    deps.hasWithdrawnCitizenReportsConsent = vi.fn(async () => ({
+      withdrawn: true,
+      error: null,
+    }));
+
+    const withdrawnRes = await handleReportPhotoUpload(
+      makeUploadRequest(buildJpegWithRichExif(), "fire.jpg", "image/jpeg"),
+      deps,
+    );
+    expect(withdrawnRes.status).toBe(403);
+    expect(await withdrawnRes.json()).toEqual({ error: "consent_withdrawn" });
+    expect(uploaded).toHaveLength(0);
+
+    deps.hasWithdrawnCitizenReportsConsent = vi.fn(async () => ({
+      withdrawn: false,
+      error: { message: "db connection failed" },
+    }));
+    const errorRes = await handleReportPhotoUpload(
+      makeUploadRequest(buildJpegWithRichExif(), "fire.jpg", "image/jpeg"),
+      deps,
+    );
+    expect(errorRes.status).toBe(503);
+    expect(await errorRes.json()).toEqual({ error: "consent_unavailable" });
     expect(uploaded).toHaveLength(0);
   });
 });

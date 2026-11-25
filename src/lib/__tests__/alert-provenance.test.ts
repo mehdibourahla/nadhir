@@ -751,4 +751,26 @@ describe("domain provenance builders, area cap and M2C localized digest helper",
       expect(line, locale).not.toContain("{{");
     }
   });
+
+  it("rejects ASCII control characters in sourceAttribution including newline-spoofed ONM strings", () => {
+    for (const bad of ["ONM\nFake", "ONM\rFake", "ONM\tFake", "ONM\x00Fake"]) {
+      const violations = validateProvenanceInvariants({
+        triggerKind: "wilaya_warning",
+        areaLabel: "Alger",
+        sourceKey: "onm",
+        sourceAttribution: bad,
+        ruleLabelKey: "provenance.rule.onmSevere",
+        observedAt: SAMPLE_ISO,
+        authorityStatus: "official",
+      });
+      expect(
+        violations.some((v) => /control characters/i.test(v)),
+        JSON.stringify(bad),
+      ).toBe(true);
+      expect(
+        violations.some((v) => /ONM/i.test(v)),
+        JSON.stringify(bad),
+      ).toBe(true);
+    }
+  });
 });

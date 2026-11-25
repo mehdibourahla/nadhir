@@ -1132,7 +1132,7 @@ describe("Tier 2 Boundaries — F18–F24: M6 New-Source Gate, Tariki, CRAAG/EMS
 
       const res = await serverPhotoMod.handleReportPhotoUpload(req, {
         getUser: async () => ({
-          data: { user: { id: "user-photo-test" } },
+          data: { user: { id: "92000000-0000-4000-8000-000000000017" } },
           error: null,
         }),
         consumeRateLimit: async () => ({ data: true, error: null }),

@@ -93,3 +93,22 @@ it.each(["fetch", "parse", "write"])(
     expect(await backfillCapDetails()).toEqual({ filled: 1, failed: 0 });
   },
 );
+it("passes redirect: 'manual' and treats 3xx redirects as failed without following (T5-R2-04)", async () => {
+  state.rows = state.rows.slice(0, 1);
+  state.fetch.mockResolvedValue(
+    new Response(null, {
+      status: 302,
+      headers: { location: "http://169.254.169.254/latest/meta-data/" },
+    }),
+  );
+  expect(await backfillCapDetails()).toEqual({ filled: 0, failed: 1 });
+  expect(state.fetch).toHaveBeenCalledWith(
+    "onm",
+    "cap_detail",
+    "https://ametvigilance.meteo.dz/CAPs/0.xml",
+    { redirect: "manual" },
+    expect.objectContaining({
+      requestParams: { document: "0.xml" },
+    }),
+  );
+});

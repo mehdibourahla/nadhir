@@ -175,6 +175,7 @@ export type CardText = {
 };
 
 export function algiersDateTime(iso: string, locale: AnyLocale) {
+  if (typeof iso !== "string" || !iso.trim()) return "";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat(intlLocale(locale), {

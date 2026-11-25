@@ -294,6 +294,7 @@ export function intlLocale(locale: AnyLocale): string {
 }
 
 export function relativeTime(iso: string, locale: AnyLocale, now = Date.now()) {
+  if (typeof iso !== "string" || !iso.trim()) return "";
   const parsedMs = new Date(iso).getTime();
   if (Number.isNaN(parsedMs) || !Number.isFinite(now)) return "";
   const diffMs = now - parsedMs;
@@ -308,6 +309,7 @@ export function relativeTime(iso: string, locale: AnyLocale, now = Date.now()) {
 }
 
 export function algiersTime(iso: string) {
+  if (typeof iso !== "string" || !iso.trim()) return "";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat("fr-DZ", {

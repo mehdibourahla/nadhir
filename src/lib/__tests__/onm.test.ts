@@ -147,6 +147,20 @@ describe("Tier 5 ONM feed & CAP URL hardening (T5-02)", () => {
     expect(
       sanitizeOnmCapUrl("https://ametvigilance.meteo.dz/CAPs/../secret.xml"),
     ).toBeNull();
+    expect(
+      sanitizeOnmCapUrl(
+        "https://ametvigilance.meteo.dz/CAPs/a.xml?redirect=http://169.254.169.254",
+      ),
+    ).toBeNull();
+    expect(
+      sanitizeOnmCapUrl("https://ametvigilance.meteo.dz/CAPs/a.xml#frag"),
+    ).toBeNull();
+    expect(
+      sanitizeOnmCapUrl("https://ametvigilance.meteo.dz/CAPs/a.xml?"),
+    ).toBeNull();
+    expect(
+      sanitizeOnmCapUrl("https://ametvigilance.meteo.dz/CAPs/a.xml#"),
+    ).toBeNull();
     expect(sanitizeOnmCapUrl("/CAPs/relative.xml")).toBe(
       "https://ametvigilance.meteo.dz/CAPs/relative.xml",
     );

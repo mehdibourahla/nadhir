@@ -23,7 +23,14 @@ describe("Tier 5 — Track 3 Dates, Unicode Elision, Share Cards & Arabic BiDi H
         algiersDateTime: (iso: string, locale: string) => string;
       }>("src/lib/share-card.ts");
 
-      for (const bad of ["", "not-a-date", "2026-99-99"]) {
+      for (const bad of [
+        "",
+        "   ",
+        "not-a-date",
+        "2026-99-99",
+        null as unknown as string,
+        undefined as unknown as string,
+      ]) {
         expect(() => nadhirMod.algiersTime(bad)).not.toThrow();
         expect(nadhirMod.algiersTime(bad)).toBe("");
         expect(() => nadhirMod.relativeTime(bad, "fr")).not.toThrow();

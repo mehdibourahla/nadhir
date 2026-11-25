@@ -23,10 +23,23 @@ export interface ReportPublishDeps {
   verifyTurnstile: (
     input: TurnstileVerifyInput,
   ) => Promise<TurnstileVerifyResult>;
+  hasWithdrawnCitizenReportsConsent: (
+    userId: string,
+  ) => Promise<{ withdrawn: boolean; error: unknown }>;
 }
 
 const defaultDeps: ReportPublishDeps = {
   verifyTurnstile: verifyTurnstileToken,
+  hasWithdrawnCitizenReportsConsent: async (userId) => {
+    const { data, error } = await supabaseAdmin
+      .from("privacy_consents")
+      .select("status")
+      .eq("user_id", userId)
+      .eq("consent_type", "citizen_reports")
+      .eq("status", "withdrawn")
+      .maybeSingle();
+    return { withdrawn: Boolean(data), error };
+  },
 };
 
 export async function handleReportPublish(
@@ -53,6 +66,16 @@ export async function handleReportPublish(
   if (quota.error || quota.data == null)
     return json({ error: "Quota unavailable" }, 503);
   if (quota.data !== true) return json({ error: "Please wait" }, 429);
+
+  // Fail-closed (Law 18-07 / Law 25-11): block report publication if
+  // citizen_reports consent is withdrawn or cannot be verified.
+  const consent = await deps.hasWithdrawnCitizenReportsConsent(userId);
+  if (consent.error) {
+    return json({ error: "consent_unavailable" }, 503);
+  }
+  if (consent.withdrawn) {
+    return json({ error: "consent_withdrawn" }, 403);
+  }
 
   const read = await readJsonBody(request, 4096);
   if ("error" in read) return json({ error: read.error }, read.status);

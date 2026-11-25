@@ -432,7 +432,30 @@ export async function evaluateAlerts(userId?: string): Promise<AlertRun> {
   if (zonesError) throw new Error(zonesError.message);
   if (!zones?.length) return { evaluated: 0, created: 0, suppressed: 0 };
 
-  const userIds = [...new Set(zones.map((z) => z.user_id))];
+  const allUserIds = [...new Set(zones.map((z) => z.user_id))];
+  // Fail-closed (Law 18-07 / Law 25-11): exclude watch zones belonging to users
+  // who withdrew zone_alerts consent before matching hazards, creating alerts,
+  // or triggering alerts_enqueue_webhooks.
+  const withdrawnZoneAlertUsers = new Set<string>();
+  for (let i = 0; i < allUserIds.length; i += 500) {
+    const batch = allUserIds.slice(i, i + 500);
+    const { data: withdrawnConsents, error: consentError } = await supabaseAdmin
+      .from("privacy_consents")
+      .select("user_id")
+      .in("user_id", batch)
+      .eq("consent_type", "zone_alerts")
+      .eq("status", "withdrawn");
+    if (consentError) throw new Error(consentError.message);
+    for (const row of withdrawnConsents ?? []) {
+      withdrawnZoneAlertUsers.add(row.user_id);
+    }
+  }
+  const eligibleZones = zones.filter(
+    (z) => !withdrawnZoneAlertUsers.has(z.user_id),
+  );
+  if (!eligibleZones.length) return { evaluated: 0, created: 0, suppressed: 0 };
+
+  const userIds = [...new Set(eligibleZones.map((z) => z.user_id))];
   const { data: profiles, error: profilesError } = await supabaseAdmin
     .from("profiles")
     .select("*")
@@ -537,7 +560,7 @@ export async function evaluateAlerts(userId?: string): Promise<AlertRun> {
 
   const today = algiersToday();
   const communeIds = [
-    ...new Set(zones.map((z) => z.commune_id).filter(Boolean)),
+    ...new Set(eligibleZones.map((z) => z.commune_id).filter(Boolean)),
   ] as string[];
   const { data: checkpoint, error: checkpointError } = communeIds.length
     ? await supabaseAdmin
@@ -587,7 +610,7 @@ export async function evaluateAlerts(userId?: string): Promise<AlertRun> {
   const rows: Record<string, unknown>[] = [];
   let suppressed = 0;
 
-  for (const zone of zones) {
+  for (const zone of eligibleZones) {
     const profile = profileById.get(zone.user_id);
     const copy = COPY[profile?.locale ?? "ar"] ?? COPY["ar"]!;
     const quiet = inQuietHours(
@@ -836,7 +859,7 @@ export async function evaluateAlerts(userId?: string): Promise<AlertRun> {
   }
 
   const hazards = hazardAlerts(
-    zones,
+    eligibleZones,
     await loadHazardContext(communeIds, now),
     (owner) => {
       const profile = profileById.get(owner);
@@ -856,7 +879,7 @@ export async function evaluateAlerts(userId?: string): Promise<AlertRun> {
   if (!rows.length) {
     const push = await drainAlertPushes();
     if (contextError) throw contextError;
-    return { evaluated: zones.length, created: 0, suppressed, ...push };
+    return { evaluated: eligibleZones.length, created: 0, suppressed, ...push };
   }
 
   const capIdByIdentifier = await ensureCapAlerts([...capEvents.values()]);
@@ -891,7 +914,7 @@ export async function evaluateAlerts(userId?: string): Promise<AlertRun> {
   if (contextError) throw contextError;
 
   return {
-    evaluated: zones.length,
+    evaluated: eligibleZones.length,
     created: inserted?.length ?? 0,
     suppressed,
     ...delivered,

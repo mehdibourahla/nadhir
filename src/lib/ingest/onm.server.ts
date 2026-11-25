@@ -158,7 +158,7 @@ const MAX_CAP_URL_LENGTH = 2048;
 /**
  * Resolve and validate an ONM CAP detail URL against FEED_URL:
  * - strictly https:
- * - no embedded credentials or non-default port
+ * - no embedded credentials, non-default port, query string, or fragment
  * - host must be ametvigilance.meteo.dz or a *.meteo.dz subdomain
  * - normalized pathname must contain /CAPs/<non-empty>.xml
  */
@@ -167,7 +167,9 @@ export function sanitizeOnmCapUrl(rawHref: string): string | null {
   if (
     trimmed.length === 0 ||
     trimmed.length > MAX_CAP_URL_LENGTH ||
-    /[\r\n\t]/.test(trimmed)
+    /[\r\n\t]/.test(trimmed) ||
+    trimmed.includes("?") ||
+    trimmed.includes("#")
   ) {
     return null;
   }
@@ -180,6 +182,7 @@ export function sanitizeOnmCapUrl(rawHref: string): string | null {
   if (parsed.protocol !== "https:") return null;
   if (parsed.username !== "" || parsed.password !== "") return null;
   if (parsed.port !== "") return null;
+  if (parsed.search !== "" || parsed.hash !== "") return null;
   const host = parsed.hostname.toLowerCase();
   if (
     host.endsWith(".") ||
@@ -369,11 +372,17 @@ export async function backfillCapDetails(): Promise<{
       failed++;
       continue;
     }
-    const res = await archivedFetch("onm", "cap_detail", safeUrl, undefined, {
-      requestParams: {
-        document: new URL(safeUrl).pathname.split("/").at(-1) ?? "",
+    const res = await archivedFetch(
+      "onm",
+      "cap_detail",
+      safeUrl,
+      { redirect: "manual" },
+      {
+        requestParams: {
+          document: new URL(safeUrl).pathname.split("/").at(-1) ?? "",
+        },
       },
-    }).catch((error) => {
+    ).catch((error) => {
       if (error instanceof ArchiveFailure) throw error;
       return null;
     });
@@ -471,6 +480,7 @@ export async function ingestOnm(): Promise<OnmRun> {
   try {
     const res = await archivedFetch("onm", "atom_feed", FEED_URL, {
       headers: { accept: "application/atom+xml" },
+      redirect: "manual",
     });
     if (!res.ok)
       return {
