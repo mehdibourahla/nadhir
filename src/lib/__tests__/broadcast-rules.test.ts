@@ -14,6 +14,7 @@ import {
   onmRelayPlan,
   onmWarningIsCurrent,
   kmToMultiPolygon,
+  planEarthquakeBroadcast,
   planFireBroadcast,
   pointInMultiPolygon,
   pushCodesFor,
@@ -937,5 +938,205 @@ describe("earthquake commune targeting & severity (F9)", () => {
     expect(earthquakeSeverity(4.9)).toBe("Severe");
     expect(earthquakeSeverity(5.0)).toBe("Extreme");
     expect(earthquakeSeverity(6.2)).toBe("Extreme");
+  });
+});
+
+describe("planEarthquakeBroadcast (F9)", () => {
+  const HOUR = 3_600_000;
+  const nowMs = Date.parse("2026-11-25T12:00:00Z");
+
+  it("enforces M3.99 vs M4.00 and M4.99 vs M5.00 severity boundaries", () => {
+    expect(
+      planEarthquakeBroadcast({
+        id: "eq-399",
+        magnitude: 3.99,
+        lat: 36.75,
+        lon: 3.05,
+        occurredMs: nowMs - HOUR,
+        nowMs,
+        alreadyBroadcast: false,
+      }),
+    ).toEqual({
+      action: "suppress",
+      shouldBroadcast: false,
+      send: false,
+      retract: false,
+      severity: null,
+      reason: "below_threshold",
+    });
+
+    expect(
+      planEarthquakeBroadcast({
+        id: "eq-400",
+        magnitude: 4.0,
+        lat: 36.75,
+        lon: 3.05,
+        occurredMs: nowMs - HOUR,
+        nowMs,
+        alreadyBroadcast: false,
+      }),
+    ).toEqual({
+      action: "publish",
+      shouldBroadcast: true,
+      send: true,
+      retract: false,
+      severity: "Severe",
+      reason: "m4_threshold_met",
+    });
+
+    expect(
+      planEarthquakeBroadcast({
+        id: "eq-499",
+        magnitude: 4.99,
+        alreadyBroadcast: false,
+      }),
+    ).toMatchObject({
+      action: "publish",
+      shouldBroadcast: true,
+      severity: "Severe",
+    });
+
+    expect(
+      planEarthquakeBroadcast({
+        id: "eq-500",
+        magnitude: 5.0,
+        alreadyBroadcast: false,
+      }),
+    ).toEqual({
+      action: "publish",
+      shouldBroadcast: true,
+      send: true,
+      retract: false,
+      severity: "Extreme",
+      reason: "m4_threshold_met",
+    });
+  });
+
+  it("rejects non-finite and implausible magnitudes, out-of-range coordinates, and future/stale timestamps", () => {
+    for (const badMag of [
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+      -2.1,
+      10.1,
+    ]) {
+      expect(
+        planEarthquakeBroadcast({ id: "eq-bad-mag", magnitude: badMag }),
+      ).toMatchObject({
+        action: "suppress",
+        shouldBroadcast: false,
+        send: false,
+        retract: false,
+        reason: "invalid_magnitude",
+      });
+    }
+
+    for (const coords of [
+      { lat: -91, lon: 3.0 },
+      { lat: 91, lon: 3.0 },
+      { lat: 36.7, lon: -181 },
+      { lat: 36.7, lon: 181 },
+      { lat: Number.NaN, lon: 3.0 },
+      { lat: null, lon: 3.0 },
+    ]) {
+      expect(
+        planEarthquakeBroadcast({
+          id: "eq-bad-coords",
+          magnitude: 4.5,
+          ...coords,
+        }),
+      ).toMatchObject({
+        action: "suppress",
+        shouldBroadcast: false,
+        reason: "invalid_coordinates",
+      });
+    }
+
+    expect(
+      planEarthquakeBroadcast({
+        id: "eq-future",
+        magnitude: 4.6,
+        occurredMs: nowMs + 60_000,
+        nowMs,
+      }),
+    ).toMatchObject({
+      action: "suppress",
+      shouldBroadcast: false,
+      reason: "future_earthquake",
+    });
+
+    expect(
+      planEarthquakeBroadcast({
+        id: "eq-stale",
+        magnitude: 4.6,
+        occurredMs: nowMs - 7 * HOUR,
+        nowMs,
+      }),
+    ).toMatchObject({
+      action: "suppress",
+      shouldBroadcast: false,
+      reason: "stale_earthquake",
+    });
+
+    expect(
+      planEarthquakeBroadcast({
+        id: "eq-nan-ts",
+        magnitude: 4.6,
+        occurredMs: Number.NaN,
+        nowMs,
+      }),
+    ).toMatchObject({
+      action: "suppress",
+      shouldBroadcast: false,
+      reason: "invalid_timestamp",
+    });
+  });
+
+  it("enforces revision asymmetry: upward M3.8 -> M4.2 pushes once, repeat M4.2 -> M4.8 suppresses, downward M4.5 -> M3.6 never retracts or emits banned labels", () => {
+    const upward = planEarthquakeBroadcast({
+      id: "eq-rev-up",
+      magnitude: 4.2,
+      previousMagnitude: 3.8,
+      alreadyBroadcast: false,
+    });
+    expect(upward).toEqual({
+      action: "publish",
+      shouldBroadcast: true,
+      send: true,
+      retract: false,
+      severity: "Severe",
+      reason: "upward_revision_crossed_threshold",
+    });
+
+    const repeat = planEarthquakeBroadcast({
+      id: "eq-rev-repeat",
+      magnitude: 4.8,
+      previousMagnitude: 4.2,
+      alreadyBroadcast: true,
+    });
+    expect(repeat).toEqual({
+      action: "suppress",
+      shouldBroadcast: false,
+      send: false,
+      retract: false,
+      severity: null,
+      reason: "already_broadcast",
+    });
+
+    const downward = planEarthquakeBroadcast({
+      id: "eq-rev-down",
+      magnitude: 3.6,
+      previousMagnitude: 4.5,
+      alreadyBroadcast: true,
+    });
+    expect(downward).toEqual({
+      action: "suppress",
+      shouldBroadcast: false,
+      send: false,
+      retract: false,
+      severity: null,
+      reason: "downward_revision_no_retraction",
+    });
+    expect(JSON.stringify(downward)).not.toMatch(/safe|all[-\s]clear/i);
   });
 });

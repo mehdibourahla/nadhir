@@ -17,6 +17,8 @@ export type EmscEvent = {
 
 // known and suspected earthquakes; blasts and unknown events are not earthquakes
 const EARTHQUAKE_TYPES = new Set(["ke", "se"]);
+const EMSC_PLAUSIBLE_MIN_MAGNITUDE = -2;
+const EMSC_PLAUSIBLE_MAX_MAGNITUDE = 10;
 
 const finite = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
@@ -36,19 +38,32 @@ export function parseEmsc(
     throw new Error("EMSC returned an unexpected shape");
   const minMag = options.minMagnitude;
   return features.flatMap((feature) => {
+    if (!feature || typeof feature !== "object") return [];
     const p = (feature as { properties?: Record<string, unknown> }).properties;
     if (
       !p ||
       typeof p["unid"] !== "string" ||
       typeof p["time"] !== "string" ||
+      !Number.isFinite(Date.parse(p["time"])) ||
       !finite(p["lat"]) ||
+      p["lat"] < -90 ||
+      p["lat"] > 90 ||
       !finite(p["lon"]) ||
+      p["lon"] < -180 ||
+      p["lon"] > 180 ||
       !finite(p["mag"]) ||
+      p["mag"] < EMSC_PLAUSIBLE_MIN_MAGNITUDE ||
+      p["mag"] > EMSC_PLAUSIBLE_MAX_MAGNITUDE ||
       !EARTHQUAKE_TYPES.has(String(p["evtype"] ?? "ke"))
     )
       return [];
     if (minMag !== undefined && p["mag"] < minMag) return [];
     const magnitude = Math.round(p["mag"] * 10) / 10;
+    const updatedAt =
+      typeof p["lastupdate"] === "string" &&
+      Number.isFinite(Date.parse(p["lastupdate"]))
+        ? p["lastupdate"]
+        : p["time"];
     return [
       {
         id: p["unid"],
@@ -61,8 +76,7 @@ export function parseEmsc(
         region:
           typeof p["flynn_region"] === "string" ? p["flynn_region"] : null,
         network: typeof p["auth"] === "string" ? p["auth"] : null,
-        updated_at:
-          typeof p["lastupdate"] === "string" ? p["lastupdate"] : p["time"],
+        updated_at: updatedAt,
       },
     ];
   });

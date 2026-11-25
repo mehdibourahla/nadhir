@@ -90,6 +90,30 @@ describe("parseFciFeatures", () => {
     expect(outside).toBe(4);
     expect(latestSlot).toBeNull();
   });
+
+  it("handles null, undefined, primitive, and malformed feature collections without throwing", () => {
+    const malformedInputs: unknown[] = [
+      null,
+      undefined,
+      "bad",
+      42,
+      {},
+      { features: null },
+      { features: "not-an-array" },
+      { features: [] },
+      { features: [null, undefined, {}, { geometry: null, properties: null }] },
+    ];
+    for (const bad of malformedInputs) {
+      expect(
+        parseFciFeatures(bad as Parameters<typeof parseFciFeatures>[0]),
+      ).toEqual({
+        rows: [],
+        outside: 0,
+        filtered: 0,
+        latestSlot: null,
+      });
+    }
+  });
 });
 
 describe("parseWfsFireFeatures for Sentinel-3 SLSTR", () => {

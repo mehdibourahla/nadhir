@@ -787,11 +787,159 @@ export function evaluateOfficialIncidentBroadcast(
 /* ---------- Feature F9: Accountless M4+ Earthquake Commune Targeting ---------- */
 
 export const EARTHQUAKE_BROADCAST_MIN_MAGNITUDE = 4.0;
+export const EARTHQUAKE_PLAUSIBLE_MIN_MAGNITUDE = -2.0;
+export const EARTHQUAKE_PLAUSIBLE_MAX_MAGNITUDE = 10.0;
 export const EARTHQUAKE_BROADCAST_RADIUS_KM = 100;
 export const EARTHQUAKE_BROADCAST_FRESH_HOURS = 6;
 
+export type EarthquakeBroadcastInput = {
+  id?: string | null;
+  magnitude: number;
+  lat?: number | null;
+  lon?: number | null;
+  occurredMs?: number | null;
+  nowMs?: number | null;
+  previousMagnitude?: number | null;
+  alreadyBroadcast?: boolean;
+};
+
+export type EarthquakeBroadcastDecision =
+  | {
+      action: "publish";
+      shouldBroadcast: true;
+      send: true;
+      retract: false;
+      severity: "Extreme" | "Severe";
+      reason: "m4_threshold_met" | "upward_revision_crossed_threshold";
+    }
+  | {
+      action: "suppress";
+      shouldBroadcast: false;
+      send: false;
+      retract: false;
+      severity: null;
+      reason:
+        | "invalid_magnitude"
+        | "invalid_coordinates"
+        | "invalid_timestamp"
+        | "future_earthquake"
+        | "stale_earthquake"
+        | "downward_revision_no_retraction"
+        | "already_broadcast"
+        | "below_threshold";
+    };
+
 export function earthquakeSeverity(magnitude: number): "Extreme" | "Severe" {
   return magnitude >= 5.0 ? "Extreme" : "Severe";
+}
+
+/**
+ * Pure M4+ earthquake broadcast planner (Feature F9).
+ * Enforces finite plausibility bounds, WGS84 bounds when coordinates are
+ * provided, freshness bounds when timestamps are provided, single-shot
+ * idempotency on upward revisions crossing M4.0, and strict suppression
+ * (never retraction) on downward revisions below M4.0.
+ */
+export function planEarthquakeBroadcast(
+  input: EarthquakeBroadcastInput,
+): EarthquakeBroadcastDecision {
+  const suppress = (
+    reason: Extract<
+      EarthquakeBroadcastDecision,
+      { action: "suppress" }
+    >["reason"],
+  ): EarthquakeBroadcastDecision => ({
+    action: "suppress",
+    shouldBroadcast: false,
+    send: false,
+    retract: false,
+    severity: null,
+    reason,
+  });
+
+  const { magnitude } = input;
+  if (
+    typeof magnitude !== "number" ||
+    !Number.isFinite(magnitude) ||
+    magnitude < EARTHQUAKE_PLAUSIBLE_MIN_MAGNITUDE ||
+    magnitude > EARTHQUAKE_PLAUSIBLE_MAX_MAGNITUDE
+  ) {
+    return suppress("invalid_magnitude");
+  }
+
+  if (input.lat !== undefined) {
+    if (
+      typeof input.lat !== "number" ||
+      !Number.isFinite(input.lat) ||
+      input.lat < -90 ||
+      input.lat > 90
+    ) {
+      return suppress("invalid_coordinates");
+    }
+  }
+  if (input.lon !== undefined) {
+    if (
+      typeof input.lon !== "number" ||
+      !Number.isFinite(input.lon) ||
+      input.lon < -180 ||
+      input.lon > 180
+    ) {
+      return suppress("invalid_coordinates");
+    }
+  }
+
+  if (input.occurredMs !== undefined) {
+    if (
+      typeof input.occurredMs !== "number" ||
+      !Number.isFinite(input.occurredMs)
+    ) {
+      return suppress("invalid_timestamp");
+    }
+  }
+  if (input.nowMs !== undefined) {
+    if (typeof input.nowMs !== "number" || !Number.isFinite(input.nowMs)) {
+      return suppress("invalid_timestamp");
+    }
+  }
+  if (typeof input.occurredMs === "number" && typeof input.nowMs === "number") {
+    if (input.occurredMs > input.nowMs) {
+      return suppress("future_earthquake");
+    }
+    if (
+      input.nowMs - input.occurredMs >
+      EARTHQUAKE_BROADCAST_FRESH_HOURS * HOUR
+    ) {
+      return suppress("stale_earthquake");
+    }
+  }
+
+  if (input.alreadyBroadcast === true) {
+    return suppress(
+      magnitude < EARTHQUAKE_BROADCAST_MIN_MAGNITUDE
+        ? "downward_revision_no_retraction"
+        : "already_broadcast",
+    );
+  }
+
+  if (magnitude < EARTHQUAKE_BROADCAST_MIN_MAGNITUDE) {
+    return suppress("below_threshold");
+  }
+
+  const crossedUpward =
+    typeof input.previousMagnitude === "number" &&
+    Number.isFinite(input.previousMagnitude) &&
+    input.previousMagnitude < EARTHQUAKE_BROADCAST_MIN_MAGNITUDE;
+
+  return {
+    action: "publish",
+    shouldBroadcast: true,
+    send: true,
+    retract: false,
+    severity: earthquakeSeverity(magnitude),
+    reason: crossedUpward
+      ? "upward_revision_crossed_threshold"
+      : "m4_threshold_met",
+  };
 }
 
 export function targetCommunesForEarthquake(

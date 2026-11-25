@@ -32,6 +32,7 @@ import {
   onmUpdateMaterialChange,
   onmUpdatePriors,
   onmWarningIsCurrent,
+  planEarthquakeBroadcast,
   planFireBroadcast,
   pushCodesFor,
   setThreadCoverage,
@@ -1053,14 +1054,18 @@ async function relayEarthquakes(
     .gte("occurred_at", since);
   if (error) throw new Error(error.message);
 
-  const eligible = ((quakes ?? []) as EarthquakeRow[]).filter((q) => {
-    const occurredMs = Date.parse(q.occurred_at);
-    return (
-      Number.isFinite(occurredMs) &&
-      occurredMs <= nowMs &&
-      Number(q.magnitude) >= EARTHQUAKE_BROADCAST_MIN_MAGNITUDE
-    );
-  });
+  const eligible = ((quakes ?? []) as EarthquakeRow[]).filter(
+    (q) =>
+      planEarthquakeBroadcast({
+        id: q.id,
+        magnitude: Number(q.magnitude),
+        lat: q.lat,
+        lon: q.lon,
+        occurredMs: Date.parse(q.occurred_at),
+        nowMs,
+        alreadyBroadcast: false,
+      }).shouldBroadcast,
+  );
   if (!eligible.length) return 0;
 
   const { data: existing, error: existingError } = await supabaseAdmin
@@ -1073,7 +1078,18 @@ async function relayEarthquakes(
     );
   if (existingError) throw new Error(existingError.message);
   const done = new Set((existing ?? []).map((b) => b.earthquake_id));
-  const pending = eligible.filter((q) => !done.has(q.id));
+  const pending = eligible.filter(
+    (q) =>
+      planEarthquakeBroadcast({
+        id: q.id,
+        magnitude: Number(q.magnitude),
+        lat: q.lat,
+        lon: q.lon,
+        occurredMs: Date.parse(q.occurred_at),
+        nowMs,
+        alreadyBroadcast: done.has(q.id),
+      }).shouldBroadcast,
+  );
   if (!pending.length) return 0;
 
   const units = await fetchAllPages<{

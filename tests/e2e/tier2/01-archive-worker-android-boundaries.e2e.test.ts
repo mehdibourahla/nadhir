@@ -43,7 +43,7 @@ describe("Tier 2 Boundaries — F1–F6: Branch Safety, Invariants, EU Worker, L
 
       for (const relPath of migrationFiles) {
         const filename = relPath.split("/").at(-1) ?? "";
-        const match = /^(\d{14})_[a-z0-9_]+\.sql$/i.exec(filename);
+        const match = /^(\d{14})_[a-z0-9_-]+\.sql$/i.exec(filename);
         if (!match || !match[1]) {
           malformed.push(filename);
           continue;
@@ -125,7 +125,7 @@ describe("Tier 2 Boundaries — F1–F6: Branch Safety, Invariants, EU Worker, L
               "\\$&",
             );
             const revokeRe = new RegExp(
-              `revoke\\s+(?:all|execute)\\s+on\\s+function\\s+${escapedName}[^;]*from\\s+([^;]+);`,
+              `revoke\\s+(?:all|execute)\\s+on\\s+function\\s+(?:[^;]*?,\\s*)?${escapedName}\\s*\\([^;]*from\\s+([^;]+);`,
               "gi",
             );
             const revokeMatches = Array.from(sql.matchAll(revokeRe));
@@ -1392,11 +1392,11 @@ describe("Tier 2 Boundaries — F1–F6: Branch Safety, Invariants, EU Worker, L
         -- Hot source_run pointing at fkjob-ref-by-run
         INSERT INTO public.source_runs (
           id, contract_key, contract_version, trigger_kind, idempotency_key,
-          scheduled_for, started_at, finished_at, outcome, records_seen, job_id
+          scheduled_for, started_at, finished_at, outcome, records_seen, job_id, attempt
         ) VALUES (
           '43000000-0000-4000-8000-000000000099',
           'e2e.cold.fkjobs', 1, 'manual', 'hot-run-fk-ref',
-          now(), now(), now(), 'succeeded', 1, '43000000-0000-4000-8000-000000000002'
+          now(), now(), now(), 'succeeded', 1, '43000000-0000-4000-8000-000000000002', 1
         );
 
         SELECT string_agg(id::text, ',' ORDER BY id::text)
@@ -1563,7 +1563,9 @@ describe("Tier 2 Boundaries — F1–F6: Branch Safety, Invariants, EU Worker, L
 
       const pushNativeSrc = readRepoFile("src/lib/push-native.ts");
       const scheduleCalls =
-        pushNativeSrc.match(/LocalNotifications\.schedule\s*\(/g) ?? [];
+        pushNativeSrc.match(
+          /\b(?:LocalNotifications|localNotifications)\.schedule\s*\(/g,
+        ) ?? [];
       expect(scheduleCalls.length).toBeGreaterThan(0);
 
       // Ensure isExactNotification: false (or DEFAULT_LOCAL_NOTIFICATION_EXACT) appears for every schedule block and NEVER true.
@@ -1643,7 +1645,15 @@ describe("Tier 2 Boundaries — F1–F6: Branch Safety, Invariants, EU Worker, L
       const gradle = readRepoFile("android/app/build.gradle");
 
       expect(gradle).toContain('applicationId "app.nadhir"');
-      expect(gradle).toMatch(/versionCode\s+[1-9]\d*/);
+      const hasLiteralVersionCode = /versionCode\s+[1-9]\d*/.test(gradle);
+      const hasValidatedDynamicVersionCode =
+        /versionCode\s+resolvedVersionCode\b/.test(gradle) &&
+        /\?:\s*["'][1-9]\d*["']/.test(gradle) &&
+        /(?:maxPlayVersionCode\s*=\s*2100000000|<=?\s*2100000000)/.test(gradle);
+      expect(
+        hasLiteralVersionCode || hasValidatedDynamicVersionCode,
+        "Expected positive literal versionCode or validated dynamic resolvedVersionCode bounded by 2100000000",
+      ).toBe(true);
       expect(gradle).toContain('System.getenv("NADHIR_UPLOAD_STORE")');
       expect(gradle).toContain('System.getenv("NADHIR_UPLOAD_PASSWORD")');
 

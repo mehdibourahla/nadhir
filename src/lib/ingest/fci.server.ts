@@ -87,10 +87,23 @@ export function parseWfsFireFeatures(
   let outside = 0;
   let filtered = 0;
   let latestSlot: string | null = null;
-  for (const f of json.features ?? []) {
-    const [lon, lat] = f.geometry?.coordinates ?? [NaN, NaN];
-    const slot = f.properties?.time ?? "";
-    if (!Number.isFinite(lat) || !Number.isFinite(lon) || !slot) continue;
+  if (!json || typeof json !== "object" || !Array.isArray(json.features)) {
+    return { rows, outside, filtered, latestSlot };
+  }
+  for (const f of json.features) {
+    if (!f || typeof f !== "object") continue;
+    const coords = f.geometry?.coordinates;
+    const [lon, lat] = Array.isArray(coords) ? coords : [NaN, NaN];
+    const slot =
+      typeof f.properties?.time === "string" ? f.properties.time : "";
+    if (
+      typeof lat !== "number" ||
+      typeof lon !== "number" ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon) ||
+      !slot
+    )
+      continue;
     if (
       lat < WATCH.south ||
       lat > WATCH.north ||

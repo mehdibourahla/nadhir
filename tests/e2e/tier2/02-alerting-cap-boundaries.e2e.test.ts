@@ -16,9 +16,16 @@ import {
   startMockHttpServer,
   type MockHttpResponse,
 } from "../lib/http.ts";
+import { assertPgReachable, runInRolledBackTx } from "../lib/pg.ts";
 import { findBannedSafeLabels, findEmDashesInText } from "../lib/playwright.ts";
 
 const HOUR = 3_600_000;
+
+function stripJsComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|\s)\/\/.*$/gm, "$1");
+}
 
 type AnyFn = (...args: unknown[]) => unknown;
 
@@ -115,8 +122,8 @@ describe("Tier 2 Boundaries — F7–F13: ONM CAP Chains, DGPC Non-Fire, Account
       // Verify ONM ingestion & broadcast code never equates feed absence to CAP Cancel or "all-clear".
       const onmSrc = readRepoFile("src/lib/ingest/onm.server.ts");
       const broadcastSrc = readRepoFile("src/lib/ingest/broadcast.server.ts");
-      expect(onmSrc).not.toMatch(/all[-\s]clear/i);
-      expect(broadcastSrc).not.toMatch(/all[-\s]clear/i);
+      expect(stripJsComments(onmSrc)).not.toMatch(/all[-\s]clear/i);
+      expect(stripJsComments(broadcastSrc)).not.toMatch(/all[-\s]clear/i);
 
       // Verify explicit CAP Cancel support exists in ONM ingestion / CAP parser for M2.
       expect(
@@ -374,56 +381,146 @@ describe("Tier 2 Boundaries — F7–F13: ONM CAP Chains, DGPC Non-Fire, Account
     });
 
     it("ONM CAP Cancel referencing an unknown/unmatched identifier degrades safely without crashing or cancelling unrelated alerts", async () => {
-      const onmMod = await importRepoModule<Record<string, unknown>>(
-        "src/lib/ingest/onm.server.ts",
-      );
-      const parseCapDetail = onmMod["parseCapDetail"] as (
-        xml: string,
-      ) => Record<string, unknown> | null;
+      const onmMod = await importRepoModule<{
+        parseCapDetail: (xml: string) => Record<string, unknown> | null;
+      }>("src/lib/ingest/onm.server.ts");
+      const capMod = await importRepoModule<{
+        parseCapReferences: (raw: string | null | undefined) => Array<{
+          sender: string;
+          identifier: string;
+          sent: string;
+        }>;
+        parseCapReferenceIds: (raw: string | null | undefined) => string[];
+      }>("src/lib/cap.ts");
+      const rulesMod = await importRepoModule<{
+        onmRelayPlan: (
+          active: Array<{
+            id: string;
+            wilayaId: string;
+            event: string;
+            severity: string;
+            sentMs: number;
+            onsetMs: number | null;
+            expiresMs: number | null;
+            msgType?: string;
+            referencedCapIds?: readonly string[];
+          }>,
+          relayed: Array<{
+            id: string;
+            wilayaId: string;
+            event: string;
+            severity: string;
+            sentMs: number;
+            onsetMs: number | null;
+            expiresMs: number | null;
+          }>,
+          now: number,
+        ) => {
+          relay: Array<{ id: string }>;
+          suppressed: Array<{ id: string }>;
+        };
+      }>("src/lib/broadcast-rules.ts");
 
+      const unknownRef =
+        "onm@meteo.dz,urn:oid:2.49.0.1.12.0.NONEXISTENT.404,2026-11-20T00:00:00+01:00";
       const unknownCancelXml = buildOnmCapXml({
         identifier: "urn:oid:2.49.0.1.12.0.20261124.999",
         msgType: "Cancel",
-        references:
-          "onm@meteo.dz,urn:oid:2.49.0.1.12.0.NONEXISTENT.404,2026-11-20T00:00:00+01:00",
+        references: unknownRef,
       });
 
-      expect(() => parseCapDetail(unknownCancelXml)).not.toThrow();
-      const parsed = parseCapDetail(unknownCancelXml);
+      expect(() => onmMod.parseCapDetail(unknownCancelXml)).not.toThrow();
+      const parsed = onmMod.parseCapDetail(unknownCancelXml);
       expect(parsed).not.toBeNull();
+      expect(parsed?.["msg_type"]).toBe("Cancel");
+      expect(parsed?.["referenced_cap_ids"]).toEqual([
+        "urn:oid:2.49.0.1.12.0.NONEXISTENT.404",
+      ]);
 
-      // Verify the chain/reference helper is exported and handles unknown cancel references safely.
-      const cancelCandidates = [
-        "resolveOnmCapCancel",
-        "applyOnmCapCancel",
-        "resolveCapCancel",
-        "resolveOnmCapChain",
-      ] as const;
-      const refCandidates = [
-        "parseCapReferences",
-        "extractCapReferences",
-      ] as const;
-      const resolver = findExportedFn(
-        onmMod,
-        [...cancelCandidates, ...refCandidates],
-        "src/lib/ingest/onm.server.ts",
+      // Verify CAP reference parsers extract the unmatched identifier cleanly.
+      const refs = capMod.parseCapReferences(unknownRef);
+      expect(refs).toHaveLength(1);
+      expect(refs[0]?.identifier).toBe("urn:oid:2.49.0.1.12.0.NONEXISTENT.404");
+      expect(capMod.parseCapReferenceIds(unknownRef)).toEqual([
+        "urn:oid:2.49.0.1.12.0.NONEXISTENT.404",
+      ]);
+
+      // Unrelated active warning remains planned/untouched alongside unmatched Cancel.
+      const now = Date.parse("2026-11-24T15:00:00Z");
+      const plan = rulesMod.onmRelayPlan(
+        [
+          {
+            id: "urn:oid:2.49.0.1.12.0.UNRELATED.001",
+            wilayaId: "16",
+            event: "Rain",
+            severity: "Severe",
+            sentMs: now - HOUR,
+            onsetMs: now - HOUR,
+            expiresMs: now + 6 * HOUR,
+            msgType: "Alert",
+          },
+          {
+            id: "urn:oid:2.49.0.1.12.0.20261124.999",
+            wilayaId: "16",
+            event: "Rain",
+            severity: "Severe",
+            sentMs: now,
+            onsetMs: now,
+            expiresMs: now + 6 * HOUR,
+            msgType: "Cancel",
+            referencedCapIds: ["urn:oid:2.49.0.1.12.0.NONEXISTENT.404"],
+          },
+        ],
+        [],
+        now,
       );
-      const isRefParserOnly = refCandidates.some(
-        (name) => onmMod[name] === resolver,
+      expect(plan.relay.map((w) => w.id)).toContain(
+        "urn:oid:2.49.0.1.12.0.UNRELATED.001",
       );
-      if (isRefParserOnly) {
-        const refs = resolver(
-          "onm@meteo.dz,urn:oid:2.49.0.1.12.0.NONEXISTENT.404,2026-11-20T00:00:00+01:00",
+      expect(plan.relay.map((w) => w.id)).not.toContain(
+        "urn:oid:2.49.0.1.12.0.20261124.999",
+      );
+
+      // Live Postgres RPC verification inside rolled-back tx: apply_onm_cap_chain cancels 0 warnings and leaves unrelated active alert intact.
+      assertPgReachable();
+      const out = runInRolledBackTx(`
+        INSERT INTO public.onm_vigilance (
+          cap_id, title, event, severity, urgency, certainty, sent, area_desc,
+          episode_id, episode_peak, msg_type, referenced_cap_ids
+        ) VALUES
+        (
+          'urn:oid:2.49.0.1.12.0.E2E.UNRELATED.001',
+          'BMS Pluies Alger', 'Rain', 'Severe', 'Expected', 'Likely',
+          now() - interval '1 hour', 'Alger',
+          '77000000-0000-4000-8000-000000000001', 2, 'Alert', '{}'
+        ),
+        (
+          'urn:oid:2.49.0.1.12.0.E2E.UNMATCHED.CANCEL.999',
+          'BMS Cancel Unknown', 'Rain', 'Severe', 'Expected', 'Likely',
+          now(), 'Alger',
+          '77000000-0000-4000-8000-000000000002', 2, 'Cancel',
+          ARRAY['urn:oid:2.49.0.1.12.0.NONEXISTENT.404']
         );
-        expect(Array.isArray(refs)).toBe(true);
-      } else {
-        expect(() =>
-          resolver(
-            ["urn:oid:2.49.0.1.12.0.NONEXISTENT.404"],
-            [{ cap_id: "urn:oid:2.49.0.1.12.0.UNRELATED.001" }],
-          ),
-        ).not.toThrow();
-      }
+
+        SELECT json_build_object(
+          'chain', public.apply_onm_cap_chain(ARRAY['urn:oid:2.49.0.1.12.0.E2E.UNMATCHED.CANCEL.999']),
+          'unrelated_cancelled', (
+            SELECT cancelled_at IS NOT NULL
+              FROM public.onm_vigilance
+             WHERE cap_id = 'urn:oid:2.49.0.1.12.0.E2E.UNRELATED.001'
+          )
+        )::text;
+      `);
+      const payload = JSON.parse(out.split("\n").at(-1)?.trim() ?? "{}") as {
+        chain?: {
+          cancelled_warnings?: number;
+          invalidated_deliveries?: number;
+        };
+        unrelated_cancelled?: boolean;
+      };
+      expect(payload.chain?.cancelled_warnings).toBe(0);
+      expect(payload.chain?.invalidated_deliveries).toBe(0);
+      expect(payload.unrelated_cancelled).toBe(false);
     });
   });
 
@@ -529,25 +626,135 @@ describe("Tier 2 Boundaries — F7–F13: ONM CAP Chains, DGPC Non-Fire, Account
         ),
       ).toBe("ended");
 
-      // Broadcast copy module must never emit "all-clear" or banned safe labels.
+      // Broadcast copy module (non-comment code & rendered multi-hazard copy) must never emit "all-clear" or banned safe labels.
       const broadcastCopySrc = readRepoFile("src/lib/broadcast-copy.ts");
-      expect(findBannedSafeLabels(broadcastCopySrc)).toEqual([]);
+      expect(findBannedSafeLabels(stripJsComments(broadcastCopySrc))).toEqual(
+        [],
+      );
+
+      const copyMod = await importRepoModule<{
+        officialHazardTexts: (vars: {
+          kind: "flood" | "storm" | "road" | "structure";
+          phase?: "initial" | "end";
+          place?: string | null;
+          commune: string;
+          wilaya: string;
+          source: string;
+          asOf: string;
+          evidence?: string | null;
+        }) => Array<{
+          language: string;
+          event: string;
+          headline: string;
+          description: string;
+          instruction: string;
+        }>;
+      }>("src/lib/broadcast-copy.ts");
+
+      for (const kind of ["flood", "storm", "road", "structure"] as const) {
+        for (const phase of ["initial", "end"] as const) {
+          const texts = copyMod.officialHazardTexts({
+            kind,
+            phase,
+            place: "Bab El Oued",
+            commune: "Bab El Oued",
+            wilaya: "Alger",
+            source: "Protection Civile (DGPC)",
+            asOf: "15:00",
+            evidence: "Intervention en cours sur la RN11.",
+          });
+          expect(texts).toHaveLength(4);
+          for (const entry of texts) {
+            const rendered = `${entry.event}\n${entry.headline}\n${entry.description}`;
+            expect(findBannedSafeLabels(rendered)).toEqual([]);
+            expect(findEmDashesInText(rendered).count).toBe(0);
+            expect(entry.instruction).toBe("");
+          }
+        }
+      }
     });
 
-    it("retrospective casualty summary and unresolved-commune posts are excluded from automatic broadcast push", () => {
+    it("retrospective casualty summary and unresolved-commune posts are excluded from automatic broadcast push", async () => {
       const retroPost = buildDgpcNonFirePost({ kind: "retrospective" });
       expect(retroPost.isRetrospectiveCasualtyReport).toBe(true);
       expect(retroPost.cleared).toBe(true);
 
       const broadcastSrc = readRepoFile("src/lib/ingest/broadcast.server.ts");
-      // relayOfficialIncidents must require resolved commune_id and exclude cleared/extinguished/unlisted incidents.
+      // relayOfficialIncidents must require resolved commune_id, read unlisted_at, and delegate suppression to evaluateOfficialIncidentBroadcast.
       expect(broadcastSrc).toMatch(
         /\.not\(\s*["']commune_id["']\s*,\s*["']is["']\s*,\s*null\s*\)/,
       );
-      expect(broadcastSrc).toMatch(
-        /\.is\(\s*["']unlisted_at["']\s*,\s*null\s*\)/,
-      );
+      expect(broadcastSrc).toContain("unlisted_at");
+      expect(broadcastSrc).toContain("evaluateOfficialIncidentBroadcast");
       expect(broadcastSrc).toMatch(/extinguished,cleared|cleared/);
+
+      const rulesMod = await importRepoModule<{
+        evaluateOfficialIncidentBroadcast: (input: {
+          kind: string;
+          status: string;
+          communeCode: string | null;
+          asOfMs: number;
+          nowMs: number;
+          unlistedAt: string | null;
+          sourceKey: string | null;
+          authorityTier: string | null;
+          evidence: string | null;
+          documentBody?: string | null;
+          hasInitialBroadcast: boolean;
+          initialDelivered: boolean;
+          hasEndBroadcast: boolean;
+        }) => { action: string; reason?: string };
+      }>("src/lib/broadcast-rules.ts");
+
+      const now = Date.parse("2026-11-24T15:00:00Z");
+      const baseInput = {
+        kind: "flood",
+        status: "ongoing",
+        communeCode: "1601",
+        asOfMs: now - 15 * 60_000,
+        nowMs: now,
+        unlistedAt: null,
+        sourceKey: "dgpc_telegram",
+        authorityTier: "national",
+        evidence: "تدخل فرق الحماية المدنية لامتصاص مياه الأمطار بباب الوادي",
+        documentBody:
+          "تدخل فرق الحماية المدنية لامتصاص مياه الأمطار بباب الوادي",
+        hasInitialBroadcast: false,
+        initialDelivered: false,
+        hasEndBroadcast: false,
+      };
+
+      expect(
+        rulesMod.evaluateOfficialIncidentBroadcast({
+          ...baseInput,
+          evidence: retroPost.textAr,
+          documentBody: retroPost.textAr,
+        }),
+      ).toMatchObject({
+        action: "suppress",
+        reason: "retrospective_or_summary",
+      });
+
+      expect(
+        rulesMod.evaluateOfficialIncidentBroadcast({
+          ...baseInput,
+          unlistedAt: "2026-11-24T14:50:00Z",
+        }),
+      ).toMatchObject({ action: "suppress", reason: "unlisted_incident" });
+
+      expect(
+        rulesMod.evaluateOfficialIncidentBroadcast({
+          ...baseInput,
+          communeCode: null,
+        }),
+      ).toMatchObject({ action: "suppress", reason: "missing_commune" });
+
+      expect(
+        rulesMod.evaluateOfficialIncidentBroadcast({
+          ...baseInput,
+          status: "cleared",
+        }),
+      ).toMatchObject({ action: "suppress", reason: "incident_already_ended" });
     });
 
     it("ITA media post (even quoting Protection Civile) is strictly excluded from automatic broadcast push & public Telegram", async () => {
@@ -562,14 +769,52 @@ describe("Tier 2 Boundaries — F7–F13: ONM CAP Chains, DGPC Non-Fire, Account
         true,
       );
 
-      // ADR-0004: Public Telegram relay must strictly filter to dgpc_telegram only.
+      // ADR-0004: Public Telegram relay must strictly filter to dgpc_telegram only in delivery.server.ts, and telegram.server.ts must never reference ita_facebook.
       const telegramSrc = readRepoFile("src/lib/ingest/telegram.server.ts");
-      expect(telegramSrc).toContain("dgpc_telegram");
+      const deliverySrc = readRepoFile("src/lib/ingest/delivery.server.ts");
+      expect(deliverySrc).toContain("dgpc_telegram");
       expect(telegramSrc).not.toContain("ita_facebook");
 
-      // Official incident broadcast relay must exclude media tier (ITA).
+      // Official incident broadcast relay must exclude media tier & ITA both statically and behaviorally.
       const broadcastSrc = readRepoFile("src/lib/ingest/broadcast.server.ts");
       expect(broadcastSrc).not.toMatch(/ita_facebook/);
+
+      const rulesMod = await importRepoModule<{
+        evaluateOfficialIncidentBroadcast: (input: {
+          kind: string;
+          status: string;
+          communeCode: string | null;
+          asOfMs: number;
+          nowMs: number;
+          unlistedAt: string | null;
+          sourceKey: string | null;
+          authorityTier: string | null;
+          evidence: string | null;
+          documentBody?: string | null;
+          hasInitialBroadcast: boolean;
+          initialDelivered: boolean;
+          hasEndBroadcast: boolean;
+        }) => { action: string; reason?: string };
+      }>("src/lib/broadcast-rules.ts");
+
+      const now = Date.parse("2026-11-24T15:00:00Z");
+      expect(
+        rulesMod.evaluateOfficialIncidentBroadcast({
+          kind: "flood",
+          status: "ongoing",
+          communeCode: "1601",
+          asOfMs: now - 10 * 60_000,
+          nowMs: now,
+          unlistedAt: null,
+          sourceKey: "ita_facebook",
+          authorityTier: "media",
+          evidence: itaPost.textFr,
+          documentBody: itaPost.textFr,
+          hasInitialBroadcast: false,
+          initialDelivered: false,
+          hasEndBroadcast: false,
+        }),
+      ).toMatchObject({ action: "suppress" });
     });
 
     it("DGPC non-fire CAP 1.2 builder maps flood/storm/road to multi-hazard CAP categories (not Fire-only)", async () => {
@@ -614,18 +859,20 @@ describe("Tier 2 Boundaries — F7–F13: ONM CAP Chains, DGPC Non-Fire, Account
       expect(roadCap.info[0]?.category).toBe("Transport");
     });
 
-    it("broadcast.server.ts extends official incident broadcast relay beyond FIRE_KINDS to cover DGPC non-fire flood/storm/road", () => {
+    it("broadcast.server.ts extends official incident broadcast relay beyond FIRE_KINDS to cover DGPC non-fire flood/storm/road", async () => {
       const broadcastSrc = readRepoFile("src/lib/ingest/broadcast.server.ts");
+      const rulesMod = await importRepoModule<{
+        NON_FIRE_BROADCAST_KINDS: readonly string[];
+      }>("src/lib/broadcast-rules.ts");
 
-      // M2 must extend official broadcast eligibility to non-fire kinds (flood, storm, road).
-      const supportsNonFire =
-        /\bflood\b/.test(broadcastSrc) &&
-        /\bstorm\b/.test(broadcastSrc) &&
-        /\broad\b/.test(broadcastSrc);
-      expect(
-        supportsNonFire,
-        "Expected broadcast.server.ts to handle DGPC non-fire kinds (flood, storm, road)",
-      ).toBe(true);
+      // M2 must define flood, storm, road in NON_FIRE_BROADCAST_KINDS and query them alongside FIRE_KINDS in broadcast.server.ts.
+      expect(rulesMod.NON_FIRE_BROADCAST_KINDS).toContain("flood");
+      expect(rulesMod.NON_FIRE_BROADCAST_KINDS).toContain("storm");
+      expect(rulesMod.NON_FIRE_BROADCAST_KINDS).toContain("road");
+      expect(broadcastSrc).toContain("NON_FIRE_BROADCAST_KINDS");
+      expect(broadcastSrc).toMatch(
+        /\[\s*\.\.\.FIRE_KINDS\s*,\s*\.\.\.NON_FIRE_BROADCAST_KINDS\s*\]/,
+      );
     });
   });
 
@@ -1384,22 +1631,47 @@ describe("Tier 2 Boundaries — F7–F13: ONM CAP Chains, DGPC Non-Fire, Account
       expect(findEmDashesInText(combinedText).count).toBe(0);
     });
 
-    it("self-test push payload uses alerts_test channel and honest non-emergency wording (no em dashes)", () => {
+    it("self-test push payload uses alerts_test channel and honest non-emergency wording (no em dashes)", async () => {
+      const fcmMod = await importRepoModule<{
+        fcmMessageForSelfTest: (args: {
+          token: string;
+          testId: string;
+          lang?: "ar" | "fr" | "en" | "kab";
+          observedAt?: string;
+        }) => {
+          notification: { title: string; body: string };
+          android: { notification: { channel_id: string } };
+          data: {
+            kind: string;
+            channel_id: string;
+            provenance_trigger: string;
+          };
+        };
+      }>("src/lib/fcm.ts");
+
       const pushTestServerSrc = readRepoFile("src/lib/push-test.server.ts");
-      const userPushTestRoutes = [
-        "src/routes/api/private/push-test.ts",
-        "src/routes/api/public/v1/push-test.ts",
-      ].filter((p) => repoFileExists(p));
+      expect(pushTestServerSrc).toContain("fcmMessageForSelfTest");
 
-      const combined = [
-        pushTestServerSrc,
-        ...userPushTestRoutes.map((p) => readRepoFile(p)),
-      ].join("\n");
+      for (const lang of ["ar", "fr", "en", "kab"] as const) {
+        const msg = fcmMod.fcmMessageForSelfTest({
+          token: "fcm-self-test-token",
+          testId: `test-${lang}-01`,
+          lang,
+          observedAt: "2026-11-24T15:00:00Z",
+        });
 
-      expect(combined).toContain('"test"');
-      expect(combined).toMatch(/alerts_test|resolveNotificationChannel/);
-      // R-02: push-test notification title/body must not contain em dashes.
-      expect(combined).not.toContain("Nadhir \u2014 TEST");
+        expect(msg.data.kind).toBe("test");
+        expect(msg.data.channel_id).toBe("alerts_test");
+        expect(msg.android.notification.channel_id).toBe("alerts_test");
+        expect(msg.data.provenance_trigger).toBe("self_test");
+
+        const copy = `${msg.notification.title}\n${msg.notification.body}`;
+        expect(copy).not.toContain("Nadhir \u2014 TEST");
+        expect(findEmDashesInText(copy).count).toBe(0);
+        expect(findBannedSafeLabels(copy)).toEqual([]);
+        expect(msg.notification.title.trim().length).toBeGreaterThan(3);
+        expect(msg.notification.body.trim().length).toBeGreaterThan(10);
+      }
     });
   });
 
@@ -1408,9 +1680,34 @@ describe("Tier 2 Boundaries — F7–F13: ONM CAP Chains, DGPC Non-Fire, Account
   // ---------------------------------------------------------------------------
   describe("F13 — WhatsApp Channel & Resend Zone Email Digest Kill Switch, Dedup, Quiet Hours & Retry Boundaries", () => {
     it("WhatsApp Channel pipeline respects kill switch and sends ZERO requests to mock transport when disabled", async () => {
-      const waMod = await importRepoModule<Record<string, unknown>>(
-        "src/lib/delivery/whatsapp-channel.server.ts",
-      );
+      const waMod = await importRepoModule<{
+        createMetaWhatsAppChannelTransport: (opts: {
+          accessToken: string;
+          apiUrl?: string;
+        }) => unknown;
+        deliverWhatsappChannelBroadcasts: (opts: {
+          env?: Record<string, string | undefined>;
+          transport?: unknown;
+          store?: unknown;
+          channelTarget?: string;
+          locales?: ("ar" | "fr" | "en" | "kab")[];
+          candidates?: unknown[];
+          now?: Date;
+        }) => Promise<{
+          disabled: boolean;
+          unconfigured: boolean;
+          enqueued: number;
+          sent: number;
+          retried: number;
+          failed: number;
+          skipped: number;
+        }>;
+      }>("src/lib/delivery/whatsapp-channel.server.ts");
+
+      expect(
+        typeof waMod.deliverWhatsappChannelBroadcasts,
+        "Expected exported deliverWhatsappChannelBroadcasts in src/lib/delivery/whatsapp-channel.server.ts",
+      ).toBe("function");
 
       const mockWa = await startMockHttpServer(() => ({
         status: 200,
@@ -1419,93 +1716,274 @@ describe("Tier 2 Boundaries — F7–F13: ONM CAP Chains, DGPC Non-Fire, Account
       }));
 
       try {
-        const sendFn = (waMod["sendWhatsAppChannelBroadcast"] ??
-          waMod["publishWhatsAppChannelMessage"] ??
-          waMod["deliverWhatsAppBroadcast"] ??
-          waMod["sendWhatsAppBroadcast"]) as
-          ((...args: unknown[]) => Promise<unknown>) | undefined;
+        const transport = waMod.createMetaWhatsAppChannelTransport({
+          accessToken: "test-wa-token",
+          apiUrl: `${mockWa.url}/v21.0`,
+        });
 
-        expect(
-          typeof sendFn,
-          "Expected exported WhatsApp broadcast delivery function in src/lib/delivery/whatsapp-channel.server.ts",
-        ).toBe("function");
-
-        const result = await sendFn!(
-          {
-            eventId: "evt-wa-kill-1",
-            kind: "onm",
-            severity: "Severe",
-            locale: "fr",
-            title: "BMS Pluies",
-            body: "Cumuls attendus sur Alger",
-            sourceAttribution: "ONM · Météo Algérie",
-            observedAt: "2026-11-24T15:00:00Z",
-            provenanceLine: "ONM · Météo Algérie · Alger",
-            url: "https://nadhir.app/wilaya/alger",
+        const result = await waMod.deliverWhatsappChannelBroadcasts({
+          env: {
+            WHATSAPP_CHANNEL_ENABLED: "false",
+            WHATSAPP_CHANNEL_ID: "ch-dz-1",
+            WHATSAPP_ACCESS_TOKEN: "test-wa-token",
           },
-          {
-            enabled: false,
-            killSwitch: true,
-            apiUrl: mockWa.url,
-            apiToken: "test-wa-token",
-            channelId: "ch-dz-1",
-          },
-        );
+          transport,
+          channelTarget: "ch-dz-1",
+          locales: ["fr"],
+          candidates: [
+            {
+              id: "evt-wa-kill-1",
+              kind: "onm",
+              phase: "initial",
+              severity: "Severe",
+              hazard: "rain",
+              sourceKey: "onm",
+              sourceAttribution: "ONM",
+              areaLabel: "Alger",
+              headline: "BMS Pluies",
+              summary: "Cumuls attendus sur Alger",
+              observedAt: "2026-11-24T15:00:00Z",
+            },
+          ],
+          now: new Date("2026-11-24T15:05:00Z"),
+        });
 
         expect(mockWa.requests).toHaveLength(0);
-        expect(result).toBeDefined();
+        expect(result.disabled).toBe(true);
+        expect(result.sent).toBe(0);
       } finally {
         await mockWa.close();
       }
     });
 
     it("WhatsApp Channel missing credentials degrades gracefully without unhandled rejection and deduplicates duplicate event IDs", async () => {
-      const waMod = await importRepoModule<Record<string, unknown>>(
-        "src/lib/delivery/whatsapp-channel.server.ts",
-      );
+      const waMod = await importRepoModule<{
+        buildWhatsappDedupeKey: (
+          broadcastId: string,
+          channelTarget: string,
+          locale: string,
+        ) => string;
+        createMetaWhatsAppChannelTransport: (opts: {
+          accessToken: string;
+          apiUrl?: string;
+        }) => unknown;
+        deliverWhatsappChannelBroadcasts: (opts: {
+          env?: Record<string, string | undefined>;
+          transport?: unknown;
+          store?: unknown;
+          channelTarget?: string;
+          locales?: ("ar" | "fr" | "en" | "kab")[];
+          candidates?: unknown[];
+          now?: Date;
+        }) => Promise<{
+          disabled: boolean;
+          unconfigured: boolean;
+          enqueued: number;
+          sent: number;
+          skipped: number;
+        }>;
+      }>("src/lib/delivery/whatsapp-channel.server.ts");
       const waSrc = readRepoFile("src/lib/delivery/whatsapp-channel.server.ts");
 
       // Must implement explicit deduplication and missing-credential handling.
       expect(waSrc).toMatch(/dedup|seen|already|idempotency|eventId/i);
+      expect(typeof waMod.deliverWhatsappChannelBroadcasts).toBe("function");
+      expect(typeof waMod.buildWhatsappDedupeKey).toBe("function");
 
-      const sendFn = (waMod["sendWhatsAppChannelBroadcast"] ??
-        waMod["publishWhatsAppChannelMessage"] ??
-        waMod["deliverWhatsAppBroadcast"] ??
-        waMod["sendWhatsAppBroadcast"]) as
-        ((...args: unknown[]) => Promise<unknown>) | undefined;
-      expect(typeof sendFn).toBe("function");
+      // Missing credentials must resolve cleanly (unconfigured) without throwing unhandled error.
+      const noCredResult = await waMod.deliverWhatsappChannelBroadcasts({
+        env: {
+          WHATSAPP_CHANNEL_ENABLED: "true",
+          WHATSAPP_CHANNEL_ID: "",
+          WHATSAPP_ACCESS_TOKEN: "",
+        },
+        locales: ["ar"],
+        candidates: [
+          {
+            id: "evt-wa-nocred-1",
+            kind: "official",
+            phase: "initial",
+            severity: "Severe",
+            hazard: "flood",
+            sourceKey: "dgpc_telegram",
+            sourceAttribution: "DGPC",
+            areaLabel: "باب الوادي",
+            headline: "الحماية المدنية",
+            summary: "تدخل بباب الوادي",
+            observedAt: "2026-11-24T15:10:00Z",
+          },
+        ],
+        now: new Date("2026-11-24T15:12:00Z"),
+      });
+      expect(noCredResult.unconfigured).toBe(true);
+      expect(noCredResult.sent).toBe(0);
 
-      // Missing credentials must resolve cleanly (degraded/skipped) without throwing unhandled error.
-      const noCredResult = await sendFn!(
-        {
-          eventId: "evt-wa-nocred-1",
-          kind: "official",
-          severity: "Severe",
-          locale: "ar",
-          title: "الحماية المدنية",
-          body: "تدخل بباب الوادي",
-          sourceAttribution: "DGPC",
-          observedAt: "2026-11-24T15:10:00Z",
-          url: "https://nadhir.app/alerts",
-        },
-        {
-          enabled: true,
-          apiUrl: "http://127.0.0.1:1",
-          apiToken: "",
-          channelId: "",
-        },
+      // Deduplication: deterministic dedupe key & second delivery pass sends 0 extra HTTP requests.
+      expect(waMod.buildWhatsappDedupeKey("evt-1", "ch-dz", "fr")).toBe(
+        waMod.buildWhatsappDedupeKey("evt-1", "ch-dz", "fr"),
       );
-      expect(noCredResult).toBeDefined();
+      const mockWa = await startMockHttpServer(() => ({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ messages: [{ id: "wamid.dedupe.1" }] }),
+      }));
+      try {
+        const seen = new Set<string>();
+        const queue: Array<{
+          id: string;
+          broadcast_id: string;
+          channel_target: string;
+          locale: string;
+          dedupe_key: string;
+          state: string;
+          attempts: number;
+          expires_at: string;
+          lease_token: string;
+          last_error: null;
+          payload: Record<string, unknown>;
+        }> = [];
+        const store = {
+          isGlobalBroadcastEnabled: async () => true,
+          isPipelineActive: async () => true,
+          enqueueBroadcast: async (input: {
+            broadcastId: string;
+            channelTarget: string;
+            locale: string;
+            dedupeKey: string;
+            payload: Record<string, unknown>;
+            expiresAt: string | null;
+          }) => {
+            if (seen.has(input.dedupeKey)) return null;
+            seen.add(input.dedupeKey);
+            const id = `wa-dedup-${queue.length + 1}`;
+            queue.push({
+              id,
+              broadcast_id: input.broadcastId,
+              channel_target: input.channelTarget,
+              locale: input.locale,
+              dedupe_key: input.dedupeKey,
+              state: "pending",
+              attempts: 1,
+              expires_at: input.expiresAt ?? "2026-11-25T15:10:00Z",
+              lease_token: "lease-dedup-1",
+              last_error: null,
+              payload: input.payload,
+            });
+            return id;
+          },
+          claimDeliveries: async () =>
+            queue.filter((r) => r.state === "pending"),
+          finishDelivery: async (input: { id: string; delivered: boolean }) => {
+            const row = queue.find((r) => r.id === input.id);
+            if (row) row.state = input.delivered ? "sent" : "failed";
+            return true;
+          },
+        };
+        const candidate = {
+          id: "evt-wa-dedup-01",
+          kind: "official",
+          phase: "initial",
+          severity: "Severe",
+          hazard: "flood",
+          sourceKey: "dgpc_telegram",
+          sourceAttribution: "DGPC",
+          areaLabel: "Bab El Oued",
+          headline: "Intervention DGPC",
+          summary: "Pompage en cours.",
+          observedAt: "2026-11-24T15:10:00Z",
+          officialIncidentId: "dgpc-dedup-01",
+        };
+        const transport = waMod.createMetaWhatsAppChannelTransport({
+          accessToken: "test-wa-token",
+          apiUrl: `${mockWa.url}/v21.0`,
+        });
+        const pass1 = await waMod.deliverWhatsappChannelBroadcasts({
+          env: {
+            WHATSAPP_CHANNEL_ENABLED: "true",
+            WHATSAPP_CHANNEL_ID: "ch-dz",
+            WHATSAPP_ACCESS_TOKEN: "test-wa-token",
+          },
+          transport,
+          store,
+          channelTarget: "ch-dz",
+          locales: ["fr"],
+          candidates: [candidate],
+          now: new Date("2026-11-24T15:12:00Z"),
+        });
+        const pass2 = await waMod.deliverWhatsappChannelBroadcasts({
+          env: {
+            WHATSAPP_CHANNEL_ENABLED: "true",
+            WHATSAPP_CHANNEL_ID: "ch-dz",
+            WHATSAPP_ACCESS_TOKEN: "test-wa-token",
+          },
+          transport,
+          store,
+          channelTarget: "ch-dz",
+          locales: ["fr"],
+          candidates: [candidate],
+          now: new Date("2026-11-24T15:13:00Z"),
+        });
+        expect(pass1.sent).toBe(1);
+        expect(pass2.enqueued).toBe(0);
+        expect(pass2.sent).toBe(0);
+        expect(pass2.skipped).toBe(1);
+        expect(mockWa.requests).toHaveLength(1);
+      } finally {
+        await mockWa.close();
+      }
     });
 
     it("WhatsApp Channel retries boundedly on HTTP 503/429 and excludes ITA media / banned safe labels", async () => {
-      const waMod = await importRepoModule<Record<string, unknown>>(
-        "src/lib/delivery/whatsapp-channel.server.ts",
-      );
+      const waMod = await importRepoModule<{
+        createMetaWhatsAppChannelTransport: (opts: {
+          accessToken: string;
+          apiUrl?: string;
+        }) => unknown;
+        evaluateWhatsappBroadcastEligibility: (
+          candidate: Record<string, unknown>,
+          now?: Date,
+        ) => { eligible: boolean; reason?: string };
+        deliverWhatsappChannelBroadcasts: (opts: {
+          env?: Record<string, string | undefined>;
+          transport?: unknown;
+          store?: unknown;
+          channelTarget?: string;
+          locales?: ("ar" | "fr" | "en" | "kab")[];
+          candidates?: unknown[];
+          now?: Date;
+        }) => Promise<{
+          enqueued: number;
+          sent: number;
+          retried: number;
+          failed: number;
+          skipped: number;
+        }>;
+      }>("src/lib/delivery/whatsapp-channel.server.ts");
       const waSrc = readRepoFile("src/lib/delivery/whatsapp-channel.server.ts");
 
       expect(waSrc).toMatch(/429|5\d\d|retry/i);
       expect(findBannedSafeLabels(waSrc)).toEqual([]);
+
+      // ITA media posts are strictly excluded from WhatsApp Channel eligibility.
+      expect(
+        waMod.evaluateWhatsappBroadcastEligibility(
+          {
+            id: "evt-wa-ita-1",
+            kind: "official",
+            phase: "initial",
+            severity: "Severe",
+            hazard: "flood",
+            sourceKey: "ita_facebook",
+            authorityTier: "media",
+            sourceAttribution: "Info Trafic Algérie",
+            areaLabel: "Alger",
+            headline: "Route coupée",
+            summary: "Route coupée selon des témoins.",
+            observedAt: "2026-11-24T15:20:00Z",
+          },
+          new Date("2026-11-24T15:22:00Z"),
+        ).eligible,
+      ).toBe(false);
 
       let attempt = 0;
       const mockWa = await startMockHttpServer((): MockHttpResponse => {
@@ -1528,46 +2006,142 @@ describe("Tier 2 Boundaries — F7–F13: ONM CAP Chains, DGPC Non-Fire, Account
       });
 
       try {
-        const sendFn = (waMod["sendWhatsAppChannelBroadcast"] ??
-          waMod["publishWhatsAppChannelMessage"] ??
-          waMod["deliverWhatsAppBroadcast"] ??
-          waMod["sendWhatsAppBroadcast"]) as
-          ((...args: unknown[]) => Promise<unknown>) | undefined;
-        expect(typeof sendFn).toBe("function");
+        const seen = new Set<string>();
+        const queue: Array<{
+          id: string;
+          broadcast_id: string;
+          channel_target: string;
+          locale: string;
+          dedupe_key: string;
+          state: string;
+          attempts: number;
+          expires_at: string;
+          lease_token: string;
+          last_error: string | null;
+          payload: Record<string, unknown>;
+        }> = [];
 
-        await sendFn!(
-          {
-            eventId: `evt-wa-retry-${Date.now()}`,
-            kind: "onm",
-            severity: "Extreme",
-            locale: "fr",
-            title: "BMS Pluies Rouge",
-            body: "Pluies intenses sur Alger et Tipaza",
-            sourceAttribution: "ONM · Météo Algérie",
-            observedAt: "2026-11-24T15:20:00Z",
-            url: "https://nadhir.app/wilaya/alger",
+        const store = {
+          isGlobalBroadcastEnabled: async () => true,
+          isPipelineActive: async () => true,
+          enqueueBroadcast: async (input: {
+            broadcastId: string;
+            channelTarget: string;
+            locale: string;
+            dedupeKey: string;
+            payload: Record<string, unknown>;
+            expiresAt: string | null;
+          }) => {
+            if (seen.has(input.dedupeKey)) return null;
+            seen.add(input.dedupeKey);
+            const id = `wa-retry-${queue.length + 1}`;
+            queue.push({
+              id,
+              broadcast_id: input.broadcastId,
+              channel_target: input.channelTarget,
+              locale: input.locale,
+              dedupe_key: input.dedupeKey,
+              state: "pending",
+              attempts: 1,
+              expires_at: input.expiresAt ?? "2026-11-25T15:20:00Z",
+              lease_token: "lease-retry-1",
+              last_error: null,
+              payload: input.payload,
+            });
+            return id;
           },
-          {
-            enabled: true,
-            apiUrl: mockWa.url,
-            apiToken: "wa-test-token",
-            channelId: "ch-dz-main",
-            maxRetries: 3,
-            baseDelayMs: 5,
+          claimDeliveries: async () =>
+            queue.filter((r) => r.state === "pending"),
+          finishDelivery: async (input: {
+            id: string;
+            delivered: boolean;
+            permanent?: boolean;
+          }) => {
+            const row = queue.find((r) => r.id === input.id);
+            if (!row) return false;
+            if (input.delivered) {
+              row.state = "sent";
+            } else if (input.permanent) {
+              row.state = "failed";
+            } else {
+              row.attempts += 1;
+              row.state = "pending";
+            }
+            return true;
           },
-        );
+        };
 
-        expect(mockWa.requests.length).toBeGreaterThanOrEqual(2);
-        expect(mockWa.requests.length).toBeLessThanOrEqual(4);
+        const transport = waMod.createMetaWhatsAppChannelTransport({
+          accessToken: "wa-test-token",
+          apiUrl: `${mockWa.url}/v21.0`,
+        });
+
+        const candidate = {
+          id: `evt-wa-retry-${Date.now()}`,
+          kind: "onm",
+          phase: "initial",
+          severity: "Extreme",
+          hazard: "rain",
+          sourceKey: "onm",
+          sourceAttribution: "ONM",
+          areaLabel: "Alger et Tipaza",
+          headline: "BMS Pluies Rouge",
+          summary: "Pluies intenses sur Alger et Tipaza",
+          observedAt: "2026-11-24T15:20:00Z",
+        };
+        const runOpts = {
+          env: {
+            WHATSAPP_CHANNEL_ENABLED: "true",
+            WHATSAPP_CHANNEL_ID: "ch-dz-main",
+            WHATSAPP_ACCESS_TOKEN: "wa-test-token",
+          },
+          transport,
+          store,
+          channelTarget: "ch-dz-main",
+          locales: ["fr"] as ("ar" | "fr" | "en" | "kab")[],
+          candidates: [candidate],
+          now: new Date("2026-11-24T15:22:00Z"),
+        };
+
+        const r1 = await waMod.deliverWhatsappChannelBroadcasts(runOpts);
+        const r2 = await waMod.deliverWhatsappChannelBroadcasts(runOpts);
+        const r3 = await waMod.deliverWhatsappChannelBroadcasts(runOpts);
+
+        expect(r1.retried).toBe(1);
+        expect(r1.sent).toBe(0);
+        expect(r2.retried).toBe(1);
+        expect(r2.sent).toBe(0);
+        expect(r3.sent).toBe(1);
+        expect(r3.failed).toBe(0);
+        expect(mockWa.requests.length).toBe(3);
       } finally {
         await mockWa.close();
       }
     });
 
     it("Resend zone email digest kill switch & missing RESEND_API_KEY degrade cleanly with ZERO outbound HTTP requests", async () => {
-      const emailMod = await importRepoModule<Record<string, unknown>>(
-        "src/lib/delivery/email-digest.server.ts",
-      );
+      const emailMod = await importRepoModule<{
+        createResendEmailTransport: (opts: {
+          apiKey: string;
+          apiUrl?: string;
+        }) => unknown;
+        deliverZoneEmailDigests: (opts: {
+          env?: Record<string, string | undefined>;
+          transport?: unknown;
+          store?: unknown;
+          now?: Date;
+        }) => Promise<{
+          disabled: boolean;
+          unconfigured: boolean;
+          sent: number;
+          failed: number;
+        }>;
+      }>("src/lib/delivery/email-digest.server.ts");
+
+      expect(
+        typeof emailMod.deliverZoneEmailDigests,
+        "Expected exported deliverZoneEmailDigests in src/lib/delivery/email-digest.server.ts",
+      ).toBe("function");
 
       const mockResend = await startMockHttpServer(() => ({
         status: 200,
@@ -1576,60 +2150,34 @@ describe("Tier 2 Boundaries — F7–F13: ONM CAP Chains, DGPC Non-Fire, Account
       }));
 
       try {
-        const sendFn = (emailMod["sendZoneEmailDigest"] ??
-          emailMod["deliverEmailDigest"] ??
-          emailMod["sendEmailDigest"]) as
-          ((...args: unknown[]) => Promise<unknown>) | undefined;
-        expect(
-          typeof sendFn,
-          "Expected exported Resend email digest function in src/lib/delivery/email-digest.server.ts",
-        ).toBe("function");
+        const transport = emailMod.createResendEmailTransport({
+          apiKey: "re_test_key",
+          apiUrl: mockResend.url,
+        });
 
-        const killed = await sendFn!(
-          {
-            digestId: "dig-kill-1",
-            userId: "user-1",
-            to: "citizen@example.dz",
-            locale: "fr",
-            zoneName: "Alger",
-            alerts: [
-              {
-                id: "a1",
-                kind: "onm",
-                severity: "Severe",
-                title: "BMS Pluies",
-                body: "Cumuls attendus",
-                sourceAttribution: "ONM · Météo Algérie",
-                observedAt: "2026-11-24T15:00:00Z",
-              },
-            ],
+        const killed = await emailMod.deliverZoneEmailDigests({
+          env: {
+            EMAIL_DIGEST_ENABLED: "false",
+            RESEND_API_KEY: "re_test_key",
+            RESEND_API_URL: mockResend.url,
           },
-          {
-            enabled: false,
-            killSwitch: true,
-            apiUrl: mockResend.url,
-            apiKey: "re_test_key",
-          },
-        );
-        expect(killed).toBeDefined();
+          transport,
+          now: new Date("2026-11-24T15:00:00Z"),
+        });
+        expect(killed.disabled).toBe(true);
+        expect(killed.sent).toBe(0);
         expect(mockResend.requests).toHaveLength(0);
 
-        const missingKey = await sendFn!(
-          {
-            digestId: "dig-nokey-1",
-            userId: "user-1",
-            to: "citizen@example.dz",
-            locale: "ar",
-            zoneName: "الجزائر",
-            alerts: [],
+        const missingKey = await emailMod.deliverZoneEmailDigests({
+          env: {
+            EMAIL_DIGEST_ENABLED: "true",
+            RESEND_API_KEY: "",
+            RESEND_API_URL: mockResend.url,
           },
-          {
-            enabled: true,
-            apiUrl: mockResend.url,
-            apiKey: "",
-          },
-        );
-        expect(missingKey).toBeDefined();
+          now: new Date("2026-11-24T15:00:00Z"),
+        });
+        expect(missingKey.unconfigured).toBe(true);
+        expect(missingKey.sent).toBe(0);
         expect(mockResend.requests).toHaveLength(0);
       } finally {
         await mockResend.close();
@@ -1637,56 +2185,100 @@ describe("Tier 2 Boundaries — F7–F13: ONM CAP Chains, DGPC Non-Fire, Account
     });
 
     it("Resend zone email digest enforces quiet hours for routine alerts while allowing urgent/M5+ override", async () => {
-      const emailMod = await importRepoModule<Record<string, unknown>>(
-        "src/lib/delivery/email-digest.server.ts",
-      );
+      const emailMod = await importRepoModule<{
+        shouldDeferForQuietHours: (args: {
+          alerts: ReadonlyArray<{
+            id: string;
+            kind: string;
+            severity: number;
+            title: string;
+            body: string;
+            created_at: string;
+            payload?: Record<string, unknown> | null;
+          }>;
+          quietStart: number | null;
+          quietEnd: number | null;
+          now?: Date;
+        }) => boolean;
+      }>("src/lib/delivery/email-digest.server.ts");
       const emailSrc = readRepoFile("src/lib/delivery/email-digest.server.ts");
 
       expect(emailSrc).toMatch(/quiet/i);
       expect(emailSrc).toMatch(/urgent|extreme|m5|override/i);
+      expect(typeof emailMod.shouldDeferForQuietHours).toBe("function");
 
-      const quietCheck = findExportedFn(
-        emailMod,
-        [
-          "isWithinQuietHours",
-          "shouldDeferForQuietHours",
-          "shouldSuppressForQuietHours",
-          "isQuietHours",
-        ],
-        "src/lib/delivery/email-digest.server.ts",
-      );
-
-      // 02:30 Algiers time (UTC+1 -> 01:30Z) is inside overnight quiet hours (e.g., 22:00..07:00).
+      // 02:30 Algiers time (UTC+1 -> 01:30Z) is inside overnight quiet hours (22:00..07:00).
       const quietNight = new Date("2026-11-24T01:30:00Z");
-      const routineDeferred = quietCheck({
+      const routineDeferred = emailMod.shouldDeferForQuietHours({
+        alerts: [
+          {
+            id: "a-routine",
+            kind: "earthquake",
+            severity: 2,
+            title: "Séisme M3.5",
+            body: "Secousse mineure.",
+            created_at: "2026-11-24T01:25:00Z",
+            payload: { magnitude: 3.5 },
+          },
+        ],
+        quietStart: 22,
+        quietEnd: 7,
         now: quietNight,
-        severity: "Moderate",
-        urgent: false,
-        magnitude: 3.5,
-        quietStartHour: 22,
-        quietEndHour: 7,
       });
-      const m5Override = quietCheck({
+      const m5Override = emailMod.shouldDeferForQuietHours({
+        alerts: [
+          {
+            id: "a-urgent-m5",
+            kind: "earthquake",
+            severity: 4,
+            title: "Séisme M5.2",
+            body: "Secousse forte près de Béjaïa.",
+            created_at: "2026-11-24T01:28:00Z",
+            payload: { magnitude: 5.2, severity: "Extreme" },
+          },
+        ],
+        quietStart: 22,
+        quietEnd: 7,
         now: quietNight,
-        severity: "Extreme",
-        urgent: true,
-        magnitude: 5.2,
-        quietStartHour: 22,
-        quietEndHour: 7,
       });
       expect(routineDeferred).toBe(true);
       expect(m5Override).toBe(false);
     });
 
     it("Resend zone email digest deduplicates events, retries boundedly on HTTP 503/429, and omits em dashes", async () => {
-      const emailMod = await importRepoModule<Record<string, unknown>>(
-        "src/lib/delivery/email-digest.server.ts",
-      );
+      const emailMod = await importRepoModule<{
+        buildEmailDigestDedupeKey: (
+          userId: string,
+          digestKind: "immediate" | "hourly" | "daily",
+          windowKey: string,
+        ) => string;
+        createResendEmailTransport: (opts: {
+          apiKey: string;
+          apiUrl?: string;
+        }) => unknown;
+        deliverZoneEmailDigests: (opts: {
+          env?: Record<string, string | undefined>;
+          transport?: unknown;
+          store?: unknown;
+          now?: Date;
+        }) => Promise<{
+          sent: number;
+          retried: number;
+          failed: number;
+          skipped: number;
+        }>;
+      }>("src/lib/delivery/email-digest.server.ts");
       const emailSrc = readRepoFile("src/lib/delivery/email-digest.server.ts");
 
       expect(emailSrc).toMatch(/unsubscribe|settings|preferences/i);
       expect(emailSrc).toMatch(/dedup|idempotency|digestId/i);
       expect(findBannedSafeLabels(emailSrc)).toEqual([]);
+      expect(typeof emailMod.deliverZoneEmailDigests).toBe("function");
+      expect(
+        emailMod.buildEmailDigestDedupeKey("user-42", "immediate", "win-1"),
+      ).toBe(
+        emailMod.buildEmailDigestDedupeKey("user-42", "immediate", "win-1"),
+      );
 
       let attempt = 0;
       const mockResend = await startMockHttpServer(() => {
@@ -1702,43 +2294,96 @@ describe("Tier 2 Boundaries — F7–F13: ONM CAP Chains, DGPC Non-Fire, Account
       });
 
       try {
-        const sendFn = (emailMod["sendZoneEmailDigest"] ??
-          emailMod["deliverEmailDigest"] ??
-          emailMod["sendEmailDigest"]) as
-          ((...args: unknown[]) => Promise<unknown>) | undefined;
-        expect(typeof sendFn).toBe("function");
-
-        await sendFn!(
+        const sentDedupeKeys = new Set<string>();
+        const alerts = [
           {
-            digestId: `dig-retry-${Date.now()}`,
-            userId: "user-42",
-            to: "citizen@example.dz",
-            locale: "fr",
-            zoneName: "Tipaza",
-            alerts: [
-              {
-                id: "al-1",
-                kind: "earthquake",
-                severity: "Extreme",
-                magnitude: 5.1,
-                title: "Séisme M5.1 près de Béjaïa",
-                body: "Secousse ressentie dans le nord.",
-                sourceAttribution: "CRAAG / EMSC",
-                observedAt: "2026-11-24T13:42:20Z",
-              },
-            ],
+            id: "al-1",
+            kind: "earthquake",
+            severity: 4,
+            title: "Séisme M5.1 près de Béjaïa",
+            body: "Secousse ressentie dans le nord.",
+            created_at: "2026-11-24T13:42:20Z",
+            zone_name: "Tipaza",
+            source_table: "earthquakes",
+            payload: {
+              magnitude: 5.1,
+              severity: "Extreme",
+              provenance_trigger: "watch_zone",
+              provenance_area: "Tipaza",
+              provenance_source_key: "emsc",
+              provenance_source: "CRAAG / EMSC",
+              provenance_rule: "provenance.rule.m4Quake",
+              provenance_observed_at: "2026-11-24T13:42:20Z",
+            },
           },
-          {
-            enabled: true,
-            apiUrl: mockResend.url,
-            apiKey: "re_test_valid",
-            maxRetries: 2,
-            baseDelayMs: 5,
-            bypassQuietHours: true,
+        ];
+        const pendingKeys = new Map<string, string>();
+        let attemptsCount = 0;
+        const store = {
+          isPipelineActive: async () => true,
+          listPendingUsers: async () => [
+            {
+              user_id: "user-42",
+              email: "citizen@example.dz",
+              display_name: "Citoyen Tipaza",
+              locale: "fr",
+              email_digest_frequency: "immediate" as const,
+              email_digest_hour_algiers: 8,
+              quiet_hours_start: null,
+              quiet_hours_end: null,
+              last_sent_at: null,
+            },
+          ],
+          loadUndeliveredAlerts: async () => alerts,
+          claimDigestDelivery: async (input: { dedupeKey: string }) => {
+            if (sentDedupeKeys.has(input.dedupeKey)) return null;
+            attemptsCount += 1;
+            const id = `dig-retry-${attemptsCount}`;
+            pendingKeys.set(id, input.dedupeKey);
+            return {
+              id,
+              lease_token: `lease-${attemptsCount}`,
+              attempts: attemptsCount,
+            };
           },
-        );
+          finishDigestDelivery: async (input: {
+            id: string;
+            sent: boolean;
+          }) => {
+            const key = pendingKeys.get(input.id);
+            if (input.sent && key) {
+              sentDedupeKeys.add(key);
+            }
+            return true;
+          },
+        };
 
-        expect(mockResend.requests.length).toBeGreaterThanOrEqual(2);
+        const transport = emailMod.createResendEmailTransport({
+          apiKey: "re_test_valid",
+          apiUrl: mockResend.url,
+        });
+        const runOpts = {
+          env: {
+            EMAIL_DIGEST_ENABLED: "true",
+            RESEND_API_KEY: "re_test_valid",
+          },
+          transport,
+          store,
+          now: new Date("2026-11-24T14:00:00Z"),
+        };
+
+        const pass1 = await emailMod.deliverZoneEmailDigests(runOpts);
+        const pass2 = await emailMod.deliverZoneEmailDigests(runOpts);
+        const pass3 = await emailMod.deliverZoneEmailDigests(runOpts);
+
+        expect(pass1.retried).toBe(1);
+        expect(pass1.sent).toBe(0);
+        expect(pass2.sent).toBe(1);
+        expect(pass2.failed).toBe(0);
+        expect(pass3.skipped).toBe(1);
+        expect(pass3.sent).toBe(0);
+
+        expect(mockResend.requests.length).toBe(2);
         const lastBody = mockResend.requests.at(-1)?.body ?? "";
         expect(findEmDashesInText(lastBody).count).toBe(0);
       } finally {

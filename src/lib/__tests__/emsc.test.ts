@@ -29,6 +29,103 @@ describe("parseEmsc", () => {
     expect(parseEmsc(null)).toEqual([]);
     expect(() => parseEmsc({ features: "x" })).toThrow(/unexpected/);
   });
+
+  it("rejects out-of-range WGS84 coordinates, implausible magnitudes, invalid timestamps, and null features while keeping valid boundary values", () => {
+    const valid = {
+      properties: {
+        unid: "emsc-valid-edge",
+        time: "2026-11-25T10:00:00Z",
+        lat: -90,
+        lon: 180,
+        mag: 2.0,
+        evtype: "ke",
+        lastupdate: "not-a-date",
+      },
+    };
+    const validNorthWest = {
+      properties: {
+        unid: "emsc-valid-nw",
+        time: "2026-11-25T10:05:00Z",
+        lat: 90,
+        lon: -180,
+        mag: 10.0,
+        evtype: "se",
+      },
+    };
+    const invalid = [
+      null,
+      {
+        properties: {
+          unid: "emsc-lat-neg999",
+          time: "2026-11-25T10:00:00Z",
+          lat: -999,
+          lon: 3.0,
+          mag: 4.1,
+        },
+      },
+      {
+        properties: {
+          unid: "emsc-lat-91",
+          time: "2026-11-25T10:00:00Z",
+          lat: 91,
+          lon: 3.0,
+          mag: 4.1,
+        },
+      },
+      {
+        properties: {
+          unid: "emsc-lon-181",
+          time: "2026-11-25T10:00:00Z",
+          lat: 36.7,
+          lon: 181,
+          mag: 4.1,
+        },
+      },
+      {
+        properties: {
+          unid: "emsc-mag-nan",
+          time: "2026-11-25T10:00:00Z",
+          lat: 36.7,
+          lon: 3.0,
+          mag: Number.NaN,
+        },
+      },
+      {
+        properties: {
+          unid: "emsc-mag-inf",
+          time: "2026-11-25T10:00:00Z",
+          lat: 36.7,
+          lon: 3.0,
+          mag: Number.POSITIVE_INFINITY,
+        },
+      },
+      {
+        properties: {
+          unid: "emsc-mag-12",
+          time: "2026-11-25T10:00:00Z",
+          lat: 36.7,
+          lon: 3.0,
+          mag: 12,
+        },
+      },
+      {
+        properties: {
+          unid: "emsc-bad-time",
+          time: "not-a-date",
+          lat: 36.7,
+          lon: 3.0,
+          mag: 3.4,
+        },
+      },
+    ];
+
+    const parsed = parseEmsc({ features: [valid, validNorthWest, ...invalid] });
+    expect(parsed.map((e) => e.id)).toEqual([
+      "emsc-valid-edge",
+      "emsc-valid-nw",
+    ]);
+    expect(parsed[0]!.updated_at).toBe("2026-11-25T10:00:00Z");
+  });
 });
 
 describe("locateEvents", () => {
