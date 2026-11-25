@@ -120,7 +120,11 @@ export function AlertCard({
       }}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <RiskChip level={alert.severity} showName />
+        <RiskChip
+          level={alert.severity}
+          showName
+          nonFire={alert.kind !== "fire" && alert.kind !== "risk"}
+        />
         <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground">
           <KindIcon aria-hidden className="size-3.5 shrink-0" />
           <span>{t(KIND_LABEL[alert.kind])}</span>
@@ -140,36 +144,38 @@ export function AlertCard({
           dateTime={alert.created_at}
           className="ms-auto tabular-nums text-xs text-muted-foreground"
         >
-          {algiersClock ? `${algiersClock} · ` : ""}
+          {algiersClock ? (
+            <>
+              <bdi dir="ltr">{algiersClock}</bdi>
+              {" · "}
+            </>
+          ) : null}
           {relativeTime(alert.created_at, locale, now)}
         </time>
       </div>
 
-      <h2
-        dir="auto"
-        className="mt-2 break-words text-base font-semibold leading-snug text-foreground"
-      >
-        {alert.title}
+      <h2 className="mt-2 break-words text-base font-semibold leading-snug text-foreground">
+        <bdi dir="auto">{alert.title}</bdi>
       </h2>
 
       <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
         {zoneName ? (
           <>
-            <span dir="auto" className="font-medium text-foreground">
+            <bdi dir="auto" className="font-medium text-foreground">
               {zoneName}
-            </span>
+            </bdi>
             <span aria-hidden>·</span>
           </>
         ) : null}
-        <span dir="auto" className="font-medium text-foreground">
+        <bdi dir="auto" className="font-medium text-foreground">
           {provenance.sourceAttribution}
-        </span>
+        </bdi>
         <span aria-hidden>·</span>
         <span>{t(state)}</span>
       </p>
 
-      <p dir="auto" className="mt-1.5 text-sm text-muted-foreground">
-        {alert.body}
+      <p className="mt-1.5 text-sm text-muted-foreground">
+        <bdi dir="auto">{alert.body}</bdi>
       </p>
 
       {earlier.length ? (

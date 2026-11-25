@@ -1,3 +1,4 @@
+import { ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Explain } from "@/components/nadhir/Explain";
@@ -10,6 +11,7 @@ type Props = {
   level: number;
   showName?: boolean;
   fuelLimited?: boolean;
+  nonFire?: boolean;
   className?: string;
 };
 
@@ -17,11 +19,12 @@ export function RiskChip({
   level,
   showName = true,
   fuelLimited = false,
+  nonFire = false,
   className,
 }: Props) {
   const { t } = useTranslation();
   const current = clampLevel(level);
-  const Icon = RISK_ICON[current];
+  const Icon = current === 4 && nonFire ? ShieldAlert : RISK_ICON[current];
   const name = t(`risk.${dangerLevelKey(current)}`);
 
   if (fuelLimited)

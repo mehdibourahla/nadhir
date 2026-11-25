@@ -132,7 +132,13 @@ function LanguageSwitcher() {
 
 const THEME_ICON = { system: Monitor, light: Sun, dark: Moon } as const;
 
-function ThemeToggle() {
+function ThemeToggle({
+  className,
+  showLabel = false,
+}: {
+  className?: string;
+  showLabel?: boolean;
+}) {
   const { t } = useTranslation();
   // Starts at "system" and syncs on mount so SSR and hydration render the same icon.
   const [theme, setTheme] = useState<Theme>("system");
@@ -155,9 +161,15 @@ function ThemeToggle() {
       }}
       aria-label={label}
       title={label}
-      className="flex size-11 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      className={cn(
+        showLabel
+          ? "flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-2 text-start text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          : "flex size-11 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+        className,
+      )}
     >
-      <Icon aria-hidden className="size-4" />
+      <Icon aria-hidden className="size-4 shrink-0" />
+      {showLabel ? <span>{label}</span> : null}
     </button>
   );
 }
@@ -239,6 +251,9 @@ function MobileNav({ hasPanelAccess }: { hasPanelAccess: boolean }) {
             </Link>
           ))}
         </nav>
+        <div className="border-t border-border p-2 sm:hidden">
+          <ThemeToggle showLabel />
+        </div>
       </SheetContent>
     </Sheet>
   );
@@ -271,7 +286,7 @@ export function SiteHeader() {
     userId !== null && !roles.isError && canReachPanel(roles.data ?? []);
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-surface/95 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-0.5 px-1 sm:gap-3 sm:px-4">
+      <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-1 px-2 sm:gap-3 sm:px-4">
         <MobileNav hasPanelAccess={hasPanelAccess} />
         <Link
           to="/"
@@ -305,7 +320,7 @@ export function SiteHeader() {
           )}
         </nav>
 
-        <div className="ms-auto flex shrink-0 items-center gap-0.5 sm:gap-2">
+        <div className="ms-auto flex shrink-0 items-center gap-1 sm:gap-2">
           <Link
             to="/survival"
             aria-label={t("track3.emergency.headerChipLabel")}
@@ -323,7 +338,7 @@ export function SiteHeader() {
           </Link>
           <LanguageSwitcher />
           <SubscribeBell />
-          <ThemeToggle />
+          <ThemeToggle className="hidden sm:flex" />
           <AccountMenu user={user} hasPanelAccess={hasPanelAccess} />
         </div>
       </div>

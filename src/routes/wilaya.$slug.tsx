@@ -10,6 +10,7 @@ import { bilingualSeoHead } from "@/lib/page-meta";
 import { fetchWilayaSnapshot } from "@/lib/wilaya-data";
 import {
   SITE_URL,
+  applyFrenchElision,
   wilayaBySlug,
   wilayaCanonicalUrl,
   wilayaName,
@@ -40,17 +41,22 @@ export const Route = createFileRoute("/wilaya/$slug")({
     const t = headTranslator(lang);
     const localizedName = wilayaName(loaderData.wilaya, lang);
     const slug = loaderData.wilaya.slug;
-    const title = t("track3.wilaya.metaTitle", {
+    const rawTitle = t("track3.wilaya.metaTitle", {
       wilaya: localizedName,
       code: loaderData.wilaya.code,
     });
-    const description = t("track3.wilaya.metaDescription", {
+    const rawDescription = t("track3.wilaya.metaDescription", {
       wilaya: localizedName,
       code: loaderData.wilaya.code,
     });
-    const ogImageAlt = t("track3.wilaya.ogImageAlt", {
+    const rawOgImageAlt = t("track3.wilaya.ogImageAlt", {
       wilaya: localizedName,
     });
+    const title = lang === "fr" ? applyFrenchElision(rawTitle) : rawTitle;
+    const description =
+      lang === "fr" ? applyFrenchElision(rawDescription) : rawDescription;
+    const ogImageAlt =
+      lang === "fr" ? applyFrenchElision(rawOgImageAlt) : rawOgImageAlt;
     return bilingualSeoHead({
       title,
       description,

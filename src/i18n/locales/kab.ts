@@ -811,6 +811,8 @@ export const kab: Translation = {
     markRead: "Creḍ d imeɣri",
     markUnread: "Creḍ d war taɣuri",
     unread: "{{count}} ur nettwaɣra ara",
+    unread_one: "{{count}} ur nettwaɣra ara",
+    unread_other: "{{count}} ur nettwaɣra ara",
     empty:
       "Aucune alerte pour le moment. Ajoutez une zone pour suivre les alertes disponibles.",
     manageZones: "Sefrek temnaḍin-iw",

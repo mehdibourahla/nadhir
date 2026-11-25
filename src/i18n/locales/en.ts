@@ -806,6 +806,8 @@ export const en = {
     markRead: "Mark as read",
     markUnread: "Mark as unread",
     unread: "{{count}} unread",
+    unread_one: "{{count}} unread",
+    unread_other: "{{count}} unread",
     empty: "No alerts yet. Add a watch zone to follow available alerts.",
     manageZones: "Manage my zones",
     kindFire: "Fire",

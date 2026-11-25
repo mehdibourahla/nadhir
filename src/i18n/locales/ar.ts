@@ -792,6 +792,8 @@ export const ar: Translation = {
     markRead: "تعليم كمقروء",
     markUnread: "تعليم كغير مقروء",
     unread: "{{count}} غير مقروءة",
+    unread_one: "{{count}} غير مقروءة",
+    unread_other: "{{count}} غير مقروءة",
     empty: "لا تنبيهات بعد. أضف منطقة متابعة للاطلاع على التنبيهات المتاحة.",
     manageZones: "إدارة مناطقي",
     kindFire: "حريق",

@@ -55,7 +55,7 @@ export function StandingGuidanceCard({
       <div
         role="group"
         aria-label={t("track3.emergency.selectHazard")}
-        className="map-scroll flex min-w-0 max-w-full items-center gap-1.5 overflow-x-auto overscroll-x-contain pb-1"
+        className="flex flex-wrap items-center gap-2"
       >
         {EMERGENCY_HAZARDS.map((kind) => {
           const Icon = HAZARD_ICON[kind];
@@ -83,6 +83,10 @@ export function StandingGuidanceCard({
       <h2 className="font-display text-2xl leading-tight">
         {t(spec.titleKey)}
       </h2>
+
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        {t(spec.noInstructionKey)}
+      </p>
 
       <ol className="space-y-2 text-[15px] leading-relaxed">
         {spec.items.map((key, index) => (
@@ -113,10 +117,6 @@ export function StandingGuidanceCard({
           <span>{t(spec.coastalTsunamiKey)}</span>
         </div>
       ) : null}
-
-      <p className="border-t border-border pt-2.5 text-xs leading-relaxed text-muted-foreground">
-        {t(spec.noInstructionKey)}
-      </p>
     </section>
   );
 }

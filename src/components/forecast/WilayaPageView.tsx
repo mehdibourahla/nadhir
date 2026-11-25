@@ -28,6 +28,7 @@ import { algiersTime, relativeTime, unitName } from "@/lib/nadhir";
 import type { WilayaSnapshot } from "@/lib/wilaya-data";
 import {
   WILAYA_REGISTRY,
+  applyFrenchElision,
   wilayaCanonicalUrl,
   wilayaName,
   type WilayaSlugEntry,
@@ -137,11 +138,19 @@ export function WilayaPageView({
   const communeNameById = new Map(
     snapshot.communes.map((c) => [c.id, unitName(c, locale)]),
   );
+  const formatFr = (text: string) =>
+    locale === "fr" ? applyFrenchElision(text) : text;
+  const checkedAtClock = algiersTime(snapshot.fetchedAt);
+  const checkedAtSentinel = "\u0000CHECKED_AT\u0000";
+  const checkedAtTemplate = t("track3.wilaya.updatedAt", {
+    time: checkedAtSentinel,
+  });
+  const checkedAtIdx = checkedAtTemplate.indexOf(checkedAtSentinel);
 
   return (
     <div className="mx-auto max-w-[1100px] px-4 py-6">
       <header className="card p-4 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-0.5 font-medium text-foreground">
@@ -160,20 +169,32 @@ export function WilayaPageView({
               </span>
             </div>
             <h1 className="mt-2 font-display text-2xl font-semibold sm:text-3xl">
-              {t("track3.wilaya.heading", { wilaya: localizedName })}
+              {formatFr(t("track3.wilaya.heading", { wilaya: localizedName }))}
             </h1>
             <p className="mt-1 text-xs text-muted-foreground">
               <time dateTime={snapshot.fetchedAt}>
-                {t("track3.wilaya.updatedAt", {
-                  time: algiersTime(snapshot.fetchedAt),
-                })}
+                {checkedAtIdx !== -1 ? (
+                  <>
+                    {checkedAtTemplate.slice(0, checkedAtIdx)}
+                    <bdi dir="ltr" className="tabular-nums">
+                      {checkedAtClock}
+                    </bdi>
+                    {checkedAtTemplate.slice(
+                      checkedAtIdx + checkedAtSentinel.length,
+                    )}
+                  </>
+                ) : (
+                  <bdi dir="ltr" className="tabular-nums">
+                    {checkedAtClock}
+                  </bdi>
+                )}
               </time>
             </p>
           </div>
 
           <nav
             aria-label={t("track3.wilaya.languageSwitcherLabel")}
-            className="flex flex-wrap items-center gap-1.5"
+            className="flex flex-wrap items-center gap-1.5 sm:shrink-0"
           >
             {LANG_OPTIONS.map((opt) => {
               const active = locale === opt.code;
@@ -252,9 +273,11 @@ export function WilayaPageView({
                 {t("track3.wilaya.dataUnavailableTitle")}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                {t("track3.wilaya.dataUnavailableBody", {
-                  wilaya: localizedName,
-                })}
+                {formatFr(
+                  t("track3.wilaya.dataUnavailableBody", {
+                    wilaya: localizedName,
+                  }),
+                )}
               </p>
             </div>
             <button
@@ -298,7 +321,9 @@ export function WilayaPageView({
               {t("track3.wilaya.honestEmptyTitle")}
             </h3>
             <p className="mt-1.5 max-w-3xl text-sm text-muted-foreground">
-              {t("track3.wilaya.honestEmptyBody", { wilaya: localizedName })}
+              {formatFr(
+                t("track3.wilaya.honestEmptyBody", { wilaya: localizedName }),
+              )}
             </p>
           </div>
         ) : null}
@@ -392,8 +417,10 @@ export function WilayaPageView({
                       dateTime={incident.last_reported_at}
                       className="text-xs text-muted-foreground"
                     >
-                      {algiersTime(incident.last_reported_at)} ·{" "}
-                      {relativeTime(incident.last_reported_at, locale)}
+                      <bdi dir="ltr" className="tabular-nums">
+                        {algiersTime(incident.last_reported_at)}
+                      </bdi>{" "}
+                      · {relativeTime(incident.last_reported_at, locale)}
                     </time>
                   </div>
                   <p className="mt-2 font-medium" dir="auto">
@@ -451,8 +478,10 @@ export function WilayaPageView({
                       dateTime={fire.lastDetectedAt}
                       className="text-xs text-muted-foreground"
                     >
-                      {algiersTime(fire.lastDetectedAt)} ·{" "}
-                      {relativeTime(fire.lastDetectedAt, locale)}
+                      <bdi dir="ltr" className="tabular-nums">
+                        {algiersTime(fire.lastDetectedAt)}
+                      </bdi>{" "}
+                      · {relativeTime(fire.lastDetectedAt, locale)}
                     </time>
                   </div>
                   <p className="mt-2 font-medium" dir="auto">
@@ -662,7 +691,9 @@ export function WilayaPageView({
                           </span>
                         ) : null}
                         <time dateTime={station.observed_at}>
-                          {algiersTime(station.observed_at)}
+                          <bdi dir="ltr" className="tabular-nums">
+                            {algiersTime(station.observed_at)}
+                          </bdi>
                         </time>
                       </div>
                     </li>
@@ -682,7 +713,9 @@ export function WilayaPageView({
           id="wilaya-communes-title"
           className="font-display text-xl font-semibold"
         >
-          {t("track3.wilaya.communesSectionTitle", { wilaya: localizedName })}
+          {formatFr(
+            t("track3.wilaya.communesSectionTitle", { wilaya: localizedName }),
+          )}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {t("track3.wilaya.communesSectionBody")}
@@ -691,10 +724,12 @@ export function WilayaPageView({
         {snapshot.communes.length === 0 ? (
           <div className="mt-3 space-y-3">
             <p className="text-sm text-muted-foreground">
-              {t("track3.wilaya.communesOfflineNote", {
-                wilaya: localizedName,
-                count: snapshot.wilaya.communeCount,
-              })}
+              {formatFr(
+                t("track3.wilaya.communesOfflineNote", {
+                  wilaya: localizedName,
+                  count: snapshot.wilaya.communeCount,
+                }),
+              )}
             </p>
             <Link
               to="/forecast"

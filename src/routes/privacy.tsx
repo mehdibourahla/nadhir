@@ -36,6 +36,12 @@ function PrivacyPage() {
     ["anpdpRightsTitle", "anpdpRightsBody"],
   ] as const;
 
+  const versionSentinel = "\u0000POLICY_VERSION\u0000";
+  const versionTemplate = t("privacyCompliance.policyVersionLabel", {
+    version: versionSentinel,
+  });
+  const versionIdx = versionTemplate.indexOf(versionSentinel);
+
   return (
     <div className="mx-auto max-w-[760px] px-4 py-6">
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -43,9 +49,19 @@ function PrivacyPage() {
           {t("privacyCompliance.badge")}
         </span>
         <span>
-          {t("privacyCompliance.policyVersionLabel", {
-            version: POLICY_VERSION,
-          })}
+          {versionIdx !== -1 ? (
+            <>
+              {versionTemplate.slice(0, versionIdx)}
+              <bdi dir="ltr" className="tabular-nums">
+                {POLICY_VERSION}
+              </bdi>
+              {versionTemplate.slice(versionIdx + versionSentinel.length)}
+            </>
+          ) : (
+            <bdi dir="ltr" className="tabular-nums">
+              {POLICY_VERSION}
+            </bdi>
+          )}
         </span>
       </div>
 

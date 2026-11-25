@@ -166,6 +166,12 @@ export function PrivacyControls() {
     }
   }
 
+  const versionSentinel = "\u0000POLICY_VERSION\u0000";
+  const versionTemplate = t("privacyCompliance.policyVersionLabel", {
+    version: versionSentinel,
+  });
+  const versionIdx = versionTemplate.indexOf(versionSentinel);
+
   return (
     <section
       id="privacy"
@@ -178,9 +184,19 @@ export function PrivacyControls() {
             {t("privacyCompliance.settings.title")}
           </h2>
           <span className="text-xs text-muted-foreground">
-            {t("privacyCompliance.policyVersionLabel", {
-              version: policyVersion,
-            })}
+            {versionIdx !== -1 ? (
+              <>
+                {versionTemplate.slice(0, versionIdx)}
+                <bdi dir="ltr" className="tabular-nums">
+                  {policyVersion}
+                </bdi>
+                {versionTemplate.slice(versionIdx + versionSentinel.length)}
+              </>
+            ) : (
+              <bdi dir="ltr" className="tabular-nums">
+                {policyVersion}
+              </bdi>
+            )}
           </span>
         </div>
         <p className="text-muted-foreground">

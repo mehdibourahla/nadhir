@@ -707,95 +707,91 @@ function LiveMapPage() {
           detent={detent}
           onDetentChange={setDetent}
           header={
-            <div
-              className={`flex shrink-0 items-center gap-1.5 px-3 py-2 lg:gap-2 lg:px-4 lg:pb-3 ${desktop ? "pt-4" : ""}`}
-            >
-              {panelView !== "list" && (
+            <div className="flex shrink-0 items-center gap-1.5 px-3 py-2 lg:flex-col lg:items-stretch lg:gap-2 lg:px-4 lg:pb-3 lg:pt-4">
+              <div className="flex min-w-0 flex-1 items-center gap-1.5 lg:items-start lg:gap-2">
+                {panelView !== "list" && (
+                  <button
+                    ref={backRef}
+                    type="button"
+                    onClick={backToList}
+                    aria-label={t("common.back")}
+                    className="flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-muted"
+                  >
+                    <ArrowLeft className="size-5 rtl:rotate-180" />
+                  </button>
+                )}
+                <div
+                  className={`min-w-0 flex-1 ${!desktop && panelView === "list" ? "flex flex-wrap items-baseline gap-x-2" : ""}`}
+                >
+                  <h1
+                    className="max-w-full truncate font-sans text-sm font-semibold lg:overflow-visible lg:whitespace-normal lg:break-words lg:text-base lg:leading-snug"
+                    dir="auto"
+                  >
+                    {panelView === "list"
+                      ? area
+                        ? unitName(area, locale)
+                        : t("civilMap.national")
+                      : panelTitle}
+                  </h1>
+                  <p className="line-clamp-2 text-xs text-muted-foreground lg:mt-0.5">
+                    {panelView !== "list"
+                      ? t("civilMap.title")
+                      : loading || units.isPending || danger.isPending
+                        ? t("common.loading")
+                        : summaryLine}
+                  </p>
+                </div>
                 <button
-                  ref={backRef}
                   type="button"
-                  onClick={backToList}
-                  aria-label={t("common.back")}
-                  className="flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-muted"
+                  onClick={() => setPanelHidden(true)}
+                  aria-label={t("civilMap.collapse")}
+                  className="hidden size-11 shrink-0 items-center justify-center rounded-xl hover:bg-muted lg:flex"
                 >
-                  <ArrowLeft className="size-5 rtl:rotate-180" />
+                  <PanelLeftClose className="size-5 rtl:rotate-180" />
                 </button>
-              )}
-              <div
-                className={`min-w-0 flex-1 ${!desktop && panelView === "list" ? "flex flex-wrap items-baseline gap-x-2" : ""}`}
-              >
-                <h1
-                  className="max-w-full truncate font-sans text-sm font-semibold lg:text-base"
-                  dir="auto"
-                >
-                  {panelView === "list"
-                    ? area
-                      ? unitName(area, locale)
-                      : t("civilMap.national")
-                    : panelTitle}
-                </h1>
-                <p
-                  className={`line-clamp-2 text-xs text-muted-foreground ${desktop ? "mt-0.5" : ""}`}
-                >
-                  {panelView !== "list"
-                    ? t("civilMap.title")
-                    : loading || units.isPending || danger.isPending
-                      ? t("common.loading")
-                      : summaryLine}
-                </p>
               </div>
               {panelView === "list" && (
-                <Link
-                  to="/survival"
-                  aria-label={t("track3.emergency.headerChipLabel")}
-                  title={t("track3.emergency.openSheet")}
-                  className="flex size-11 shrink-0 items-center justify-center rounded-xl border text-xs font-bold"
-                  style={{
-                    backgroundColor: "var(--emergency-surface)",
-                    borderColor: "var(--emergency)",
-                    color: "var(--emergency-ink)",
-                  }}
-                >
-                  <span dir="ltr" className="tabular-nums">
-                    {t("track3.emergency.headerChip")}
-                  </span>
-                </Link>
+                <div className="flex shrink-0 items-center gap-1.5 lg:gap-2">
+                  <Link
+                    to="/survival"
+                    aria-label={t("track3.emergency.headerChipLabel")}
+                    title={t("track3.emergency.openSheet")}
+                    className="flex size-11 shrink-0 items-center justify-center rounded-xl border text-xs font-bold sm:hidden"
+                    style={{
+                      backgroundColor: "var(--emergency-surface)",
+                      borderColor: "var(--emergency)",
+                      color: "var(--emergency-ink)",
+                    }}
+                  >
+                    <span dir="ltr" className="tabular-nums">
+                      {t("track3.emergency.headerChip")}
+                    </span>
+                  </Link>
+                  <Link
+                    to="/report"
+                    aria-label={t("reports.reportButton")}
+                    className="flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-border px-2.5 text-xs font-medium hover:bg-muted sm:px-3 sm:text-sm lg:flex-1"
+                  >
+                    <Megaphone aria-hidden className="size-4 shrink-0" />
+                    <span className="max-[359px]:hidden">
+                      {t("reports.reportButton")}
+                    </span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={follow}
+                    aria-label={t(
+                      following ? "civilMap.following" : "civilMap.follow",
+                    )}
+                    title={t(
+                      following ? "civilMap.following" : "civilMap.follow",
+                    )}
+                    className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground"
+                  >
+                    <Bell className="size-4" />
+                  </button>
+                </div>
               )}
-              {panelView === "list" && (
-                <Link
-                  to="/report"
-                  aria-label={t("reports.reportButton")}
-                  className="flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-border px-2.5 text-xs font-medium hover:bg-muted sm:px-3 sm:text-sm"
-                >
-                  <Megaphone aria-hidden className="size-4 shrink-0" />
-                  <span className="max-[359px]:hidden">
-                    {t("reports.reportButton")}
-                  </span>
-                </Link>
-              )}
-              {panelView === "list" && (
-                <button
-                  type="button"
-                  onClick={follow}
-                  aria-label={t(
-                    following ? "civilMap.following" : "civilMap.follow",
-                  )}
-                  title={t(
-                    following ? "civilMap.following" : "civilMap.follow",
-                  )}
-                  className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground"
-                >
-                  <Bell className="size-4" />
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setPanelHidden(true)}
-                aria-label={t("civilMap.collapse")}
-                className={`${desktop ? "flex" : "hidden"} size-11 shrink-0 items-center justify-center rounded-xl hover:bg-muted`}
-              >
-                <PanelLeftClose className="size-5 rtl:rotate-180" />
-              </button>
             </div>
           }
           filterBar={

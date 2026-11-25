@@ -823,6 +823,8 @@ export const fr: Translation = {
     markRead: "Marquer comme lu",
     markUnread: "Marquer comme non lu",
     unread: "{{count}} non lues",
+    unread_one: "{{count}} non lue",
+    unread_other: "{{count}} non lues",
     empty:
       "Aucune alerte pour le moment. Ajoutez une zone pour suivre les alertes disponibles.",
     manageZones: "Gérer mes zones",

@@ -93,43 +93,43 @@ export function OemBatteryGuide({
         aria-expanded={isOpen}
         aria-controls={isOpen ? panelId : undefined}
         onClick={() => setOpen(!isOpen)}
-        className="flex min-h-11 min-w-11 w-full items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-start text-foreground transition-colors hover:bg-muted"
+        className="flex min-h-11 min-w-11 w-full flex-col gap-1 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-start text-foreground transition-colors hover:bg-muted"
       >
-        <span className="flex min-w-0 items-center gap-2">
-          <BatteryCharging
-            aria-hidden
-            className="size-4 shrink-0 text-[var(--accent)]"
-          />
-          <span className="min-w-0">
+        <span className="flex w-full items-center justify-between gap-2">
+          <span className="flex min-w-0 items-center gap-2">
+            <BatteryCharging
+              aria-hidden
+              className="size-4 shrink-0 text-[var(--accent)]"
+            />
             <span
               className={
                 compact
-                  ? "block text-xs font-semibold text-foreground"
-                  : "block text-sm font-semibold text-foreground"
+                  ? "text-xs font-semibold text-foreground"
+                  : "text-sm font-semibold text-foreground"
               }
             >
               {t("oemBattery.title")}
             </span>
-            {!compact && (
-              <span className="mt-0.5 block text-xs text-muted-foreground">
-                {t("oemBattery.subtitle")}
-              </span>
-            )}
+          </span>
+          <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
+            <span>
+              {t(isOpen ? "oemBattery.toggleHide" : "oemBattery.toggleShow")}
+            </span>
+            <ChevronDown
+              aria-hidden
+              className={
+                isOpen
+                  ? "size-4 shrink-0 rotate-180 transition-transform"
+                  : "size-4 shrink-0 transition-transform"
+              }
+            />
           </span>
         </span>
-        <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
-          <span>
-            {t(isOpen ? "oemBattery.toggleHide" : "oemBattery.toggleShow")}
+        {!compact && (
+          <span className="block ps-6 text-xs leading-relaxed text-muted-foreground">
+            {t("oemBattery.subtitle")}
           </span>
-          <ChevronDown
-            aria-hidden
-            className={
-              isOpen
-                ? "size-4 shrink-0 rotate-180 transition-transform"
-                : "size-4 shrink-0 transition-transform"
-            }
-          />
-        </span>
+        )}
       </button>
 
       {isOpen && (

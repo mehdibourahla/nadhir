@@ -424,7 +424,7 @@ function SurvivalHub() {
         <span className="text-xs font-semibold text-muted-foreground">
           {t("survival.report")}
         </span>
-        <div className="map-scroll flex items-center gap-2 overflow-x-auto pb-1">
+        <div className="flex flex-wrap items-center gap-2">
           {REPORT_SHORTCUTS.map((c) => (
             <Link
               key={c.kind}

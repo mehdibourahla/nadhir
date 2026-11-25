@@ -203,8 +203,10 @@ export function AlertProvenance({
             <dd className="text-muted-foreground">
               {hasValidTime ? (
                 <time dateTime={safeObservedAt}>
-                  {algiersTime(safeObservedAt)} ·{" "}
-                  {relativeTime(safeObservedAt, locale, now)}
+                  <bdi dir="ltr" className="tabular-nums">
+                    {algiersTime(safeObservedAt)}
+                  </bdi>{" "}
+                  · {relativeTime(safeObservedAt, locale, now)}
                 </time>
               ) : (
                 <span>{notRecorded}</span>
