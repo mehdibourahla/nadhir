@@ -64,6 +64,7 @@ import { Route as ApiPublicContributeVoteRouteImport } from './routes/api/public
 import { Route as ApiPublicV1IndexRouteImport } from './routes/api/public/v1/index'
 import { Route as ApiPublicV1CivilRouteImport } from './routes/api/public/v1/civil'
 import { Route as ApiPublicV1FiresRouteImport } from './routes/api/public/v1/fires'
+import { Route as ApiPublicV1PushTestRouteImport } from './routes/api/public/v1/push-test'
 import { Route as ApiPublicV1RiskRouteImport } from './routes/api/public/v1/risk'
 import { Route as ApiPublicV1SourcesRouteImport } from './routes/api/public/v1/sources'
 import { Route as ApiPublicV1StatsRouteImport } from './routes/api/public/v1/stats'
@@ -357,6 +358,11 @@ const ApiPublicV1FiresRoute = ApiPublicV1FiresRouteImport.update({
   path: '/api/public/v1/fires',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicV1PushTestRoute = ApiPublicV1PushTestRouteImport.update({
+  id: '/api/public/v1/push-test',
+  path: '/api/public/v1/push-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicV1RiskRoute = ApiPublicV1RiskRouteImport.update({
   id: '/api/public/v1/risk',
   path: '/api/public/v1/risk',
@@ -448,6 +454,7 @@ export interface FileRoutesByFullPath {
   '/api/public/contribute/vote': typeof ApiPublicContributeVoteRoute
   '/api/public/v1/civil': typeof ApiPublicV1CivilRoute
   '/api/public/v1/fires': typeof ApiPublicV1FiresRoute
+  '/api/public/v1/push-test': typeof ApiPublicV1PushTestRoute
   '/api/public/v1/risk': typeof ApiPublicV1RiskRoute
   '/api/public/v1/sources': typeof ApiPublicV1SourcesRoute
   '/api/public/v1/stats': typeof ApiPublicV1StatsRoute
@@ -509,6 +516,7 @@ export interface FileRoutesByTo {
   '/api/public/contribute/vote': typeof ApiPublicContributeVoteRoute
   '/api/public/v1/civil': typeof ApiPublicV1CivilRoute
   '/api/public/v1/fires': typeof ApiPublicV1FiresRoute
+  '/api/public/v1/push-test': typeof ApiPublicV1PushTestRoute
   '/api/public/v1/risk': typeof ApiPublicV1RiskRoute
   '/api/public/v1/sources': typeof ApiPublicV1SourcesRoute
   '/api/public/v1/stats': typeof ApiPublicV1StatsRoute
@@ -574,6 +582,7 @@ export interface FileRoutesById {
   '/api/public/contribute/vote': typeof ApiPublicContributeVoteRoute
   '/api/public/v1/civil': typeof ApiPublicV1CivilRoute
   '/api/public/v1/fires': typeof ApiPublicV1FiresRoute
+  '/api/public/v1/push-test': typeof ApiPublicV1PushTestRoute
   '/api/public/v1/risk': typeof ApiPublicV1RiskRoute
   '/api/public/v1/sources': typeof ApiPublicV1SourcesRoute
   '/api/public/v1/stats': typeof ApiPublicV1StatsRoute
@@ -639,6 +648,7 @@ export interface FileRouteTypes {
     | '/api/public/contribute/vote'
     | '/api/public/v1/civil'
     | '/api/public/v1/fires'
+    | '/api/public/v1/push-test'
     | '/api/public/v1/risk'
     | '/api/public/v1/sources'
     | '/api/public/v1/stats'
@@ -700,6 +710,7 @@ export interface FileRouteTypes {
     | '/api/public/contribute/vote'
     | '/api/public/v1/civil'
     | '/api/public/v1/fires'
+    | '/api/public/v1/push-test'
     | '/api/public/v1/risk'
     | '/api/public/v1/sources'
     | '/api/public/v1/stats'
@@ -764,6 +775,7 @@ export interface FileRouteTypes {
     | '/api/public/contribute/vote'
     | '/api/public/v1/civil'
     | '/api/public/v1/fires'
+    | '/api/public/v1/push-test'
     | '/api/public/v1/risk'
     | '/api/public/v1/sources'
     | '/api/public/v1/stats'
@@ -805,6 +817,7 @@ export interface RootRouteChildren {
   ApiPublicContributeVoteRoute: typeof ApiPublicContributeVoteRoute
   ApiPublicV1CivilRoute: typeof ApiPublicV1CivilRoute
   ApiPublicV1FiresRoute: typeof ApiPublicV1FiresRoute
+  ApiPublicV1PushTestRoute: typeof ApiPublicV1PushTestRoute
   ApiPublicV1RiskRoute: typeof ApiPublicV1RiskRoute
   ApiPublicV1SourcesRoute: typeof ApiPublicV1SourcesRoute
   ApiPublicV1StatsRoute: typeof ApiPublicV1StatsRoute
@@ -1202,6 +1215,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicV1FiresRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/v1/push-test': {
+      id: '/api/public/v1/push-test'
+      path: '/api/public/v1/push-test'
+      fullPath: '/api/public/v1/push-test'
+      preLoaderRoute: typeof ApiPublicV1PushTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/v1/risk': {
       id: '/api/public/v1/risk'
       path: '/api/public/v1/risk'
@@ -1365,6 +1385,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicContributeVoteRoute: ApiPublicContributeVoteRoute,
   ApiPublicV1CivilRoute: ApiPublicV1CivilRoute,
   ApiPublicV1FiresRoute: ApiPublicV1FiresRoute,
+  ApiPublicV1PushTestRoute: ApiPublicV1PushTestRoute,
   ApiPublicV1RiskRoute: ApiPublicV1RiskRoute,
   ApiPublicV1SourcesRoute: ApiPublicV1SourcesRoute,
   ApiPublicV1StatsRoute: ApiPublicV1StatsRoute,

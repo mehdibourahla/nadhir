@@ -14,6 +14,10 @@ export type ClaimedPush = {
   payload: unknown;
   push_attempts: number;
   push_claimed_at: string;
+  severity?: number | null;
+  zone_id?: string | null;
+  source_table?: string | null;
+  created_at?: string | null;
 };
 
 type PushState = "sent" | "pending" | "failed" | "no_device";

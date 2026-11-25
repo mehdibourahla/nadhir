@@ -58,6 +58,10 @@ export const KNOWN_SOURCE_ATTRIBUTIONS: Readonly<Record<string, string>> =
       tariki_facebook: "Gendarmerie Nationale (Tariki)",
       ita_facebook: "Info Trafic Algérie",
       nadhir_test: "Nadhir",
+      local_fwi: "Nadhir FWI",
+      citizen_reports: "Citizen report",
+      metar: "METAR",
+      authority: "Official authority",
     }),
   );
 
@@ -315,12 +319,22 @@ export function validateProvenanceInvariants(
   return violations;
 }
 
+const MAX_PROVENANCE_AREA_CHARS = 240;
+const UNINTERPOLATED_TOKEN = /\{\{[^{}]+\}\}/;
+
+function capAreaForPayload(areaLabel: string | null): string {
+  if (typeof areaLabel !== "string" || areaLabel.length === 0) return "";
+  const chars = Array.from(areaLabel);
+  if (chars.length <= MAX_PROVENANCE_AREA_CHARS) return areaLabel;
+  return chars.slice(0, MAX_PROVENANCE_AREA_CHARS).join("").trimEnd();
+}
+
 export function toProvenancePayload(
   data: AlertProvenanceData,
 ): Record<string, string> {
   const payload: Record<string, string> = {
     provenance_trigger: data.triggerKind,
-    provenance_area: data.areaLabel ?? "",
+    provenance_area: capAreaForPayload(data.areaLabel),
     provenance_source_key: data.sourceKey,
     provenance_source: data.sourceAttribution,
     provenance_rule: data.ruleLabelKey,
@@ -413,4 +427,357 @@ export function formatProvenanceDigestLine(
   ].filter((part) => part.trim().length > 0);
 
   return parts.join(" · ");
+}
+
+const NON_FIRE_OFFICIAL_HAZARDS: ReadonlySet<string> = new Set([
+  "flood",
+  "flooding",
+  "storm",
+  "weather",
+  "road",
+  "structure",
+  "other",
+]);
+
+function onmRuleKey(
+  severity: string | number | null | undefined,
+): ProvenanceRuleKey {
+  if (typeof severity === "string") {
+    const token = severity.trim().toLowerCase();
+    if (token === "extreme") return "provenance.rule.onmExtreme";
+    if (token === "severe") return "provenance.rule.onmSevere";
+    const parsed = Number(token);
+    if (Number.isFinite(parsed)) {
+      if (parsed >= 4) return "provenance.rule.onmExtreme";
+      if (parsed >= 3) return "provenance.rule.onmSevere";
+    }
+    return "provenance.rule.onmWarning";
+  }
+  if (typeof severity === "number" && Number.isFinite(severity)) {
+    if (severity >= 4) return "provenance.rule.onmExtreme";
+    if (severity >= 3) return "provenance.rule.onmSevere";
+  }
+  return "provenance.rule.onmWarning";
+}
+
+function isNonFireOfficialHazard(hazard: string | null | undefined): boolean {
+  if (typeof hazard !== "string") return false;
+  return NON_FIRE_OFFICIAL_HAZARDS.has(hazard.trim().toLowerCase());
+}
+
+function quakeRuleKey(
+  magnitude: number | null | undefined,
+  severity?: string | number | null | undefined,
+): ProvenanceRuleKey {
+  if (typeof magnitude === "number" && Number.isFinite(magnitude)) {
+    if (magnitude >= 5.0) return "provenance.rule.m5Quake";
+    if (magnitude >= 4.0) return "provenance.rule.m4Quake";
+    return "provenance.rule.civilUpdate";
+  }
+  if (
+    typeof severity === "string" &&
+    severity.trim().toLowerCase() === "extreme"
+  ) {
+    return "provenance.rule.m5Quake";
+  }
+  if (typeof severity === "number" && Number.isFinite(severity)) {
+    if (severity >= 4) return "provenance.rule.m5Quake";
+  }
+  return "provenance.rule.m4Quake";
+}
+
+export interface BroadcastProvenanceInput {
+  kind: string;
+  severity?: string | number | null | undefined;
+  hazard?: string | null | undefined;
+  magnitude?: number | null | undefined;
+  confirmed?: boolean | undefined;
+  sourceKey?: string | null | undefined;
+  sourceAttribution?: string | null | undefined;
+  areaLabel?: string | null | undefined;
+  observedAt: string;
+}
+
+export function provenanceForBroadcast(
+  input: BroadcastProvenanceInput,
+): AlertProvenanceData {
+  const kind = input.kind.trim().toLowerCase();
+  if (kind === "onm") {
+    return buildAlertProvenance({
+      triggerKind: "wilaya_warning",
+      areaLabel: input.areaLabel,
+      sourceKey: "onm",
+      sourceAttribution: input.sourceAttribution ?? "ONM · Météo Algérie",
+      ruleLabelKey: onmRuleKey(input.severity),
+      observedAt: input.observedAt,
+      authorityStatus: "official",
+    });
+  }
+  if (kind === "fire") {
+    const confirmed = Boolean(input.confirmed);
+    return buildAlertProvenance({
+      triggerKind: "commune_topic",
+      areaLabel: input.areaLabel,
+      sourceKey: input.sourceKey?.trim() || "firms",
+      sourceAttribution: input.sourceAttribution ?? "NASA FIRMS",
+      ruleLabelKey: confirmed
+        ? "provenance.rule.dgpcFire"
+        : "provenance.rule.probableFire",
+      observedAt: input.observedAt,
+      authorityStatus: confirmed ? "official" : "probable",
+    });
+  }
+  if (kind === "official") {
+    return buildAlertProvenance({
+      triggerKind: "commune_topic",
+      areaLabel: input.areaLabel,
+      sourceKey: input.sourceKey?.trim() || "dgpc_telegram",
+      sourceAttribution: input.sourceAttribution ?? "DGPC",
+      ruleLabelKey: isNonFireOfficialHazard(input.hazard)
+        ? "provenance.rule.dgpcNonFire"
+        : "provenance.rule.dgpcFire",
+      observedAt: input.observedAt,
+      authorityStatus: "official",
+    });
+  }
+  if (kind === "earthquake") {
+    const rawAttr = input.sourceAttribution?.trim() ?? "";
+    const inferredKey =
+      input.sourceKey?.trim() ||
+      (rawAttr.toLowerCase().includes("craag") ? "craag" : "emsc");
+    return buildAlertProvenance({
+      triggerKind: "commune_topic",
+      areaLabel: input.areaLabel,
+      sourceKey: inferredKey,
+      sourceAttribution: rawAttr || "EMSC",
+      ruleLabelKey: quakeRuleKey(input.magnitude, input.severity),
+      observedAt: input.observedAt,
+      authorityStatus: "observed",
+    });
+  }
+  if (kind === "authority") {
+    return buildAlertProvenance({
+      triggerKind: "commune_topic",
+      areaLabel: input.areaLabel,
+      sourceKey: input.sourceKey?.trim() || "authority",
+      sourceAttribution: input.sourceAttribution ?? "Official authority",
+      ruleLabelKey: "provenance.rule.civilUpdate",
+      observedAt: input.observedAt,
+      authorityStatus: "official",
+    });
+  }
+  return buildAlertProvenance({
+    triggerKind: "commune_topic",
+    areaLabel: input.areaLabel,
+    sourceKey: input.sourceKey?.trim() || "nadhir",
+    sourceAttribution: input.sourceAttribution,
+    ruleLabelKey: "provenance.rule.generic",
+    observedAt: input.observedAt,
+  });
+}
+
+export interface WatchZoneAlertProvenanceInput {
+  kind: string;
+  sourceTable?: string | null | undefined;
+  severity?: string | number | null | undefined;
+  hazard?: string | null | undefined;
+  phase?: string | null | undefined;
+  confirmed?: boolean | undefined;
+  magnitude?: number | null | undefined;
+  sourceKey?: string | null | undefined;
+  sourceAttribution?: string | null | undefined;
+  areaLabel?: string | null | undefined;
+  radiusKm?: number | null | undefined;
+  observedAt: string;
+}
+
+export function provenanceForWatchZoneAlert(
+  input: WatchZoneAlertProvenanceInput,
+): AlertProvenanceData {
+  const kind = input.kind.trim().toLowerCase();
+  const sourceTable = input.sourceTable?.trim().toLowerCase() ?? "";
+
+  if (kind === "fire") {
+    const confirmed = Boolean(input.confirmed);
+    const phase = input.phase?.trim().toLowerCase() ?? "";
+    return buildAlertProvenance({
+      triggerKind: "watch_zone",
+      areaLabel: input.areaLabel,
+      radiusKm: input.radiusKm,
+      sourceKey: input.sourceKey?.trim() || "firms",
+      sourceAttribution: input.sourceAttribution ?? "NASA FIRMS",
+      ruleLabelKey:
+        phase === "observation_ended"
+          ? "provenance.rule.watchZone"
+          : confirmed
+            ? "provenance.rule.dgpcFire"
+            : "provenance.rule.probableFire",
+      observedAt: input.observedAt,
+      authorityStatus: confirmed ? "official" : "probable",
+    });
+  }
+
+  if (kind === "risk") {
+    return buildAlertProvenance({
+      triggerKind: "watch_zone",
+      areaLabel: input.areaLabel,
+      radiusKm: input.radiusKm,
+      sourceKey: input.sourceKey?.trim() || "local_fwi",
+      sourceAttribution: input.sourceAttribution ?? "Nadhir FWI",
+      ruleLabelKey: "provenance.rule.watchZone",
+      observedAt: input.observedAt,
+      authorityStatus: "model",
+    });
+  }
+
+  if (kind === "weather" || kind === "onm") {
+    return buildAlertProvenance({
+      triggerKind: "watch_zone",
+      areaLabel: input.areaLabel,
+      radiusKm: input.radiusKm,
+      sourceKey: "onm",
+      sourceAttribution: input.sourceAttribution ?? "ONM · Météo Algérie",
+      ruleLabelKey: onmRuleKey(input.severity),
+      observedAt: input.observedAt,
+      authorityStatus: "official",
+    });
+  }
+
+  if (
+    kind === "authority" ||
+    (kind === "official" &&
+      (sourceTable === "authority_warnings" ||
+        input.sourceKey?.trim().toLowerCase() === "authority"))
+  ) {
+    return buildAlertProvenance({
+      triggerKind: "watch_zone",
+      areaLabel: input.areaLabel,
+      radiusKm: input.radiusKm,
+      sourceKey: "authority",
+      sourceAttribution: input.sourceAttribution ?? "Official authority",
+      ruleLabelKey: "provenance.rule.civilUpdate",
+      observedAt: input.observedAt,
+      authorityStatus: "official",
+    });
+  }
+
+  if (kind === "official") {
+    return buildAlertProvenance({
+      triggerKind: "watch_zone",
+      areaLabel: input.areaLabel,
+      radiusKm: input.radiusKm,
+      sourceKey: input.sourceKey?.trim() || "dgpc_telegram",
+      sourceAttribution: input.sourceAttribution ?? "DGPC",
+      ruleLabelKey: isNonFireOfficialHazard(input.hazard)
+        ? "provenance.rule.dgpcNonFire"
+        : "provenance.rule.dgpcFire",
+      observedAt: input.observedAt,
+      authorityStatus: "official",
+    });
+  }
+
+  if (kind === "road") {
+    const rawAttr = input.sourceAttribution?.trim() ?? "";
+    const inferredKey =
+      input.sourceKey?.trim() ||
+      (rawAttr.toLowerCase().includes("tariki")
+        ? "tariki_facebook"
+        : "ita_facebook");
+    return buildAlertProvenance({
+      triggerKind: "watch_zone",
+      areaLabel: input.areaLabel,
+      radiusKm: input.radiusKm,
+      sourceKey: inferredKey,
+      sourceAttribution: rawAttr || undefined,
+      ruleLabelKey: "provenance.rule.roadDanger",
+      observedAt: input.observedAt,
+      authorityStatus: "observed",
+    });
+  }
+
+  if (kind === "citizen") {
+    return buildAlertProvenance({
+      triggerKind: "watch_zone",
+      areaLabel: input.areaLabel,
+      radiusKm: input.radiusKm,
+      sourceKey: input.sourceKey?.trim() || "citizen_reports",
+      sourceAttribution: input.sourceAttribution ?? "Citizen report",
+      ruleLabelKey: "provenance.rule.watchZone",
+      observedAt: input.observedAt,
+      authorityStatus: "observed",
+    });
+  }
+
+  if (kind === "earthquake") {
+    const rawAttr = input.sourceAttribution?.trim() ?? "";
+    const inferredKey =
+      input.sourceKey?.trim() ||
+      (rawAttr.toLowerCase().includes("craag") ? "craag" : "emsc");
+    return buildAlertProvenance({
+      triggerKind: "watch_zone",
+      areaLabel: input.areaLabel,
+      radiusKm: input.radiusKm,
+      sourceKey: inferredKey,
+      sourceAttribution: rawAttr || "EMSC",
+      ruleLabelKey: quakeRuleKey(input.magnitude, input.severity),
+      observedAt: input.observedAt,
+      authorityStatus: "observed",
+    });
+  }
+
+  return buildAlertProvenance({
+    triggerKind: "watch_zone",
+    areaLabel: input.areaLabel,
+    radiusKm: input.radiusKm,
+    sourceKey: input.sourceKey?.trim() || "nadhir",
+    sourceAttribution: input.sourceAttribution,
+    ruleLabelKey: "provenance.rule.watchZone",
+    observedAt: input.observedAt,
+  });
+}
+
+export function provenanceForSelfTest(
+  observedAt: string = new Date().toISOString(),
+): AlertProvenanceData {
+  return buildAlertProvenance({
+    triggerKind: "self_test",
+    areaLabel: null,
+    sourceKey: "nadhir_test",
+    sourceAttribution: "Nadhir",
+    ruleLabelKey: "provenance.rule.selfTest",
+    observedAt,
+  });
+}
+
+export function formatLocalizedProvenanceDigest(
+  data: AlertProvenanceData,
+  translate: (key: string, vars?: Record<string, unknown>) => string,
+  timeLabel: string,
+): string {
+  const safeTriggerKind = isAlertTriggerKind(data.triggerKind)
+    ? data.triggerKind
+    : "national_feed";
+  const rawRuleKey =
+    typeof data.ruleLabelKey === "string" ? data.ruleLabelKey.trim() : "";
+  const candidateRule = rawRuleKey.length > 0 ? translate(rawRuleKey) : "";
+  const rule =
+    typeof candidateRule === "string" &&
+    candidateRule.trim().length > 0 &&
+    candidateRule !== rawRuleKey &&
+    !UNINTERPOLATED_TOKEN.test(candidateRule)
+      ? candidateRule
+      : translate("provenance.rule.generic");
+
+  const radiusLabel =
+    safeTriggerKind === "watch_zone" && isValidRadiusKm(data.radiusKm)
+      ? translate("provenance.radiusKm", { km: data.radiusKm })
+      : undefined;
+
+  return formatProvenanceDigestLine(data, {
+    trigger: translate(`provenance.trigger.${safeTriggerKind}`),
+    rule,
+    areaFallback: translate("common.notRecorded"),
+    timeLabel,
+    radiusLabel,
+  });
 }

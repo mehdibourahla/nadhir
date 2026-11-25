@@ -12,6 +12,10 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 vi.mock("@/lib/webhooks.server", () => ({ drainWebhookDeliveries }));
 
 import { evaluateAlerts } from "@/lib/alerts-engine.server";
+import {
+  parseProvenancePayload,
+  validateProvenanceInvariants,
+} from "@/lib/alert-provenance";
 
 type Result = { data: unknown; error: { message: string } | null };
 
@@ -154,6 +158,11 @@ describe("alert risk publication boundary", () => {
       expect((row["payload"] as { phase: string }).phase).toBe(
         "observation_ended",
       );
+      const endedProv = parseProvenancePayload(row["payload"]);
+      expect(endedProv).not.toBeNull();
+      expect(validateProvenanceInvariants(endedProv!)).toEqual([]);
+      expect(endedProv!.triggerKind).toBe("watch_zone");
+      expect(endedProv!.areaLabel).toBe("Zone");
       expect(row["cap_alert_id"]).toBeNull();
       writes.length = 0;
       profile.quiet_hours_start = 12;

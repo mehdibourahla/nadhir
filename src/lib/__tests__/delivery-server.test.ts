@@ -604,9 +604,18 @@ it("delivers earthquake broadcasts to FCM commune topics only (zero Telegram) an
   expect(fcmSend).toHaveBeenCalledWith(
     expect.objectContaining({
       topic: "v1.commune.1501.fr",
+      android: expect.objectContaining({
+        notification: expect.objectContaining({
+          channel_id: "alerts_earthquakes",
+        }),
+      }),
       data: expect.objectContaining({
         kind: "earthquake",
+        channel_id: "alerts_earthquakes",
         magnitude: "4.4",
+        provenance_trigger: "commune_topic",
+        provenance_source_key: "emsc",
+        provenance_rule: "provenance.rule.m4Quake",
       }),
     }),
   );

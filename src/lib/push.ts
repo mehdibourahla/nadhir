@@ -1,4 +1,5 @@
-import { fcmTopic } from "@/lib/fcm";
+import { fcmTopic, type FcmLang } from "@/lib/fcm";
+import type { NotificationChannelId } from "@/lib/notification-channels";
 import { NATIVE, apiUrl } from "@/lib/platform";
 
 /* Public web-app config for the nadhir-dz Firebase project (not secrets). The
@@ -175,6 +176,142 @@ export async function pushTestArrival(testId: string) {
     .single();
   if (error) throw new Error(error.message);
   return data.received_at;
+}
+
+export type UserPushTestErrorCode =
+  | "unsupported"
+  | "unconfigured"
+  | "denied"
+  | "signIn"
+  | "deviceNotRegistered"
+  | "rateLimited"
+  | "invalid"
+  | "providerFailed"
+  | "unavailable";
+
+export class UserPushTestError extends Error {
+  override name = "UserPushTestError";
+  readonly code: UserPushTestErrorCode;
+  readonly retryAfterSeconds: number | undefined;
+
+  constructor(code: UserPushTestErrorCode, retryAfterSeconds?: number) {
+    super(code);
+    this.code = code;
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+export type UserPushTestResult = {
+  testId: string;
+  channelId: NotificationChannelId;
+  sentAt: string;
+};
+
+function parseRetryAfter(header: string | null): number | undefined {
+  if (!header) return undefined;
+  const parsed = Number.parseInt(header.trim(), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+export async function sendUserPushTest(options: {
+  mode: "authenticated" | "public";
+  lang?: FcmLang;
+  transport?: PushTransport;
+  fetchImpl?: typeof fetch;
+}): Promise<UserPushTestResult> {
+  if (!options.transport && !pushSupported()) {
+    throw new UserPushTestError("unsupported");
+  }
+  if (!options.transport && !pushConfigured()) {
+    throw new UserPushTestError("unconfigured");
+  }
+
+  const push = options.transport ?? (await activeTransport());
+  const perm = await push.permission();
+  if (perm === "denied") {
+    throw new UserPushTestError("denied");
+  }
+  if (perm !== "granted") {
+    const granted = await push.request();
+    if (!granted || (await push.permission()) !== "granted") {
+      throw new UserPushTestError("denied");
+    }
+  }
+
+  let headers: Record<string, string> = {
+    "content-type": "application/json",
+  };
+  let endpoint = apiUrl("/api/public/v1/push-test");
+
+  if (options.mode === "authenticated") {
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session) {
+      throw new UserPushTestError("signIn");
+    }
+    headers = {
+      ...headers,
+      authorization: `Bearer ${data.session.access_token}`,
+    };
+    endpoint = apiUrl("/api/private/push-test");
+  }
+
+  let token: string;
+  try {
+    token = await push.token();
+  } catch {
+    throw new UserPushTestError("unavailable");
+  }
+
+  const body: { token: string; lang?: FcmLang } = options.lang
+    ? { token, lang: options.lang }
+    : { token };
+
+  const fetcher = options.fetchImpl ?? fetch;
+  let response: Response;
+  try {
+    response = await fetcher(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch {
+    throw new UserPushTestError("unavailable");
+  }
+
+  if (!response.ok) {
+    if (response.status === 401) throw new UserPushTestError("signIn");
+    if (response.status === 403)
+      throw new UserPushTestError("deviceNotRegistered");
+    if (response.status === 429) {
+      throw new UserPushTestError(
+        "rateLimited",
+        parseRetryAfter(response.headers.get("retry-after")) ?? 60,
+      );
+    }
+    if (response.status === 400 || response.status === 413) {
+      throw new UserPushTestError("invalid");
+    }
+    if (response.status === 502) {
+      throw new UserPushTestError("providerFailed");
+    }
+    throw new UserPushTestError("unavailable");
+  }
+
+  const parsed = (await response.json()) as {
+    testId?: string;
+    channelId?: NotificationChannelId;
+    sentAt?: string;
+  };
+  if (!parsed?.testId) {
+    throw new UserPushTestError("unavailable");
+  }
+  return {
+    testId: parsed.testId,
+    channelId: parsed.channelId ?? "alerts_test",
+    sentAt: parsed.sentAt ?? new Date().toISOString(),
+  };
 }
 
 async function callSubscribeApi(

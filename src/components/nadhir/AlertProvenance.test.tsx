@@ -293,4 +293,23 @@ describe("AlertProvenance component (SSR)", () => {
       );
     }
   });
+
+  it("handles pathological repeated opening braces in linear time (M0 INFO-1 guard)", () => {
+    const pathological = "{{".repeat(5000);
+    const prov: AlertProvenanceData = {
+      triggerKind: "national_feed",
+      areaLabel: "Alger",
+      sourceKey: "emsc",
+      sourceAttribution: "EMSC",
+      ruleLabelKey: pathological,
+      observedAt: OBSERVED_ISO,
+      authorityStatus: "observed",
+    };
+    const start = performance.now();
+    const html = renderInLocale("en", prov, { defaultExpanded: true });
+    const elapsedMs = performance.now() - start;
+    expect(elapsedMs).toBeLessThan(200);
+    expect(html).toContain("EMSC");
+    expect(html).not.toContain("\u2014");
+  });
 });

@@ -16,14 +16,10 @@ import {
   deleteAlerts,
   markAlertsRead,
   runAlertCheck,
-  type Alert,
 } from "@/lib/alerts";
-import { groupAlerts, groupPhase, type AlertGroup } from "@/lib/alert-groups";
-import type { Phase } from "@/lib/incident-lifecycle";
+import { groupAlerts, groupPhase } from "@/lib/alert-groups";
 import { isDefaultPoint, zonesQuery } from "@/lib/account";
-import { RiskChip } from "@/components/nadhir/RiskChip";
-import { riskSolid } from "@/components/nadhir/risk-visuals";
-import { relativeTime } from "@/lib/nadhir";
+import { AlertCard } from "@/components/nadhir/AlertCard";
 import { titledMeta } from "@/lib/page-meta";
 import { pageRows } from "@/lib/paging";
 import { LoadMore } from "@/components/LoadMore";
@@ -77,8 +73,8 @@ function AlertsPage() {
     ),
   );
   const now = Date.now();
-  const zoneName = (id: string | null) =>
-    zones.data?.find((z) => z.id === id)?.name ?? "";
+  const zoneFor = (id: string | null) =>
+    zones.data?.find((z) => z.id === id) ?? null;
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8">
@@ -146,152 +142,33 @@ function AlertsPage() {
       ) : (
         <>
           <ul className="mt-6 space-y-3">
-            {groups.map((group) => (
-              <AlertCard
-                key={group.key}
-                group={group}
-                phase={groupPhase(group, fires.data ?? new Map(), now)}
-                locale={locale}
-                zoneName={zoneName(group.latest.zone_id)}
-                onToggleRead={() =>
-                  readMutation.mutate({
-                    ids: group.messages.map((m) => m.id),
-                    read: group.unread > 0,
-                  })
-                }
-                onDelete={() =>
-                  deleteMutation.mutate(group.messages.map((m) => m.id))
-                }
-              />
-            ))}
+            {groups.map((group) => {
+              const zone = zoneFor(group.latest.zone_id);
+              return (
+                <AlertCard
+                  key={group.key}
+                  group={group}
+                  phase={groupPhase(group, fires.data ?? new Map(), now)}
+                  locale={locale}
+                  zoneName={zone?.name ?? ""}
+                  zoneRadiusKm={zone?.radius_km ?? null}
+                  now={now}
+                  onToggleRead={() =>
+                    readMutation.mutate({
+                      ids: group.messages.map((m) => m.id),
+                      read: group.unread > 0,
+                    })
+                  }
+                  onDelete={() =>
+                    deleteMutation.mutate(group.messages.map((m) => m.id))
+                  }
+                />
+              );
+            })}
           </ul>
           <LoadMore query={alerts} />
         </>
       )}
     </main>
-  );
-}
-
-const KIND_LABEL: Record<Alert["kind"], string> = {
-  fire: "alerts.kindFire",
-  risk: "alerts.kindRisk",
-  weather: "alerts.kindWeather",
-  official: "alerts.kindOfficial",
-  road: "alerts.kindRoad",
-  citizen: "alerts.kindCitizen",
-  earthquake: "alerts.kindEarthquake",
-};
-
-function AlertCard({
-  group,
-  phase,
-  locale,
-  zoneName,
-  onToggleRead,
-  onDelete,
-}: {
-  group: AlertGroup;
-  phase: Phase;
-  locale: Locale;
-  zoneName: string;
-  onToggleRead: () => void;
-  onDelete: () => void;
-}) {
-  const { t } = useTranslation();
-  const alert = group.latest;
-  const shortId = alert.payload?.short_id;
-  const earlier = group.messages.slice(1);
-  const mapEvent = alert.payload?.map_event;
-  const state =
-    alert.kind === "risk"
-      ? phase === "live"
-        ? "alerts.stateToday"
-        : "alerts.statePastForecast"
-      : alert.kind !== "fire"
-        ? phase === "live"
-          ? "alerts.stateCurrentNotice"
-          : "alerts.stateNoticeOver"
-        : phase === "live"
-          ? "alerts.stateLive"
-          : phase === "fading"
-            ? "civilMap.quiet"
-            : phase === "ended"
-              ? "civilMap.ended"
-              : "civilMap.archived";
-  return (
-    <li
-      className={`card p-4 ${group.unread ? "" : "opacity-70"}`}
-      style={{
-        borderInlineStartWidth: 4,
-        borderInlineStartColor:
-          phase === "live" ? riskSolid(alert.severity) : "var(--border)",
-      }}
-    >
-      <div className="flex flex-wrap items-baseline gap-2">
-        <RiskChip level={alert.severity} showName={false} />
-        <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
-          {t(KIND_LABEL[alert.kind])}
-        </span>
-        <h2 className="font-medium">{alert.title}</h2>
-        <span className="ms-auto text-xs text-muted-foreground">
-          {relativeTime(alert.created_at, locale)}
-        </span>
-      </div>
-      <p className="mt-1 text-sm font-medium">{t(state)}</p>
-      <p className="mt-1 text-sm text-muted-foreground">{alert.body}</p>
-      {earlier.length ? (
-        <details className="mt-2 text-xs text-muted-foreground">
-          <summary className="cursor-pointer">
-            {t("alerts.earlier", { count: earlier.length })}
-          </summary>
-          <ul className="mt-1 space-y-1">
-            {earlier.map((message) => (
-              <li key={message.id}>
-                <time dateTime={message.created_at}>
-                  {relativeTime(message.created_at, locale)}
-                </time>{" "}
-                · {message.title}
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
-        {zoneName ? (
-          <span className="text-muted-foreground">{zoneName}</span>
-        ) : null}
-        {shortId ? (
-          <Link
-            to="/fire/$id"
-            params={{ id: shortId }}
-            className="font-medium text-primary"
-          >
-            {t("alerts.openFire")}
-          </Link>
-        ) : mapEvent ? (
-          <Link
-            to="/"
-            search={{ event: mapEvent }}
-            className="font-medium text-primary"
-          >
-            {t("alerts.openMap")}
-          </Link>
-        ) : null}
-        <button
-          type="button"
-          onClick={onToggleRead}
-          className="text-muted-foreground hover:text-foreground"
-        >
-          {t(group.unread ? "alerts.markRead" : "alerts.markUnread")}
-        </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          className="text-muted-foreground hover:text-destructive"
-        >
-          {t("common.delete")}
-        </button>
-      </div>
-    </li>
   );
 }

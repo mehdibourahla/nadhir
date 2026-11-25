@@ -8,11 +8,15 @@ import {
   KNOWN_SOURCE_ATTRIBUTIONS,
   PROVENANCE_RULE_KEYS,
   buildAlertProvenance,
+  formatLocalizedProvenanceDigest,
   formatProvenanceDigestLine,
   isValidObservedAt,
   isValidRadiusKm,
   normalizeAreaLabel,
   parseProvenancePayload,
+  provenanceForBroadcast,
+  provenanceForSelfTest,
+  provenanceForWatchZoneAlert,
   toProvenancePayload,
   validateProvenanceInvariants,
   type AlertProvenanceData,
@@ -523,6 +527,110 @@ describe("provenance i18n keys across all 4 locales", () => {
       const radius = t("provenance.radiusKm", { km: 25 });
       expect(radius, `${locale}:radiusKm`).toContain("25");
       expect(radius, `${locale}:radiusKm`).not.toContain("\u2014");
+    }
+  });
+});
+
+describe("domain provenance builders, area cap and M2C localized digest helper", () => {
+  it("caps provenance_area at <= 240 characters without altering verbatim ONM attribution", () => {
+    const longArea = "Tizi Ouzou ".repeat(40);
+    const longOnmAttribution =
+      "ONM · Météo Algérie (BMS Pluie Exceptionnelle #2026-11-25-ALGER-TIZI-OUZOU)";
+    const built = provenanceForBroadcast({
+      kind: "onm",
+      severity: "Extreme",
+      areaLabel: longArea,
+      sourceAttribution: longOnmAttribution,
+      observedAt: SAMPLE_ISO,
+    });
+    const payload = toProvenancePayload(built);
+    expect(Array.from(payload["provenance_area"]!).length).toBeLessThanOrEqual(
+      240,
+    );
+    expect(payload["provenance_source"]).toBe(longOnmAttribution);
+    expect(validateProvenanceInvariants(built)).toEqual([]);
+  });
+
+  it("builds valid provenance for all broadcast, watch-zone, and self-test variants", () => {
+    const samples = [
+      provenanceForBroadcast({
+        kind: "fire",
+        confirmed: false,
+        areaLabel: "Azazga",
+        observedAt: SAMPLE_ISO,
+      }),
+      provenanceForBroadcast({
+        kind: "official",
+        hazard: "flood",
+        areaLabel: "Bab El Oued",
+        observedAt: SAMPLE_ISO,
+      }),
+      provenanceForBroadcast({
+        kind: "earthquake",
+        magnitude: 4.5,
+        areaLabel: "Béjaïa",
+        observedAt: SAMPLE_ISO,
+      }),
+      provenanceForBroadcast({
+        kind: "authority",
+        sourceAttribution: "Wilaya d'Alger",
+        observedAt: SAMPLE_ISO,
+      }),
+      provenanceForWatchZoneAlert({
+        kind: "risk",
+        areaLabel: "Home",
+        radiusKm: 15,
+        observedAt: SAMPLE_ISO,
+      }),
+      provenanceForWatchZoneAlert({
+        kind: "road",
+        sourceAttribution: "Gendarmerie Nationale (Tariki)",
+        areaLabel: "RN5",
+        radiusKm: 10,
+        observedAt: SAMPLE_ISO,
+      }),
+      provenanceForWatchZoneAlert({
+        kind: "citizen",
+        areaLabel: "Home",
+        radiusKm: 5,
+        observedAt: SAMPLE_ISO,
+      }),
+      provenanceForSelfTest(SAMPLE_ISO),
+    ];
+
+    for (const sample of samples) {
+      expect(validateProvenanceInvariants(sample)).toEqual([]);
+      const roundTrip = parseProvenancePayload(toProvenancePayload(sample));
+      expect(roundTrip).not.toBeNull();
+      expect(validateProvenanceInvariants(roundTrip!)).toEqual([]);
+    }
+    expect(KNOWN_SOURCE_ATTRIBUTIONS["local_fwi"]).toBe("Nadhir FWI");
+    expect(KNOWN_SOURCE_ATTRIBUTIONS["citizen_reports"]).toBe("Citizen report");
+    expect(KNOWN_SOURCE_ATTRIBUTIONS["metar"]).toBe("METAR");
+    expect(KNOWN_SOURCE_ATTRIBUTIONS["authority"]).toBe("Official authority");
+  });
+
+  it("formats localized provenance digest lines cleanly across ar, fr, en and kab for M2C", () => {
+    const prov = provenanceForWatchZoneAlert({
+      kind: "official",
+      hazard: "flood",
+      areaLabel: "Bab El Oued",
+      radiusKm: 12,
+      observedAt: SAMPLE_ISO,
+    });
+    for (const locale of ["ar", "fr", "en", "kab"] as const) {
+      const t = i18n.getFixedT(locale);
+      const line = formatLocalizedProvenanceDigest(
+        prov,
+        (key, vars) => String(t(key, vars as Record<string, string>)),
+        "13:30 UTC+1",
+      );
+      expect(line, locale).toContain("DGPC");
+      expect(line, locale).toContain("Bab El Oued");
+      expect(line, locale).toContain("12");
+      expect(line, locale).toContain("13:30 UTC+1");
+      expect(line, locale).not.toContain("\u2014");
+      expect(line, locale).not.toContain("{{");
     }
   });
 });

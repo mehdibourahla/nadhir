@@ -218,6 +218,7 @@ function RootComponent() {
       .then(([{ startNativePush }, { syncSubscription, syncUserPush }]) =>
         startNativePush({
           channelName: i18nInstance.t("push.channelName"),
+          translate: (key) => i18nInstance.t(key),
           navigate: (path) => void router.navigate({ href: path }),
           onToken: () => {
             void syncUserPush().catch(() => undefined);

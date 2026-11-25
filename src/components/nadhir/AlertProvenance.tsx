@@ -14,7 +14,7 @@ import {
 import { algiersTime, relativeTime } from "@/lib/nadhir";
 
 const BLANK_OR_EM_DASH_ONLY = /^[\s\u2014]+$/;
-const UNINTERPOLATED_TOKEN = /\{\{[^}]+\}\}/;
+const UNINTERPOLATED_TOKEN = /\{\{[^{}]+\}\}/;
 
 function normalizeLocale(language: string | undefined): AnyLocale {
   const prefix = (language ?? "ar").trim().toLowerCase().split(/[-_]/)[0];
@@ -90,6 +90,7 @@ export function AlertProvenance({
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key === "Escape" && open) {
+      event.preventDefault();
       event.stopPropagation();
       setOpen(false);
     }

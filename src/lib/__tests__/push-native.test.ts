@@ -145,33 +145,75 @@ it("registers notification listeners once however often it starts", async () => 
   await startNativePush(options);
   await startNativePush({ ...options, channelName: "y" });
   const events = plugin.addListener.mock.calls.map(([name]) => name);
-  expect(events).toEqual(["notificationActionPerformed", "tokenReceived"]);
+  expect(events).toEqual([
+    "notificationActionPerformed",
+    "tokenReceived",
+    "notificationReceived",
+  ]);
   const tap = plugin.addListener.mock.calls[0]![1] as (e: unknown) => void;
   tap({ notification: { data: { link: "/fire/DZ1" } } });
   expect(options.navigate).toHaveBeenCalledExactlyOnceWith("/fire/DZ1");
 });
 
-it("shows an Android foreground push immediately, without asking for alarm permission", async () => {
+it("registers all 6 canonical Android channels without sound, routes foreground pushes by channel, and reports test arrivals", async () => {
   vi.resetModules();
   platform.name = "android";
-  const fresh = await import("@/lib/push-native");
-  await fresh.startNativePush({
+  const [
+    { startNativePush: startFresh },
+    { onTestPushArrival },
+    { NOTIFICATION_CHANNELS },
+  ] = await Promise.all([
+    import("@/lib/push-native"),
+    import("@/lib/push-test-events"),
+    import("@/lib/notification-channels"),
+  ]);
+
+  const arrivals: { testId?: string | undefined; receivedAt: string }[] = [];
+  const off = onTestPushArrival((ev) => arrivals.push(ev));
+
+  await startFresh({
     channelName: "Nadhir alerts",
+    translate: (key) => `tr:${key}`,
     navigate: vi.fn(),
     onToken: vi.fn(),
   });
+
+  // All 6 channels created in canonical order, with exact importance/visibility/vibration/lights and NO `sound`
+  expect(plugin.createChannel).toHaveBeenCalledTimes(
+    NOTIFICATION_CHANNELS.length,
+  );
+  NOTIFICATION_CHANNELS.forEach((spec, idx) => {
+    const call = plugin.createChannel.mock.calls[idx]![0] as Record<
+      string,
+      unknown
+    >;
+    expect(call).toEqual({
+      id: spec.id,
+      name: spec.id === "alerts" ? "Nadhir alerts" : `tr:${spec.i18nNameKey}`,
+      description: `tr:${spec.i18nDescriptionKey}`,
+      importance: spec.capacitorImportance,
+      visibility: spec.visibility,
+      vibration: spec.vibration,
+      lights: spec.lights,
+    });
+    expect("sound" in call).toBe(false);
+  });
+
   const received = plugin.addListener.mock.calls.find(
     ([name]) => name === "notificationReceived",
   )![1] as (e: unknown) => void;
+
+  // Legacy data without channel_id/kind falls back to "alerts"
   received({
     notification: { title: "t", body: "b", data: { link: "/fire/DZ1" } },
   });
+  // Tagged urgent fire pushes reuse deterministic notification ID and route to alerts_urgent
   received({
     notification: {
       title: "t2",
       body: "b2",
       tag: "fire-DZ1",
-      data: { link: "/fire/DZ1" },
+      data: { link: "/fire/DZ1", channel_id: "alerts_urgent" },
     },
   });
   received({
@@ -179,26 +221,57 @@ it("shows an Android foreground push immediately, without asking for alarm permi
       title: "t3",
       body: "b3",
       tag: "fire-DZ1",
-      data: { link: "/fire/DZ1" },
+      data: { link: "/fire/DZ1", kind: "fire" },
     },
   });
-  const ids = local.schedule.mock.calls.map(([arg]) => arg.notifications[0].id);
-  expect(ids[1]).toBe(ids[2]);
-  const [notification] = local.schedule.mock.calls[0]![0].notifications;
-  expect(notification).toMatchObject({
+  // Earthquake & official & civil & test channel routing
+  received({
+    notification: {
+      title: "eq",
+      body: "m4.3",
+      data: { kind: "earthquake", magnitude: "4.3" },
+    },
+  });
+  received({
+    notification: {
+      title: "test",
+      body: "self",
+      data: {
+        kind: "test",
+        channel_id: "alerts_test",
+        test_id: "t-42",
+        receipt: "sig-42",
+      },
+    },
+  });
+
+  const scheduled = local.schedule.mock.calls.map(
+    ([arg]) => arg.notifications[0],
+  );
+  expect(scheduled[1].id).toBe(scheduled[2].id);
+  expect(scheduled[0]).toMatchObject({
     title: "t",
     body: "b",
     channelId: "alerts",
     isExactNotification: false,
     extra: { link: "/fire/DZ1" },
   });
-  expect(plugin.createChannel).toHaveBeenCalledWith(
+  expect(scheduled[1].channelId).toBe("alerts_urgent");
+  expect(scheduled[2].channelId).toBe("alerts_urgent");
+  expect(scheduled[3].channelId).toBe("alerts_earthquakes");
+  expect(scheduled[4].channelId).toBe("alerts_test");
+  expect(scheduled.every((n) => n.isExactNotification === false)).toBe(true);
+
+  expect(arrivals).toHaveLength(1);
+  expect(arrivals[0]!.testId).toBe("t-42");
+  expect(fetch).toHaveBeenCalledWith(
+    expect.stringContaining("/api/public/push-receipt"),
     expect.objectContaining({
-      id: "alerts",
-      name: "Nadhir alerts",
-      importance: 5,
+      method: "POST",
+      body: JSON.stringify({ test_id: "t-42", receipt: "sig-42" }),
     }),
   );
+  off();
 });
 
 it("tells the location tracker which communes are now manual after every change", async () => {

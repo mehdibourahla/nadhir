@@ -107,3 +107,84 @@ it("hides explicitly cancelled or superseded ONM banners and lets official end s
   ];
   expect(renderToStaticMarkup(<BroadcastBanner />)).toBe("");
 });
+
+it("renders trigger provenance and hazard-aware labels on live fire, ONM, official flood and earthquake banners", () => {
+  rows.data = [
+    fireRow("LIVE1", 1),
+    {
+      ...fireRow("x", 1),
+      id: "onm-live",
+      kind: "onm",
+      severity: "Extreme",
+      cluster_id: null,
+      fire_clusters: null,
+      onm_vigilance: {
+        title: "Rain Extreme",
+        headline_fr: "Pluies torrentielles sur Tizi Ouzou",
+        expires: new Date(Date.now() + 3_600_000).toISOString(),
+        sent: hoursAgo(0.5),
+        area_desc: "Tizi Ouzou",
+      },
+    },
+    {
+      ...fireRow("x", 1),
+      id: "off-flood",
+      kind: "official",
+      hazard: "flood",
+      source_key: "dgpc_telegram",
+      cluster_id: null,
+      official_incident_id: "inc-flood-1",
+      fire_clusters: null,
+      cap_alerts: {
+        info: [
+          {
+            language: "fr-DZ",
+            headline: "Intervention inondation Bab El Oued",
+            parameter: [
+              { valueName: "hazard_kind", value: "flood" },
+              { valueName: "source_key", value: "dgpc_telegram" },
+              { valueName: "source_attribution", value: "DGPC" },
+              { valueName: "area_label", value: "Bab El Oued" },
+            ],
+          },
+        ],
+      },
+    },
+  ];
+  const html = renderToStaticMarkup(<BroadcastBanner />);
+  expect(html).toContain("Feu LIVE1");
+  expect(html).toContain("Pluies torrentielles sur Tizi Ouzou");
+  expect(html).toContain("Intervention inondation Bab El Oued");
+  expect(html).toContain("civilMap.sourceOfficial");
+  expect(html).toContain("provenance.whySeeing");
+  expect(html).not.toContain("\u2014");
+
+  rows.data = [
+    {
+      ...fireRow("x", 1),
+      id: "eq-live",
+      kind: "earthquake",
+      hazard: "earthquake",
+      source_key: "emsc",
+      cluster_id: null,
+      earthquake_id: "eq-1",
+      fire_clusters: null,
+      cap_alerts: {
+        info: [
+          {
+            language: "fr-DZ",
+            headline: "EMSC : séisme M4.5 près d'Azazga",
+            parameter: [
+              { valueName: "magnitude", value: "4.5" },
+              { valueName: "source_attribution", value: "EMSC" },
+            ],
+          },
+        ],
+      },
+    },
+  ];
+  const eqHtml = renderToStaticMarkup(<BroadcastBanner />);
+  expect(eqHtml).toContain("civilMap.earthquake");
+  expect(eqHtml).toContain("provenance.whySeeing");
+  expect(eqHtml).not.toContain("\u2014");
+});

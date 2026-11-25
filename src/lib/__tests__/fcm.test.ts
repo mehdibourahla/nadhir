@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  parseProvenancePayload,
+  validateProvenanceInvariants,
+} from "@/lib/alert-provenance";
+import {
   FCM_LANGS,
   fcmMessageForAlert,
+  fcmMessageForSelfTest,
   fcmMessagesForEarthquake,
   fcmMessagesForFire,
   fcmMessagesForOfficial,
@@ -69,16 +74,24 @@ describe("fcmMessagesForFire", () => {
     ).toBe(true);
   });
 
-  it("deep-links to the fire page", () => {
+  it("deep-links to the fire page and attaches channel + provenance", () => {
     expect(messages[0]!.webpush.fcm_options.link).toBe(
       "https://nadhir.app/fire/DZ7K4A",
     );
-    expect(messages[0]!.data).toEqual({
+    expect(messages[0]!.data).toMatchObject({
       broadcast_id: "b-1",
       severity: "Severe",
       kind: "fire",
+      channel_id: "alerts_urgent",
       link: "/fire/DZ7K4A",
+      provenance_trigger: "commune_topic",
+      provenance_source_key: "firms",
+      provenance_source: "NASA FIRMS",
+      provenance_rule: "provenance.rule.probableFire",
     });
+    const parsed = parseProvenancePayload(messages[0]!.data);
+    expect(parsed).not.toBeNull();
+    expect(validateProvenanceInvariants(parsed!)).toEqual([]);
   });
 
   it("drops a language with no info block rather than inventing text", () => {
@@ -191,13 +204,96 @@ describe("fcmMessageForAlert", () => {
     ).toBe("c9");
   });
 
-  it("carries the alert id and its receipt for the device to confirm arrival", () => {
-    expect(fcmMessageForAlert(alert, "sig").data).toEqual({
+  it("carries the alert id, channel, provenance and receipt for the device to confirm arrival", () => {
+    const data = fcmMessageForAlert(alert, "sig").data;
+    expect(data).toMatchObject({
       alert_id: "a1",
       kind: "weather",
+      channel_id: "alerts_civil",
       receipt: "sig",
       link: "/alerts",
+      provenance_trigger: "watch_zone",
+      provenance_source_key: "onm",
+      provenance_source: "ONM · Météo Algérie",
     });
+    expect(
+      Object.values(data).every((value) => typeof value === "string"),
+    ).toBe(true);
+  });
+
+  it("routes watch-zone alerts across distinct Android channels by hazard and severity", () => {
+    const extremeOnm = fcmMessageForAlert(
+      { ...alert, severity: 4, payload: { onm_severity: "Extreme" } },
+      "r",
+    );
+    expect(extremeOnm.android.notification.channel_id).toBe("alerts_urgent");
+    expect(extremeOnm.data.channel_id).toBe("alerts_urgent");
+
+    const severeOnm = fcmMessageForAlert(
+      { ...alert, severity: 3, payload: { onm_severity: "Severe" } },
+      "r",
+    );
+    expect(severeOnm.android.notification.channel_id).toBe("alerts_official");
+
+    const dgpcFire = fcmMessageForAlert(
+      {
+        ...alert,
+        kind: "official",
+        severity: 4,
+        source_table: "official_incidents",
+        payload: { hazard: "vegetation" },
+      },
+      "r",
+    );
+    expect(dgpcFire.android.notification.channel_id).toBe("alerts_urgent");
+
+    const dgpcFlood = fcmMessageForAlert(
+      {
+        ...alert,
+        kind: "official",
+        severity: 4,
+        source_table: "official_incidents",
+        payload: { hazard: "flood" },
+      },
+      "r",
+    );
+    expect(dgpcFlood.android.notification.channel_id).toBe("alerts_official");
+
+    const quakeM4 = fcmMessageForAlert(
+      {
+        ...alert,
+        kind: "earthquake",
+        severity: 3,
+        payload: { magnitude: 4.4 },
+      },
+      "r",
+    );
+    expect(quakeM4.android.notification.channel_id).toBe("alerts_earthquakes");
+
+    const quakeM5 = fcmMessageForAlert(
+      {
+        ...alert,
+        kind: "earthquake",
+        severity: 4,
+        payload: { magnitude: 5.2 },
+      },
+      "r",
+    );
+    expect(quakeM5.android.notification.channel_id).toBe("alerts_urgent");
+
+    const endedFire = fcmMessageForAlert(
+      {
+        ...alert,
+        kind: "fire",
+        severity: 1,
+        payload: { phase: "observation_ended", short_id: "DZ1" },
+      },
+      "r",
+    );
+    expect(endedFire.android.notification.channel_id).toBe("alerts_civil");
+    expect(endedFire.android.priority).toBe("normal");
+    expect(endedFire.apns.headers["apns-priority"]).toBe("5");
+    expect(endedFire.apns.payload.aps["interruption-level"]).toBe("active");
   });
 
   it("opens the fire page for a fire alert and the inbox otherwise", () => {
@@ -228,10 +324,10 @@ describe("native delivery", () => {
     info,
   });
 
-  it("asks Android and iOS for immediate, audible delivery on the alerts channel", () => {
+  it("asks Android and iOS for immediate, audible delivery on the alerts_urgent channel for active fires", () => {
     expect(fire!.android).toEqual({
       priority: "high",
-      notification: { channel_id: "alerts", tag: "fire-DZ7K4A" },
+      notification: { channel_id: "alerts_urgent", tag: "fire-DZ7K4A" },
     });
     expect(fire!.apns).toEqual({
       headers: { "apns-priority": "10", "apns-collapse-id": "fire-DZ7K4A" },
@@ -241,7 +337,7 @@ describe("native delivery", () => {
     });
   });
 
-  it("tells the app which screen a tap opens", () => {
+  it("tells the app which screen a tap opens and routes Severe ONM to alerts_official", () => {
     expect(fire!.data.link).toBe("/fire/DZ7K4A");
     const [onm] = fcmMessagesForOnm({
       broadcastId: "b-2",
@@ -253,7 +349,9 @@ describe("native delivery", () => {
       event: "rain",
     });
     expect(onm!.data.link).toBe("/forecast?commune=1503");
-    expect(onm!.android.notification).toEqual({ channel_id: "alerts" });
+    expect(onm!.android.notification).toEqual({
+      channel_id: "alerts_official",
+    });
     expect(onm!.apns.headers).toEqual({ "apns-priority": "10" });
   });
 
@@ -373,13 +471,18 @@ describe("fcmMessagesForOfficial & fcmMessagesForEarthquake (F8/F9)", () => {
       info,
     });
     expect(legacy).toHaveLength(4);
-    expect(legacy[0]!.data).toEqual({
+    expect(legacy[0]!.data).toMatchObject({
       broadcast_id: "b-off-1",
       severity: "Severe",
       kind: "official",
+      channel_id: "alerts_urgent",
       link: "/",
+      provenance_trigger: "commune_topic",
+      provenance_source_key: "dgpc_telegram",
     });
-    expect(legacy[0]!.android.notification).toEqual({ channel_id: "alerts" });
+    expect(legacy[0]!.android.notification).toEqual({
+      channel_id: "alerts_urgent",
+    });
 
     const enriched = fcmMessagesForOfficial({
       broadcastId: "b-off-2",
@@ -395,15 +498,20 @@ describe("fcmMessagesForOfficial & fcmMessagesForEarthquake (F8/F9)", () => {
       observedAt: "2026-11-24T10:00:00Z",
       areaLabel: "Bab El Oued, Alger",
     });
-    expect(enriched[0]!.android.notification.tag).toBe("official-inc-42");
+    expect(enriched[0]!.android.notification).toEqual({
+      channel_id: "alerts_official",
+      tag: "official-inc-42",
+    });
     expect(enriched[0]!.data).toMatchObject({
       broadcast_id: "b-off-2",
       kind: "official",
+      channel_id: "alerts_official",
       hazard: "flood",
       phase: "initial",
       status: "ongoing",
       source_key: "dgpc_telegram",
       link: "/?event=official%3Ainc-42",
+      provenance_rule: "provenance.rule.dgpcNonFire",
     });
   });
 
@@ -421,7 +529,10 @@ describe("fcmMessagesForOfficial & fcmMessagesForEarthquake (F8/F9)", () => {
     });
     expect(msgs).toHaveLength(8);
     expect(msgs[0]!.topic).toBe("v1.commune.1601.ar");
-    expect(msgs[0]!.android.notification.tag).toBe("quake-eq-20261124-1");
+    expect(msgs[0]!.android.notification).toEqual({
+      channel_id: "alerts_earthquakes",
+      tag: "quake-eq-20261124-1",
+    });
     expect(msgs[0]!.webpush.fcm_options.link).toBe(
       "https://nadhir.app/?event=quake%3Aeq-20261124-1",
     );
@@ -429,12 +540,94 @@ describe("fcmMessagesForOfficial & fcmMessagesForEarthquake (F8/F9)", () => {
       broadcast_id: "b-eq-1",
       severity: "Severe",
       kind: "earthquake",
+      channel_id: "alerts_earthquakes",
       hazard: "earthquake",
       magnitude: "4.4",
       source_key: "emsc",
       link: "/?event=quake%3Aeq-20261124-1",
+      provenance_rule: "provenance.rule.m4Quake",
     });
     const packed = packTopics(msgs);
     expect(packed).toHaveLength(4);
+
+    const m5 = fcmMessagesForEarthquake({
+      broadcastId: "b-eq-2",
+      severity: "Extreme",
+      communeCodes: ["1601"],
+      earthquakeId: "eq-20261124-2",
+      magnitude: 5.3,
+      info,
+      observedAt: "2026-11-24T11:05:00Z",
+    });
+    expect(m5[0]!.android.notification.channel_id).toBe("alerts_urgent");
+    expect(m5[0]!.data["provenance_rule"]).toBe("provenance.rule.m5Quake");
   });
+});
+
+describe("fcmMessageForSelfTest (F11 + F12)", () => {
+  const RESERVED_FCM_KEYS = new Set([
+    "from",
+    "notification",
+    "message_type",
+    "collapse_key",
+  ]);
+
+  it.each(FCM_LANGS)(
+    "builds single-token alerts_test payload with valid provenance and zero em dashes in %s",
+    (lang) => {
+      const msg = fcmMessageForSelfTest({
+        token: "device-registration-token",
+        testId: "test-123",
+        lang,
+        receipt: "sig-abc",
+        linkPath: "/settings",
+        observedAt: "2026-11-25T10:00:00Z",
+      });
+
+      expect(msg.token).toBe("device-registration-token");
+      expect("topic" in msg).toBe(false);
+      expect("condition" in msg).toBe(false);
+      expect(msg.android).toEqual({
+        priority: "high",
+        notification: { channel_id: "alerts_test", tag: "nadhir-self-test" },
+      });
+      expect(msg.apns).toEqual({
+        headers: {
+          "apns-priority": "10",
+          "apns-collapse-id": "nadhir-self-test",
+        },
+        payload: { aps: { sound: "default", "interruption-level": "active" } },
+      });
+      expect(msg.notification.title).not.toContain("\u2014");
+      expect(msg.notification.body).not.toContain("\u2014");
+      expect(msg.notification.title.toLowerCase()).not.toContain("safe");
+      expect(msg.notification.body.toLowerCase()).not.toContain("safe");
+      expect(msg.data).toMatchObject({
+        kind: "test",
+        channel_id: "alerts_test",
+        test_id: "test-123",
+        receipt: "sig-abc",
+        link: "/settings",
+        provenance_trigger: "self_test",
+        provenance_source_key: "nadhir_test",
+        provenance_source: "Nadhir",
+        provenance_rule: "provenance.rule.selfTest",
+        provenance_observed_at: "2026-11-25T10:00:00Z",
+      });
+
+      const parsed = parseProvenancePayload(msg.data);
+      expect(parsed).not.toBeNull();
+      expect(validateProvenanceInvariants(parsed!)).toEqual([]);
+
+      // String-only, non-reserved, well under 4,096 bytes UTF-8
+      for (const [k, v] of Object.entries(msg.data)) {
+        expect(typeof v).toBe("string");
+        expect(RESERVED_FCM_KEYS.has(k)).toBe(false);
+        expect(k.startsWith("google.") || k.startsWith("gcm.")).toBe(false);
+      }
+      expect(
+        new TextEncoder().encode(JSON.stringify(msg.data)).length,
+      ).toBeLessThan(4096);
+    },
+  );
 });

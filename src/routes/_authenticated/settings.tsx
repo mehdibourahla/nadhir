@@ -5,9 +5,17 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { AccountSecurity } from "@/components/AccountSecurity";
+import { OemBatteryGuide } from "@/components/nadhir/OemBatteryGuide";
+import { UserPushTest } from "@/components/nadhir/UserPushTest";
 
 import { supabase } from "@/integrations/supabase/client";
-import { LOCALES, LOCALE_LABELS, applyLocale, type Locale } from "@/i18n";
+import {
+  LOCALES,
+  LOCALE_LABELS,
+  applyLocale,
+  isLocale,
+  type Locale,
+} from "@/i18n";
 import { profileQuery, saveProfileSettings } from "@/lib/account";
 import { titledMeta } from "@/lib/page-meta";
 import { DevicePush } from "@/components/DevicePush";
@@ -41,6 +49,7 @@ function SettingsPage() {
     quiet_hours_end: "",
   });
   const [saved, setSaved] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const removeAccount = useMutation({
@@ -312,6 +321,16 @@ function SettingsPage() {
           ) : null}
         </div>
       </form>
+      <section className="card mt-5 space-y-4 p-5 text-sm">
+        <UserPushTest
+          mode="authenticated"
+          lang={isLocale(draft.locale) ? draft.locale : undefined}
+          onTimeout={() => setGuideOpen(true)}
+        />
+        <div className="border-t border-border pt-4">
+          <OemBatteryGuide open={guideOpen} onOpenChange={setGuideOpen} />
+        </div>
+      </section>
       <details className="panel mt-6 p-5">
         <summary className="cursor-pointer font-semibold text-destructive">
           {t("account.deleteAccount")}

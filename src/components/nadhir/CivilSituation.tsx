@@ -10,14 +10,142 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import type { Locale } from "@/i18n";
+import {
+  buildAlertProvenance,
+  type AlertProvenanceData,
+} from "@/lib/alert-provenance";
 import type { Situation } from "@/lib/civil-map";
 import { relativeTime, unitName, type AdminUnit } from "@/lib/nadhir";
+import { isFireKind } from "@/lib/text-sources/merge";
+import { AlertProvenance } from "./AlertProvenance";
 import { OfficialIncidentDetail } from "./OfficialIncidentDetail";
 import { HazardReportDetail } from "./HazardReportDetail";
 import { QuakeDetail } from "./QuakeDetail";
 import { AirportDetail } from "./AirportDetail";
 import { civilPublicationLifecycle } from "@/lib/civil-publication";
 import { adviceFor, weatherAdviceQuery } from "@/lib/weather-advice";
+
+function provenanceForSituation(
+  item: Situation,
+  areaLabel: string | null,
+): AlertProvenanceData {
+  if (item.source === "onm") {
+    const severity = item.data?.severity?.trim().toLowerCase() ?? "";
+    const ruleLabelKey =
+      severity === "extreme"
+        ? "provenance.rule.onmExtreme"
+        : severity === "severe"
+          ? "provenance.rule.onmSevere"
+          : "provenance.rule.onmWarning";
+    return buildAlertProvenance({
+      triggerKind: "wilaya_warning",
+      areaLabel,
+      sourceKey: "onm",
+      sourceAttribution: "ONM · Météo Algérie",
+      ruleLabelKey,
+      observedAt: item.data?.sent ?? item.at,
+      authorityStatus: "official",
+    });
+  }
+  if (item.source === "official") {
+    const isMedia = item.data?.authority_tier === "media";
+    const kind = item.data?.kind ?? "vegetation";
+    const ruleLabelKey = isMedia
+      ? kind === "road"
+        ? "provenance.rule.roadDanger"
+        : "provenance.rule.civilUpdate"
+      : isFireKind(kind)
+        ? "provenance.rule.dgpcFire"
+        : "provenance.rule.dgpcNonFire";
+    return buildAlertProvenance({
+      triggerKind: "national_feed",
+      areaLabel,
+      sourceKey: isMedia ? "ita_facebook" : "dgpc_telegram",
+      sourceAttribution: isMedia ? "Info Trafic Algérie" : "DGPC",
+      ruleLabelKey,
+      observedAt: item.data?.as_of ?? item.data?.last_reported_at ?? item.at,
+      authorityStatus: isMedia ? "observed" : "official",
+    });
+  }
+  if (item.source === "satellite") {
+    return buildAlertProvenance({
+      triggerKind: "national_feed",
+      areaLabel,
+      sourceKey: "firms",
+      sourceAttribution: "NASA FIRMS",
+      ruleLabelKey:
+        item.level === "confirmed"
+          ? "provenance.rule.dgpcFire"
+          : item.level === "probable"
+            ? "provenance.rule.probableFire"
+            : "provenance.rule.civilUpdate",
+      observedAt: item.data?.last_detected_at ?? item.at,
+      authorityStatus:
+        item.level === "confirmed"
+          ? "official"
+          : item.level === "probable"
+            ? "probable"
+            : "observed",
+    });
+  }
+  if (item.source === "seismic") {
+    const mag = Number(item.data?.magnitude ?? 0);
+    const network = item.data?.network?.trim() || "EMSC";
+    return buildAlertProvenance({
+      triggerKind: "national_feed",
+      areaLabel,
+      sourceKey: network.toLowerCase().includes("craag") ? "craag" : "emsc",
+      sourceAttribution: network,
+      ruleLabelKey:
+        mag >= 5
+          ? "provenance.rule.m5Quake"
+          : mag >= 4
+            ? "provenance.rule.m4Quake"
+            : "provenance.rule.civilUpdate",
+      observedAt: item.data?.occurred_at ?? item.at,
+      authorityStatus: "observed",
+    });
+  }
+  if (item.source === "civil") {
+    const sourceName = item.data?.source_name?.trim() || "Info Trafic Algérie";
+    return buildAlertProvenance({
+      triggerKind: "national_feed",
+      areaLabel,
+      sourceKey: sourceName.toLowerCase().includes("tariki")
+        ? "tariki_facebook"
+        : "ita_facebook",
+      sourceAttribution: sourceName,
+      ruleLabelKey:
+        item.data?.hazard === "road"
+          ? "provenance.rule.roadDanger"
+          : "provenance.rule.civilUpdate",
+      observedAt:
+        item.data?.source_published_at ?? item.data?.updated_at ?? item.at,
+      authorityStatus: "observed",
+    });
+  }
+  if (item.source === "citizen") {
+    return buildAlertProvenance({
+      triggerKind: "national_feed",
+      areaLabel,
+      sourceKey: "citizen_reports",
+      sourceAttribution: "Citizen report",
+      ruleLabelKey: "provenance.rule.civilUpdate",
+      observedAt: item.data?.observed_at ?? item.at,
+      authorityStatus: "observed",
+    });
+  }
+  const stationCode = item.data?.station?.trim();
+  return buildAlertProvenance({
+    triggerKind: "national_feed",
+    areaLabel,
+    sourceKey: "metar",
+    sourceAttribution: stationCode ? `METAR (${stationCode})` : "METAR",
+    ruleLabelKey: "provenance.rule.civilUpdate",
+    observedAt: item.data?.observed_at ?? item.at,
+    authorityStatus: "observed",
+  });
+}
 
 export const hazardIcons = {
   all: ShieldCheck,
@@ -138,54 +266,66 @@ export function SituationCard({
     now,
   );
   const Icon = hazardIcons[item.category];
+  const areaLabel = place(item);
+  const provenance = provenanceForSituation(item, areaLabel);
   return (
-    <button
-      data-situation-id={item.id}
-      type="button"
-      aria-pressed={selected}
-      onClick={onSelect}
-      className={`w-full rounded-xl border p-3 text-start transition-colors focus-visible:outline-2 focus-visible:outline-primary lg:rounded-2xl lg:p-4 ${selected ? "border-primary bg-primary/5" : "border-border bg-surface hover:bg-muted/50"}`}
+    <div
+      className={`w-full rounded-xl border p-3 text-start transition-colors lg:rounded-2xl lg:p-4 ${selected ? "border-primary bg-primary/5" : "border-border bg-surface hover:bg-muted/50"}`}
     >
-      <span className="flex items-start gap-2.5 lg:gap-3">
-        <span
-          className={`shrink-0 rounded-lg p-2 lg:rounded-xl lg:p-2.5 ${item.source === "official" || item.source === "onm" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}
-        >
-          <Icon aria-hidden className="size-4 lg:size-5" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-xs font-medium text-muted-foreground">
-            {source(item)}
-          </span>
+      <button
+        data-situation-id={item.id}
+        type="button"
+        aria-pressed={selected}
+        onClick={onSelect}
+        className="w-full text-start focus-visible:outline-2 focus-visible:outline-primary"
+      >
+        <span className="flex items-start gap-2.5 lg:gap-3">
           <span
-            dir="auto"
-            lang={item.source === "civil" ? "fr" : undefined}
-            className="mt-0.5 block break-words text-sm font-semibold leading-snug lg:mt-1 lg:text-base"
+            className={`shrink-0 rounded-lg p-2 lg:rounded-xl lg:p-2.5 ${item.source === "official" || item.source === "onm" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}
           >
-            {title(item)}
+            <Icon aria-hidden className="size-4 lg:size-5" />
           </span>
-          <span className="mt-0.5 block text-xs text-muted-foreground lg:mt-1">
-            {status(item)}
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-medium text-muted-foreground">
+              {source(item)}
+            </span>
+            <span
+              dir="auto"
+              lang={item.source === "civil" ? "fr" : undefined}
+              className="mt-0.5 block break-words text-sm font-semibold leading-snug lg:mt-1 lg:text-base"
+            >
+              {title(item)}
+            </span>
+            <span className="mt-0.5 block text-xs text-muted-foreground lg:mt-1">
+              {status(item)}
+            </span>
           </span>
         </span>
-      </span>
-      <span className="mt-2 flex flex-wrap justify-between gap-1 border-t border-border/60 pt-2 text-xs text-muted-foreground lg:mt-3 lg:gap-2 lg:pt-2.5">
-        <span dir="auto">{place(item)}</span>
-        <time dateTime={item.at}>{relativeTime(item.at, locale, now)}</time>
-      </span>
-      {(item.lat === null || item.lon === null) && (
-        <span className="mt-1 block text-xs text-muted-foreground">
-          {t("civilMap.unknownLocation")}
+        <span className="mt-2 flex flex-wrap justify-between gap-1 border-t border-border/60 pt-2 text-xs text-muted-foreground lg:mt-3 lg:gap-2 lg:pt-2.5">
+          <span dir="auto">{areaLabel}</span>
+          <time dateTime={item.at}>{relativeTime(item.at, locale, now)}</time>
         </span>
-      )}
-      {(item.source === "onm" ||
-        item.source === "official" ||
-        item.source === "civil") &&
-        item.lat !== null && (
+        {(item.lat === null || item.lon === null) && (
           <span className="mt-1 block text-xs text-muted-foreground">
-            {t("civilMap.areaPrecision")}
+            {t("civilMap.unknownLocation")}
           </span>
         )}
-    </button>
+        {(item.source === "onm" ||
+          item.source === "official" ||
+          item.source === "civil") &&
+          item.lat !== null && (
+            <span className="mt-1 block text-xs text-muted-foreground">
+              {t("civilMap.areaPrecision")}
+            </span>
+          )}
+      </button>
+      <AlertProvenance
+        provenance={provenance}
+        compact
+        now={now}
+        className="mt-2"
+      />
+    </div>
   );
 }
 
@@ -208,9 +348,14 @@ export function SituationDetails({
   });
   const advice =
     item.source === "onm" ? adviceFor(item.data, adviceQuery.data ?? []) : null;
+  const areaLabel = place(item);
+  const provenance = provenanceForSituation(item, areaLabel);
+  const provenanceFooter = (
+    <AlertProvenance provenance={provenance} now={now} className="mt-4" />
+  );
   if (item.source === "official")
     return (
-      <>
+      <div>
         <p className="mb-4 rounded-xl bg-muted p-3 text-sm">
           {t("civilMap.areaPrecision")}
         </p>
@@ -223,20 +368,34 @@ export function SituationDetails({
           locale={locale}
           now={now}
         />
-      </>
+        {provenanceFooter}
+      </div>
     );
   if (item.source === "citizen")
-    return <HazardReportDetail report={item.data} locale={locale} now={now} />;
+    return (
+      <div>
+        <HazardReportDetail report={item.data} locale={locale} now={now} />
+        {provenanceFooter}
+      </div>
+    );
   if (item.source === "station")
-    return <AirportDetail report={item.data} locale={locale} now={now} />;
+    return (
+      <div>
+        <AirportDetail report={item.data} locale={locale} now={now} />
+        {provenanceFooter}
+      </div>
+    );
   if (item.source === "seismic")
     return (
-      <QuakeDetail
-        quake={item.data}
-        place={place(item)}
-        locale={locale}
-        now={now}
-      />
+      <div>
+        <QuakeDetail
+          quake={item.data}
+          place={areaLabel}
+          locale={locale}
+          now={now}
+        />
+        {provenanceFooter}
+      </div>
     );
   if (item.source === "civil")
     return (
@@ -265,7 +424,7 @@ export function SituationDetails({
         <dl className="space-y-3 text-sm">
           <div>
             <dt className="text-muted-foreground">{t("civilMap.area")}</dt>
-            <dd dir="auto">{place(item)}</dd>
+            <dd dir="auto">{areaLabel}</dd>
           </div>
           {(
             [
@@ -297,6 +456,7 @@ export function SituationDetails({
             {t("civilMap.openSource")}
           </a>
         )}
+        {provenanceFooter}
       </div>
     );
   return (
@@ -312,7 +472,7 @@ export function SituationDetails({
         <div>
           <dt className="text-muted-foreground">{t("civilMap.area")}</dt>
           <dd dir="auto" className="mt-1 font-medium">
-            {place(item)}
+            {areaLabel}
           </dd>
         </div>
         <div>
@@ -429,6 +589,7 @@ export function SituationDetails({
           </Link>
         </>
       )}
+      {provenanceFooter}
     </div>
   );
 }

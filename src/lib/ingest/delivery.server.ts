@@ -44,6 +44,8 @@ type PendingRow = {
   earthquake_id?: string | null;
   hazard?: string | null;
   source_key?: string | null;
+  created_at?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 type CapText = {
@@ -51,11 +53,19 @@ type CapText = {
   headline: string;
   description: string;
   parameter?: { valueName: string; value: string }[];
+  area?: { areaDesc?: string }[];
 };
 
 type DeliveryContext = {
   infoByCap: Map<string, CapText[]>;
-  shortIdByCluster: Map<string, string>;
+  clusterById: Map<
+    string,
+    {
+      short_id: string;
+      last_detected_at?: string | null;
+      confirmed_at?: string | null;
+    }
+  >;
   onmById: Map<
     string,
     {
@@ -66,9 +76,14 @@ type DeliveryContext = {
       msg_type?: string | null;
       cancelled_at?: string | null;
       instruction_fr?: string | null;
+      sent?: string | null;
+      area_desc?: string | null;
     }
   >;
-  authorityById: Map<string, { source: string; body: string }>;
+  authorityById: Map<
+    string,
+    { source: string; body: string; created_at?: string | null }
+  >;
   earthquakeById: Map<
     string,
     { magnitude: number; network: string | null; occurred_at: string }
@@ -142,7 +157,7 @@ function capParam(
 async function loadContext(rows: PendingRow[]): Promise<DeliveryContext> {
   const context: DeliveryContext = {
     infoByCap: new Map(),
-    shortIdByCluster: new Map(),
+    clusterById: new Map(),
     onmById: new Map(),
     authorityById: new Map(),
     earthquakeById: new Map(),
@@ -167,11 +182,10 @@ async function loadContext(rows: PendingRow[]): Promise<DeliveryContext> {
   if (clusterIds.length) {
     const { data, error } = await supabaseAdmin
       .from("fire_clusters")
-      .select("id, short_id")
+      .select("id, short_id, last_detected_at, confirmed_at")
       .in("id", clusterIds);
     if (error) throw new Error(error.message);
-    for (const row of data ?? [])
-      context.shortIdByCluster.set(row.id, row.short_id);
+    for (const row of data ?? []) context.clusterById.set(row.id, row);
   }
 
   const onmIds = rows
@@ -181,7 +195,7 @@ async function loadContext(rows: PendingRow[]): Promise<DeliveryContext> {
     const { data, error } = await supabaseAdmin
       .from("onm_vigilance")
       .select(
-        "id, title, headline_fr, wilaya_id, event, msg_type, cancelled_at, instruction_fr",
+        "id, title, headline_fr, wilaya_id, event, msg_type, cancelled_at, instruction_fr, sent, area_desc",
       )
       .in("id", onmIds);
     if (error) throw new Error(error.message);
@@ -194,7 +208,7 @@ async function loadContext(rows: PendingRow[]): Promise<DeliveryContext> {
   if (authorityIds.length) {
     const { data, error } = await supabaseAdmin
       .from("authority_warnings")
-      .select("id, source, body")
+      .select("id, source, body, created_at")
       .in("id", authorityIds);
     if (error) throw new Error(error.message);
     for (const row of data ?? []) context.authorityById.set(row.id, row);
@@ -220,6 +234,12 @@ async function loadContext(rows: PendingRow[]): Promise<DeliveryContext> {
   return context;
 }
 
+function capAreaDesc(info: CapText[] | null | undefined): string | null {
+  const first = info?.[0];
+  const area = first?.area?.[0]?.areaDesc;
+  return typeof area === "string" && area.trim().length > 0 ? area : null;
+}
+
 function fcmMessagesFor(
   row: PendingRow,
   context: DeliveryContext,
@@ -228,16 +248,26 @@ function fcmMessagesFor(
     const info = row.cap_alert_id
       ? context.infoByCap.get(row.cap_alert_id)
       : null;
-    const shortId = row.cluster_id
-      ? context.shortIdByCluster.get(row.cluster_id)
+    const cluster = row.cluster_id
+      ? context.clusterById.get(row.cluster_id)
       : null;
-    if (!info || !shortId) return null;
+    if (!info || !cluster?.short_id) return null;
     return fcmMessagesForFire({
       broadcastId: row.id,
       severity: row.severity,
       communeCodes: row.push_codes,
-      shortId,
+      shortId: cluster.short_id,
       info,
+      phase: row.phase ?? capParam(info, "broadcast_phase"),
+      observedAt:
+        cluster.last_detected_at ??
+        capParam(info, "observed_at") ??
+        row.created_at ??
+        null,
+      areaLabel: capParam(info, "area_label") ?? capAreaDesc(info),
+      confirmed: Boolean(cluster.confirmed_at),
+      sourceKey: row.source_key ?? capParam(info, "source_key"),
+      sourceAttribution: capParam(info, "source_attribution"),
     });
   }
   if (row.kind === "onm") {
@@ -255,6 +285,9 @@ function fcmMessagesFor(
       headlineFr: onm.headline_fr,
       wilayaId: onm.wilaya_id,
       event: onm.event,
+      phase: row.phase ?? null,
+      observedAt: onm.sent ?? row.created_at ?? null,
+      areaLabel: onm.area_desc ?? null,
     });
   }
   if (row.kind === "official") {
@@ -274,8 +307,8 @@ function fcmMessagesFor(
       status: capParam(info, "incident_status"),
       sourceKey: row.source_key ?? capParam(info, "source_key"),
       sourceAttribution: capParam(info, "source_attribution"),
-      observedAt: capParam(info, "observed_at"),
-      areaLabel: capParam(info, "area_label"),
+      observedAt: capParam(info, "observed_at") ?? row.created_at ?? null,
+      areaLabel: capParam(info, "area_label") ?? capAreaDesc(info),
     });
   }
   if (row.kind === "earthquake") {
@@ -302,8 +335,12 @@ function fcmMessagesFor(
       sourceKey: row.source_key ?? capParam(info, "source_key") ?? "emsc",
       sourceAttribution:
         capParam(info, "source_attribution") ?? quake?.network ?? "EMSC",
-      observedAt: capParam(info, "observed_at") ?? quake?.occurred_at ?? null,
-      areaLabel: capParam(info, "area_label"),
+      observedAt:
+        capParam(info, "observed_at") ??
+        quake?.occurred_at ??
+        row.created_at ??
+        null,
+      areaLabel: capParam(info, "area_label") ?? capAreaDesc(info),
     });
   }
   if (row.kind === "authority") {
@@ -317,6 +354,8 @@ function fcmMessagesFor(
       communeCodes: row.push_codes,
       source: warning.source,
       body: warning.body,
+      observedAt: warning.created_at ?? row.created_at ?? null,
+      areaLabel: null,
     });
   }
   return null;

@@ -1,3 +1,17 @@
+import {
+  parseProvenancePayload,
+  provenanceForBroadcast,
+  provenanceForSelfTest,
+  provenanceForWatchZoneAlert,
+  toProvenancePayload,
+} from "@/lib/alert-provenance";
+import {
+  LEGACY_NOTIFICATION_CHANNEL_ID,
+  channelSpec,
+  resolveNotificationChannel,
+  type NotificationChannelId,
+} from "@/lib/notification-channels";
+
 export const FCM_LANGS = ["ar", "fr", "en", "kab"] as const;
 export type FcmLang = (typeof FCM_LANGS)[number];
 
@@ -13,13 +27,16 @@ export function userTopic(userId: string): string {
 
 type NativeDelivery = {
   android: {
-    priority: "high";
-    notification: { channel_id: "alerts"; tag?: string };
+    priority: "high" | "normal";
+    notification: { channel_id: NotificationChannelId; tag?: string };
   };
   apns: {
-    headers: { "apns-priority": "10"; "apns-collapse-id"?: string };
+    headers: { "apns-priority": "10" | "5"; "apns-collapse-id"?: string };
     payload: {
-      aps: { sound: "default"; "interruption-level": "time-sensitive" };
+      aps: {
+        sound: "default";
+        "interruption-level": "time-sensitive" | "active";
+      };
     };
   };
 };
@@ -41,19 +58,28 @@ function collapseId(tag: string) {
   return `${prefix}-${fnv1a(tag)}`;
 }
 
-function nativeDelivery(tag?: string): NativeDelivery {
+function nativeDelivery(
+  channelId: NotificationChannelId,
+  tag?: string,
+): NativeDelivery {
+  const spec =
+    channelSpec(channelId) ?? channelSpec(LEGACY_NOTIFICATION_CHANNEL_ID);
+  const apnsPriority: "10" | "5" = spec.androidPriority === "high" ? "10" : "5";
   return {
     android: {
-      priority: "high",
-      notification: { channel_id: "alerts", ...(tag ? { tag } : {}) },
+      priority: spec.androidPriority,
+      notification: { channel_id: spec.id, ...(tag ? { tag } : {}) },
     },
     apns: {
       headers: {
-        "apns-priority": "10",
+        "apns-priority": apnsPriority,
         ...(tag ? { "apns-collapse-id": collapseId(tag) } : {}),
       },
       payload: {
-        aps: { sound: "default", "interruption-level": "time-sensitive" },
+        aps: {
+          sound: spec.sound,
+          "interruption-level": spec.apnsInterruptionLevel,
+        },
       },
     },
   };
@@ -64,6 +90,35 @@ function appPath(link: string) {
   return url.pathname + url.search;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readString(
+  record: Record<string, unknown> | null,
+  key: string,
+): string | null {
+  if (!record || !Object.hasOwn(record, key)) return null;
+  const value = record[key];
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function readNumber(
+  record: Record<string, unknown> | null,
+  key: string,
+): number | null {
+  if (!record || !Object.hasOwn(record, key)) return null;
+  const value = record[key];
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 export type FcmUserMessage = NativeDelivery & {
   topic: string;
   notification: { title: string; body: string };
@@ -71,7 +126,13 @@ export type FcmUserMessage = NativeDelivery & {
     fcm_options: { link: string };
     notification: { tag: string; renotify: boolean };
   };
-  data: { alert_id: string; kind: string; receipt: string; link: string };
+  data: Record<string, string> & {
+    alert_id: string;
+    kind: string;
+    channel_id: NotificationChannelId;
+    receipt: string;
+    link: string;
+  };
 };
 
 export function fcmMessageForAlert(
@@ -84,18 +145,61 @@ export function fcmMessageForAlert(
     source_id: string | null;
     cluster_id: string | null;
     payload: unknown;
+    severity?: number | string | null;
+    zone_id?: string | null;
+    source_table?: string | null;
+    created_at?: string | null;
   },
   receipt: string,
 ): FcmUserMessage {
+  const payload = asRecord(alert.payload);
   const shortId =
-    alert.kind === "fire" &&
-    alert.payload &&
-    typeof alert.payload === "object" &&
-    "short_id" in alert.payload
-      ? String(alert.payload.short_id)
+    alert.kind === "fire" && payload && "short_id" in payload
+      ? String(payload["short_id"])
       : null;
   const link = shortId ? `${APP_URL}/fire/${shortId}` : `${APP_URL}/alerts`;
   const tag = alert.source_id ?? alert.cluster_id ?? alert.id;
+
+  const authoritySource = readString(payload, "authority");
+  const effectiveKind =
+    alert.source_table === "authority_warnings" || authoritySource !== null
+      ? "authority"
+      : alert.kind;
+  const severity =
+    readString(payload, "onm_severity") ?? alert.severity ?? null;
+  const hazard = readString(payload, "hazard");
+  const magnitude = readNumber(payload, "magnitude");
+  const phase = readString(payload, "phase");
+  const status = readString(payload, "status");
+
+  const channelId = resolveNotificationChannel({
+    kind: effectiveKind,
+    severity,
+    hazard,
+    magnitude,
+    phase,
+    status,
+  });
+
+  const observedAt =
+    readString(payload, "occurred_at") ??
+    readString(payload, "last_detected_at") ??
+    alert.created_at ??
+    new Date().toISOString();
+  const provenance =
+    parseProvenancePayload(alert.payload) ??
+    provenanceForWatchZoneAlert({
+      kind: alert.kind,
+      sourceTable: alert.source_table,
+      severity,
+      hazard,
+      phase,
+      magnitude,
+      sourceAttribution: authoritySource,
+      areaLabel: null,
+      observedAt,
+    });
+
   return {
     topic: userTopic(alert.user_id),
     notification: { title: alert.title, body: alert.body },
@@ -103,10 +207,12 @@ export function fcmMessageForAlert(
       fcm_options: { link },
       notification: { tag, renotify: true },
     },
-    ...nativeDelivery(tag),
+    ...nativeDelivery(channelId, tag),
     data: {
+      ...toProvenancePayload(provenance),
       alert_id: alert.id,
       kind: alert.kind,
+      channel_id: channelId,
       receipt,
       link: appPath(link),
     },
@@ -120,19 +226,12 @@ export type FcmMessage = NativeDelivery & {
     fcm_options: { link: string };
     notification?: { tag: string; renotify: boolean };
   };
-  data: {
+  data: Record<string, string> & {
     broadcast_id: string;
     severity: string;
     kind: string;
+    channel_id: NotificationChannelId;
     link: string;
-    hazard?: string;
-    phase?: string;
-    status?: string;
-    magnitude?: string;
-    source_key?: string;
-    source_attribution?: string;
-    observed_at?: string;
-    area_label?: string;
   };
 };
 
@@ -141,7 +240,12 @@ function message(
   title: string,
   body: string,
   link: string,
-  data: Omit<FcmMessage["data"], "link">,
+  channelId: NotificationChannelId,
+  data: Record<string, string> & {
+    broadcast_id: string;
+    severity: string;
+    kind: string;
+  },
   tag?: string,
 ): FcmMessage {
   return {
@@ -152,8 +256,8 @@ function message(
       fcm_options: { link },
       ...(tag ? { notification: { tag, renotify: true } } : {}),
     },
-    ...nativeDelivery(tag),
-    data: { ...data, link: appPath(link) },
+    ...nativeDelivery(channelId, tag),
+    data: { ...data, channel_id: channelId, link: appPath(link) },
   };
 }
 
@@ -163,12 +267,34 @@ export function fcmMessagesForFire(args: {
   communeCodes: string[];
   shortId: string;
   info: { language: string; headline: string; description: string }[];
+  phase?: string | null;
+  observedAt?: string | null;
+  areaLabel?: string | null;
+  confirmed?: boolean;
+  sourceKey?: string | null;
+  sourceAttribution?: string | null;
 }): FcmMessage[] {
   const link = `${APP_URL}/fire/${args.shortId}`;
+  const channelId = resolveNotificationChannel({
+    kind: "fire",
+    severity: args.severity,
+    phase: args.phase,
+  });
+  const provenance = provenanceForBroadcast({
+    kind: "fire",
+    severity: args.severity,
+    confirmed: args.confirmed,
+    sourceKey: args.sourceKey,
+    sourceAttribution: args.sourceAttribution,
+    areaLabel: args.areaLabel,
+    observedAt: args.observedAt ?? new Date().toISOString(),
+  });
   const data = {
+    ...toProvenancePayload(provenance),
     broadcast_id: args.broadcastId,
     severity: args.severity,
     kind: "fire",
+    ...(args.phase ? { phase: args.phase } : {}),
   };
   const out: FcmMessage[] = [];
   for (const code of args.communeCodes)
@@ -181,6 +307,7 @@ export function fcmMessagesForFire(args: {
           block.headline,
           block.description,
           link,
+          channelId,
           data,
           `fire-${args.shortId}`,
         ),
@@ -197,11 +324,29 @@ export function fcmMessagesForOnm(args: {
   headlineFr: string | null;
   wilayaId: string | null;
   event: string;
+  phase?: string | null;
+  observedAt?: string | null;
+  areaLabel?: string | null;
 }): FcmMessage[] {
+  const channelId = resolveNotificationChannel({
+    kind: "onm",
+    severity: args.severity,
+    phase: args.phase,
+  });
+  const provenance = provenanceForBroadcast({
+    kind: "onm",
+    severity: args.severity,
+    sourceKey: "onm",
+    sourceAttribution: "ONM · Météo Algérie",
+    areaLabel: args.areaLabel,
+    observedAt: args.observedAt ?? new Date().toISOString(),
+  });
   const data = {
+    ...toProvenancePayload(provenance),
     broadcast_id: args.broadcastId,
     severity: args.severity,
     kind: "onm",
+    ...(args.phase ? { phase: args.phase } : {}),
   };
   // relayed verbatim: same authority text on every language topic, attributed
   const body = args.headlineFr ?? args.title;
@@ -214,6 +359,7 @@ export function fcmMessagesForOnm(args: {
           "ONM · Météo Algérie",
           body,
           `${APP_URL}/forecast?commune=${encodeURIComponent(code)}`,
+          channelId,
           data,
           args.wilayaId ? `onm-${args.wilayaId}-${args.event}` : undefined,
         ),
@@ -227,8 +373,23 @@ export function fcmMessagesForAuthority(args: {
   communeCodes: string[];
   source: string;
   body: string;
+  observedAt?: string | null;
+  areaLabel?: string | null;
 }): FcmMessage[] {
+  const channelId = resolveNotificationChannel({
+    kind: "authority",
+    severity: args.severity,
+  });
+  const provenance = provenanceForBroadcast({
+    kind: "authority",
+    severity: args.severity,
+    sourceKey: "authority",
+    sourceAttribution: args.source,
+    areaLabel: args.areaLabel,
+    observedAt: args.observedAt ?? new Date().toISOString(),
+  });
   const data = {
+    ...toProvenancePayload(provenance),
     broadcast_id: args.broadcastId,
     severity: args.severity,
     kind: "authority",
@@ -237,7 +398,14 @@ export function fcmMessagesForAuthority(args: {
   for (const code of args.communeCodes)
     for (const lang of FCM_LANGS)
       out.push(
-        message(fcmTopic(code, lang), args.source, args.body, APP_URL, data),
+        message(
+          fcmTopic(code, lang),
+          args.source,
+          args.body,
+          APP_URL,
+          channelId,
+          data,
+        ),
       );
   return out;
 }
@@ -256,7 +424,28 @@ export function fcmMessagesForOfficial(args: {
   observedAt?: string | null;
   areaLabel?: string | null;
 }): FcmMessage[] {
-  const data: Omit<FcmMessage["data"], "link"> = {
+  const channelId = resolveNotificationChannel({
+    kind: "official",
+    severity: args.severity,
+    hazard: args.hazard,
+    phase: args.phase,
+    status: args.status,
+  });
+  const provenance = provenanceForBroadcast({
+    kind: "official",
+    severity: args.severity,
+    hazard: args.hazard,
+    sourceKey: args.sourceKey,
+    sourceAttribution: args.sourceAttribution,
+    areaLabel: args.areaLabel,
+    observedAt: args.observedAt ?? new Date().toISOString(),
+  });
+  const data: Record<string, string> & {
+    broadcast_id: string;
+    severity: string;
+    kind: string;
+  } = {
+    ...toProvenancePayload(provenance),
     broadcast_id: args.broadcastId,
     severity: args.severity,
     kind: "official",
@@ -285,6 +474,7 @@ export function fcmMessagesForOfficial(args: {
           block.headline,
           block.description,
           link,
+          channelId,
           data,
           tag,
         ),
@@ -306,7 +496,26 @@ export function fcmMessagesForEarthquake(args: {
   areaLabel?: string | null;
 }): FcmMessage[] {
   const link = `${APP_URL}/?event=${encodeURIComponent(`quake:${args.earthquakeId}`)}`;
-  const data: Omit<FcmMessage["data"], "link"> = {
+  const channelId = resolveNotificationChannel({
+    kind: "earthquake",
+    severity: args.severity,
+    magnitude: args.magnitude,
+  });
+  const provenance = provenanceForBroadcast({
+    kind: "earthquake",
+    severity: args.severity,
+    magnitude: args.magnitude,
+    sourceKey: args.sourceKey ?? "emsc",
+    sourceAttribution: args.sourceAttribution ?? "EMSC",
+    areaLabel: args.areaLabel,
+    observedAt: args.observedAt ?? new Date().toISOString(),
+  });
+  const data: Record<string, string> & {
+    broadcast_id: string;
+    severity: string;
+    kind: string;
+  } = {
+    ...toProvenancePayload(provenance),
     broadcast_id: args.broadcastId,
     severity: args.severity,
     kind: "earthquake",
@@ -331,12 +540,141 @@ export function fcmMessagesForEarthquake(args: {
           block.headline,
           block.description,
           link,
+          channelId,
           data,
           tag,
         ),
       );
     }
   return out;
+}
+
+export type SelfTestLinkPath = "/settings" | "/" | "/admin/sources";
+
+const SELF_TEST_LINK_PATHS: ReadonlySet<string> = new Set([
+  "/settings",
+  "/",
+  "/admin/sources",
+]);
+
+const SELF_TEST_COPY: Record<FcmLang, { title: string; body: string }> = {
+  ar: {
+    title: "نذير · اختبار الإشعارات",
+    body: "إشعار تجريبي للتحقق من وصول التنبيهات إلى هذا الجهاز. هذا ليس تنبيه خطر.",
+  },
+  fr: {
+    title: "Nadhir · Test de notification",
+    body: "Notification de test pour vérifier la réception sur cet appareil. Ceci n'est pas une alerte.",
+  },
+  en: {
+    title: "Nadhir · Notification test",
+    body: "Test notification to verify delivery on this device. This is not a hazard alert.",
+  },
+  kab: {
+    title: "Nadhir · Asekyed n yilɣa",
+    body: "Talɣut n usekyed i usenqed n tuṭṭfa deg yibenk-a. Mačči d alɣu n umihi.",
+  },
+};
+
+const SELF_TEST_TAG = "nadhir-self-test";
+
+export type FcmSelfTestMessage = {
+  token: string;
+  topic?: never;
+  condition?: never;
+  notification: { title: string; body: string };
+  android: {
+    priority: "high";
+    notification: { channel_id: "alerts_test"; tag: string };
+  };
+  apns: {
+    headers: { "apns-priority": "10"; "apns-collapse-id": string };
+    payload: {
+      aps: { sound: "default"; "interruption-level": "active" };
+    };
+  };
+  webpush: {
+    headers: { TTL: string };
+    fcm_options: { link: string };
+    notification: { tag: string; renotify: boolean };
+  };
+  data: Record<string, string> & {
+    kind: "test";
+    channel_id: "alerts_test";
+    test_id: string;
+    link: string;
+    provenance_trigger: "self_test";
+    provenance_source_key: "nadhir_test";
+    provenance_source: "Nadhir";
+    provenance_rule: "provenance.rule.selfTest";
+    provenance_observed_at: string;
+  };
+};
+
+export function fcmMessageForSelfTest(args: {
+  token: string;
+  testId: string;
+  lang?: FcmLang;
+  receipt?: string;
+  linkPath?: SelfTestLinkPath;
+  observedAt?: string;
+}): FcmSelfTestMessage {
+  const lang: FcmLang =
+    args.lang && FCM_LANGS.includes(args.lang) ? args.lang : "ar";
+  const copy = SELF_TEST_COPY[lang];
+  const safeLinkPath: SelfTestLinkPath =
+    args.linkPath && SELF_TEST_LINK_PATHS.has(args.linkPath)
+      ? args.linkPath
+      : "/settings";
+  const link = `${APP_URL}${safeLinkPath}`;
+  const observedAt = args.observedAt ?? new Date().toISOString();
+  const channelId = resolveNotificationChannel({ kind: "test" }) as
+    "alerts_test" | NotificationChannelId;
+  const spec = channelSpec(channelId);
+  const provenance = provenanceForSelfTest(observedAt);
+  const provenanceData = toProvenancePayload(provenance);
+
+  return {
+    token: args.token,
+    notification: { title: copy.title, body: copy.body },
+    android: {
+      priority: spec.androidPriority as "high",
+      notification: {
+        channel_id: spec.id as "alerts_test",
+        tag: SELF_TEST_TAG,
+      },
+    },
+    apns: {
+      headers: {
+        "apns-priority": "10",
+        "apns-collapse-id": SELF_TEST_TAG,
+      },
+      payload: {
+        aps: {
+          sound: spec.sound,
+          "interruption-level": spec.apnsInterruptionLevel as "active",
+        },
+      },
+    },
+    webpush: {
+      headers: { TTL: "60" },
+      fcm_options: { link },
+      notification: { tag: SELF_TEST_TAG, renotify: true },
+    },
+    data: {
+      ...provenanceData,
+      kind: "test",
+      channel_id: "alerts_test",
+      test_id: args.testId,
+      ...(args.receipt ? { receipt: args.receipt } : {}),
+      link: safeLinkPath,
+      provenance_trigger: "self_test",
+      provenance_source_key: "nadhir_test",
+      provenance_source: "Nadhir",
+      provenance_rule: "provenance.rule.selfTest",
+      provenance_observed_at: observedAt,
+    },
+  };
 }
 
 // FCM evaluates at most five topics in one condition

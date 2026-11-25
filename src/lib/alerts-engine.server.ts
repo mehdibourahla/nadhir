@@ -1,5 +1,9 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
+  provenanceForWatchZoneAlert,
+  toProvenancePayload,
+} from "@/lib/alert-provenance";
+import {
   ALERTING_STATES,
   DOWNWIND_HALF_ANGLE_DEG,
   LIVE_STATES,
@@ -298,7 +302,7 @@ async function loadHazardContext(
       ),
     supabaseAdmin
       .from("civil_publications")
-      .select("id, summary, area_id, source_name, expires_at")
+      .select("id, summary, area_id, source_name, expires_at, updated_at")
       .eq("state", "published")
       .eq("hazard", "road")
       .gt("expires_at", iso),
@@ -327,10 +331,11 @@ async function loadHazardContext(
     lat: number;
     lon: number;
     expires_at: string;
+    observed_at?: string | null;
   }>((from, to) =>
     supabaseAdmin
       .from("citizen_reports")
-      .select("id, user_id, hazard, summary, lat, lon, expires_at")
+      .select("id, user_id, hazard, summary, lat, lon, expires_at, observed_at")
       .or("publish_state.eq.published,status.eq.approved")
       .neq("status", "rejected")
       .neq("kind", "person_trapped")
@@ -397,6 +402,7 @@ async function loadHazardContext(
       lat: r.lat,
       lon: r.lon,
       expires_at: r.expires_at,
+      observed_at: r.observed_at ?? null,
       witnesses: votes
         .filter((v) => v.report_id === r.id)
         .map((v) => v.user_id),
@@ -612,6 +618,16 @@ export async function evaluateAlerts(userId?: string): Promise<AlertRun> {
             last_detected_at: cluster.last_detected_at,
             est_area_ha: cluster.est_area_ha,
             max_frp_mw: cluster.max_frp_mw,
+            ...toProvenancePayload(
+              provenanceForWatchZoneAlert({
+                kind: "fire",
+                phase: lifecycle.phase,
+                confirmed: cluster.confirmed_at !== null,
+                areaLabel: zone.name,
+                radiusKm: zone.radius_km,
+                observedAt: cluster.last_detected_at,
+              }),
+            ),
           },
         });
       }
@@ -661,6 +677,16 @@ export async function evaluateAlerts(userId?: string): Promise<AlertRun> {
                 est_area_ha: cluster.est_area_ha,
                 max_frp_mw: cluster.max_frp_mw,
                 last_detected_at: cluster.last_detected_at,
+                ...toProvenancePayload(
+                  provenanceForWatchZoneAlert({
+                    kind: "fire",
+                    phase: "growth",
+                    confirmed: cluster.confirmed_at !== null,
+                    areaLabel: zone.name,
+                    radiusKm: zone.radius_km,
+                    observedAt: cluster.last_detected_at,
+                  }),
+                ),
               },
             });
         }
@@ -736,6 +762,16 @@ export async function evaluateAlerts(userId?: string): Promise<AlertRun> {
             state: cluster.state,
             confidence: cluster.confidence,
             ...(urgent ? { settlement: urgent.name } : {}),
+            ...toProvenancePayload(
+              provenanceForWatchZoneAlert({
+                kind: "fire",
+                phase: urgent ? "urgent" : "new",
+                confirmed: cluster.confirmed_at !== null,
+                areaLabel: zone.name,
+                radiusKm: zone.radius_km,
+                observedAt: cluster.last_detected_at,
+              }),
+            ),
           },
         });
       }
@@ -770,6 +806,14 @@ export async function evaluateAlerts(userId?: string): Promise<AlertRun> {
             payload: {
               forecast_date: today,
               danger_level: forecast.danger_level,
+              ...toProvenancePayload(
+                provenanceForWatchZoneAlert({
+                  kind: "risk",
+                  areaLabel: zone.name,
+                  radiusKm: zone.radius_km,
+                  observedAt: checkpoint?.published_at ?? now.toISOString(),
+                }),
+              ),
             },
           });
         }

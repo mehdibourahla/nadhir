@@ -3,6 +3,10 @@ import { en, type Translation } from "@/i18n/locales/en";
 import { fr } from "@/i18n/locales/fr";
 import { kab } from "@/i18n/locales/kab";
 import {
+  provenanceForWatchZoneAlert,
+  toProvenancePayload,
+} from "@/lib/alert-provenance";
+import {
   EARTHQUAKE_BROADCAST_MIN_MAGNITUDE,
   EARTHQUAKE_BROADCAST_RADIUS_KM,
 } from "@/lib/broadcast-rules";
@@ -39,6 +43,7 @@ export type HazardContext = {
     severity: string;
     event: string;
     onset: string | null;
+    sent?: string | null;
     title: string;
     headline_fr: string | null;
     polygon: [number, number][] | null;
@@ -73,6 +78,7 @@ export type HazardContext = {
     area_id: string;
     source_name: string;
     expires_at: string;
+    updated_at?: string | null;
   }[];
   citizen: {
     id: string;
@@ -82,6 +88,7 @@ export type HazardContext = {
     lat: number;
     lon: number;
     expires_at: string;
+    observed_at?: string | null;
     witnesses: string[];
   }[];
   earthquakes: {
@@ -305,6 +312,16 @@ export function hazardAlerts(
               onm_severity: warning.severity,
               expires_at: warning.expires,
               map_event: `weather:${warning.id}`,
+              ...toProvenancePayload(
+                provenanceForWatchZoneAlert({
+                  kind: "weather",
+                  sourceTable: "onm_vigilance",
+                  severity: warning.severity,
+                  areaLabel: zone.name,
+                  radiusKm: zone.radius_km,
+                  observedAt: warning.sent ?? warning.onset ?? warning.expires,
+                }),
+              ),
             },
           },
           warning.severity === "Extreme",
@@ -328,8 +345,20 @@ export function hazardAlerts(
             source_table: "official_incidents",
             source_id: incident.id,
             payload: {
+              hazard: incident.kind,
               expires_at: later(incident.last_reported_at, 72),
               map_event: `official:${incident.id}`,
+              ...toProvenancePayload(
+                provenanceForWatchZoneAlert({
+                  kind: "official",
+                  sourceTable: "official_incidents",
+                  severity: 4,
+                  hazard: incident.kind,
+                  areaLabel: zone.name,
+                  radiusKm: zone.radius_km,
+                  observedAt: incident.last_reported_at,
+                }),
+              ),
             },
           },
           true,
@@ -352,6 +381,18 @@ export function hazardAlerts(
             payload: {
               authority: warning.source,
               expires_at: later(warning.created_at, 24),
+              ...toProvenancePayload(
+                provenanceForWatchZoneAlert({
+                  kind: "official",
+                  sourceTable: "authority_warnings",
+                  severity: warning.severity,
+                  sourceKey: "authority",
+                  sourceAttribution: warning.source,
+                  areaLabel: zone.name,
+                  radiusKm: zone.radius_km,
+                  observedAt: warning.created_at,
+                }),
+              ),
             },
           },
           true,
@@ -377,6 +418,16 @@ export function hazardAlerts(
             payload: {
               expires_at: publication.expires_at,
               map_event: `civil:${publication.id}`,
+              ...toProvenancePayload(
+                provenanceForWatchZoneAlert({
+                  kind: "road",
+                  sourceTable: "civil_publications",
+                  sourceAttribution: publication.source_name,
+                  areaLabel: zone.name,
+                  radiusKm: zone.radius_km,
+                  observedAt: publication.updated_at ?? publication.expires_at,
+                }),
+              ),
             },
           },
           false,
@@ -421,6 +472,15 @@ export function hazardAlerts(
               witnesses: count,
               expires_at: report.expires_at,
               map_event: `report:${report.id}`,
+              ...toProvenancePayload(
+                provenanceForWatchZoneAlert({
+                  kind: "citizen",
+                  sourceTable: "citizen_reports",
+                  areaLabel: zone.name,
+                  radiusKm: zone.radius_km,
+                  observedAt: report.observed_at ?? report.expires_at,
+                }),
+              ),
             },
           },
           false,
@@ -455,6 +515,16 @@ export function hazardAlerts(
                 Date.parse(quake.occurred_at) + 72 * HOUR,
               ).toISOString(),
               map_event: `quake:${quake.id}`,
+              ...toProvenancePayload(
+                provenanceForWatchZoneAlert({
+                  kind: "earthquake",
+                  magnitude: quake.magnitude,
+                  sourceAttribution: quake.network ?? "EMSC",
+                  areaLabel: zone.name,
+                  radiusKm: zone.radius_km,
+                  observedAt: quake.occurred_at,
+                }),
+              ),
             },
           },
           quake.magnitude >= 5,
