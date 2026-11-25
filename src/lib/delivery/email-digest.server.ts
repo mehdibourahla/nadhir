@@ -147,6 +147,7 @@ export interface ClaimedEmailDigestRow {
 
 export interface EmailDigestStore {
   isPipelineActive(): Promise<boolean>;
+  isEmailConsentWithdrawn?(userId: string): Promise<boolean>;
   listPendingUsers(
     limit: number,
     afterUserId?: string | null,
@@ -856,6 +857,20 @@ export function createSupabaseEmailDigestStore(): EmailDigestStore {
       return data.enabled === true && data.paused === false;
     },
 
+    async isEmailConsentWithdrawn(userId: string): Promise<boolean> {
+      const { data, error } = await supabaseAdmin
+        .from("privacy_consents")
+        .select("status")
+        .eq("user_id", userId)
+        .eq("consent_type", "email_digest")
+        .eq("status", "withdrawn")
+        .maybeSingle();
+      if (error) {
+        throw new Error(`isEmailConsentWithdrawn: ${error.message}`);
+      }
+      return data?.status === "withdrawn";
+    },
+
     async listPendingUsers(
       limit: number,
       afterUserId?: string | null,
@@ -1047,6 +1062,26 @@ export async function deliverZoneEmailDigests(
       if (frequency === "off") {
         summary.skipped += 1;
         continue;
+      }
+
+      if (store.isEmailConsentWithdrawn) {
+        let consentWithdrawn: boolean;
+        try {
+          consentWithdrawn = await store.isEmailConsentWithdrawn(user.user_id);
+        } catch (error) {
+          // Fail closed under Law 18-07 / Law 25-11: never dispatch email when consent status cannot be verified.
+          const message =
+            error instanceof Error ? error.message : String(error);
+          summary.skipped += 1;
+          summary.errors.push(
+            `${user.user_id}: consent_check_failed: ${message.slice(0, 200)}`,
+          );
+          continue;
+        }
+        if (consentWithdrawn) {
+          summary.skipped += 1;
+          continue;
+        }
       }
 
       const alerts = await store.loadUndeliveredAlerts(

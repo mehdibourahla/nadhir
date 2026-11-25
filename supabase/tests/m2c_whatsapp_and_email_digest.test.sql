@@ -1055,6 +1055,126 @@ select ok(
   'claim_email_digest_delivery sweeps expired attempt-5 stale lease to state=failed'
 );
 
+-- Law 18-07 / Law 25-11 email_digest consent withdrawal enforcement + hard_bounce orthogonality
+select is(
+  (select count(*)::int from public.list_pending_email_digest_users(100)
+    where user_id = 'c2c10000-0000-4000-8000-000000000001'),
+  1,
+  'user 1 with undelivered alert is listed before email_digest consent withdrawal'
+);
+
+insert into public.privacy_consents (
+  user_id, consent_type, policy_version, status, granted_at, withdrawn_at, locale, source_surface
+)
+values (
+  'c2c10000-0000-4000-8000-000000000001',
+  'email_digest',
+  '2026-11-24',
+  'withdrawn',
+  now() - interval '1 day',
+  now(),
+  'ar',
+  'settings'
+);
+
+select is(
+  (select count(*)::int from public.list_pending_email_digest_users(100)
+    where user_id = 'c2c10000-0000-4000-8000-000000000001'),
+  0,
+  'withdrawing email_digest consent excludes user from list_pending_email_digest_users'
+);
+
+select is(
+  (select count(*)::int from public.claim_email_digest_delivery(
+    'c2c10000-0000-4000-8000-000000000001',
+    'immediate',
+    'immediate:withdrawn-consent-test',
+    'email:u1:immediate:withdrawn-consent-test',
+    'ar',
+    array['c2c50000-0000-4000-8000-000000000006'::uuid],
+    true,
+    'Blocked by withdrawn consent'
+  )),
+  0,
+  'withdrawing email_digest consent blocks claim_email_digest_delivery'
+);
+
+-- Re-granting email_digest consent restores eligibility
+update public.privacy_consents
+   set status = 'granted',
+       granted_at = now(),
+       withdrawn_at = null
+ where user_id = 'c2c10000-0000-4000-8000-000000000001'
+   and consent_type = 'email_digest';
+
+select is(
+  (select count(*)::int from public.list_pending_email_digest_users(100)
+    where user_id = 'c2c10000-0000-4000-8000-000000000001'),
+  1,
+  're-granting email_digest consent restores user in list_pending_email_digest_users'
+);
+
+select is(
+  (select count(*)::int from public.claim_email_digest_delivery(
+    'c2c10000-0000-4000-8000-000000000001',
+    'immediate',
+    'immediate:regranted-consent-test',
+    'email:u1:immediate:regranted-consent-test',
+    'ar',
+    array['c2c50000-0000-4000-8000-000000000006'::uuid],
+    true,
+    'Allowed after consent re-grant'
+  )),
+  1,
+  're-granting email_digest consent restores claim_email_digest_delivery'
+);
+
+-- Orthogonality: granting email_digest consent MUST NOT override an active hard_bounce suppression on user 4
+insert into public.privacy_consents (
+  user_id, consent_type, policy_version, status, granted_at, withdrawn_at, locale, source_surface
+)
+values (
+  'c2c10000-0000-4000-8000-000000000004',
+  'email_digest',
+  '2026-11-24',
+  'granted',
+  now(),
+  null,
+  'fr',
+  'settings'
+);
+
+select ok(
+  exists (
+    select 1 from public.email_digest_suppressions
+     where user_id = 'c2c10000-0000-4000-8000-000000000004'
+       and reason = 'hard_bounce'
+  ),
+  'granting email_digest consent leaves hard_bounce suppression intact'
+);
+
+select is(
+  (select count(*)::int from public.list_pending_email_digest_users(100)
+    where user_id = 'c2c10000-0000-4000-8000-000000000004'),
+  0,
+  're-granting email_digest consent does NOT override hard_bounce in list_pending_email_digest_users'
+);
+
+select is(
+  (select count(*)::int from public.claim_email_digest_delivery(
+    'c2c10000-0000-4000-8000-000000000004',
+    'hourly',
+    'hourly:2026-11-25T10',
+    'email:u4:hourly:2026-11-25T10',
+    'fr',
+    array['c2c50000-0000-4000-8000-000000000005'::uuid],
+    false,
+    'Still blocked by hard_bounce'
+  )),
+  0,
+  're-granting email_digest consent does NOT override hard_bounce in claim_email_digest_delivery'
+);
+
 -- ON DELETE CASCADE on auth.users deletes email_digest_deliveries & email_digest_suppressions cleanly
 delete from auth.users where id = 'c2c10000-0000-4000-8000-000000000004';
 select is(
@@ -1159,6 +1279,7 @@ select throws_ok($$select * from public.whatsapp_channel_deliveries$$, '42501', 
 select throws_ok($$select * from public.email_digest_deliveries$$, '42501', null, 'anon cannot read email_digest_deliveries');
 select throws_ok($$select * from public.email_digest_suppressions$$, '42501', null, 'anon cannot read email_digest_suppressions');
 select throws_ok($$select * from public.list_pending_email_digest_users(10)$$, '42501', null, 'anon cannot execute list_pending_email_digest_users');
+select throws_ok($$select * from public.claim_email_digest_delivery('c2c10000-0000-4000-8000-000000000001'::uuid, 'daily', 'w', 'd', 'ar', array['c2c50000-0000-4000-8000-000000000001'::uuid], false, 's')$$, '42501', null, 'anon cannot execute claim_email_digest_delivery');
 select throws_ok($$select * from public.list_pending_whatsapp_broadcasts('channel-dz', 'ar', 10)$$, '42501', null, 'anon cannot execute list_pending_whatsapp_broadcasts');
 reset role;
 
@@ -1167,6 +1288,8 @@ select throws_ok($$select * from public.delivery_pipeline_settings$$, '42501', n
 select throws_ok($$select * from public.whatsapp_channel_deliveries$$, '42501', null, 'authenticated cannot read whatsapp_channel_deliveries');
 select throws_ok($$select * from public.email_digest_deliveries$$, '42501', null, 'authenticated cannot read email_digest_deliveries');
 select throws_ok($$select * from public.email_digest_suppressions$$, '42501', null, 'authenticated cannot read email_digest_suppressions');
+select throws_ok($$select * from public.list_pending_email_digest_users(10)$$, '42501', null, 'authenticated cannot execute list_pending_email_digest_users');
+select throws_ok($$select * from public.claim_email_digest_delivery('c2c10000-0000-4000-8000-000000000001'::uuid, 'daily', 'w', 'd', 'ar', array['c2c50000-0000-4000-8000-000000000001'::uuid], false, 's')$$, '42501', null, 'authenticated cannot execute claim_email_digest_delivery');
 select throws_ok($$select * from public.claim_whatsapp_deliveries(10)$$, '42501', null, 'authenticated cannot execute claim_whatsapp_deliveries');
 select throws_ok($$select * from public.list_pending_whatsapp_broadcasts('channel-dz', 'ar', 10)$$, '42501', null, 'authenticated cannot execute list_pending_whatsapp_broadcasts');
 select throws_ok($$select public.set_delivery_pipeline_state('email_digest', false, null, null)$$, '42501', null, 'authenticated cannot execute set_delivery_pipeline_state');

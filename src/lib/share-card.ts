@@ -490,7 +490,7 @@ export function formatPlainCoords(lat: number, lon: number): string {
 }
 
 /**
- * Strips any em dash (`—`) from upstream dynamic text so rendered cards obey
+ * Strips any em dash (U+2014) from upstream dynamic text so rendered cards obey
  * R-02 strictly even if an external bulletin title contains one.
  */
 function sanitizeCardText(value: string): string {

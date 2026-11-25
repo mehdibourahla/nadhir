@@ -876,4 +876,141 @@ describe("deliverZoneEmailDigests pipeline", () => {
       ),
     ).toBe(true);
   });
+
+  it("skips a user when Law 18-07/25-11 email_digest consent is withdrawn without claiming or sending", async () => {
+    const transport: ResendEmailTransport = { sendEmail: vi.fn() };
+    const base = makeInMemoryEmailStore({
+      users: [
+        makeUser({
+          user_id: "u-withdrawn",
+          email_digest_frequency: "immediate",
+        }),
+      ],
+      alertsByUser: { "u-withdrawn": [makeAlert({ id: "a-w1" })] },
+    });
+    const loadAlertsSpy = vi.spyOn(base.store, "loadUndeliveredAlerts");
+    const claimSpy = vi.spyOn(base.store, "claimDigestDelivery");
+    const consentSpy = vi.fn(async () => true);
+
+    const summary = await deliverZoneEmailDigests({
+      env: {},
+      transport,
+      store: {
+        ...base.store,
+        isEmailConsentWithdrawn: consentSpy,
+      },
+      now: new Date("2026-11-25T08:00:00Z"),
+    });
+
+    expect(consentSpy).toHaveBeenCalledWith("u-withdrawn");
+    expect(summary).toMatchObject({
+      usersChecked: 1,
+      sent: 0,
+      skipped: 1,
+      failed: 0,
+    });
+    expect(loadAlertsSpy).not.toHaveBeenCalled();
+    expect(claimSpy).not.toHaveBeenCalled();
+    expect(transport.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("delivers normally when isEmailConsentWithdrawn returns false", async () => {
+    const sentInputs: ResendEmailInput[] = [];
+    const transport: ResendEmailTransport = {
+      sendEmail: vi.fn(async (input) => {
+        sentInputs.push(input);
+        return { providerMessageId: "re_consent_ok" };
+      }),
+    };
+    const base = makeInMemoryEmailStore({
+      users: [
+        makeUser({ user_id: "u-granted", email_digest_frequency: "immediate" }),
+      ],
+      alertsByUser: { "u-granted": [makeAlert({ id: "a-g1" })] },
+    });
+    const consentSpy = vi.fn(async () => false);
+
+    const summary = await deliverZoneEmailDigests({
+      env: {},
+      transport,
+      store: {
+        ...base.store,
+        isEmailConsentWithdrawn: consentSpy,
+      },
+      now: new Date("2026-11-25T08:00:00Z"),
+    });
+
+    expect(consentSpy).toHaveBeenCalledWith("u-granted");
+    expect(summary).toMatchObject({
+      usersChecked: 1,
+      sent: 1,
+      skipped: 0,
+      failed: 0,
+    });
+    expect(transport.sendEmail).toHaveBeenCalledTimes(1);
+    expect(base.deliveredAlertIds.has("a-g1")).toBe(true);
+  });
+
+  it("fails closed when isEmailConsentWithdrawn rejects and sends 0 emails for that user while continuing eligible users", async () => {
+    const sentInputs: ResendEmailInput[] = [];
+    const transport: ResendEmailTransport = {
+      sendEmail: vi.fn(async (input) => {
+        sentInputs.push(input);
+        return { providerMessageId: `re_ok_${sentInputs.length}` };
+      }),
+    };
+    const base = makeInMemoryEmailStore({
+      users: [
+        makeUser({
+          user_id: "u-err",
+          email: "err@example.invalid",
+          email_digest_frequency: "immediate",
+        }),
+        makeUser({
+          user_id: "u-ok",
+          email: "ok@example.invalid",
+          email_digest_frequency: "immediate",
+        }),
+      ],
+      alertsByUser: {
+        "u-err": [makeAlert({ id: "a-err" })],
+        "u-ok": [makeAlert({ id: "a-ok" })],
+      },
+    });
+    const claimSpy = vi.spyOn(base.store, "claimDigestDelivery");
+    const consentSpy = vi.fn(async (userId: string) => {
+      if (userId === "u-err") {
+        throw new Error("privacy_consents read timeout");
+      }
+      return false;
+    });
+
+    const summary = await deliverZoneEmailDigests({
+      env: {},
+      transport,
+      store: {
+        ...base.store,
+        isEmailConsentWithdrawn: consentSpy,
+      },
+      now: new Date("2026-11-25T08:00:00Z"),
+    });
+
+    expect(summary).toMatchObject({
+      usersChecked: 2,
+      sent: 1,
+      skipped: 1,
+      failed: 0,
+    });
+    expect(summary.errors).toContainEqual(
+      expect.stringContaining("u-err: consent_check_failed"),
+    );
+    expect(claimSpy).toHaveBeenCalledTimes(1);
+    expect(claimSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "u-ok" }),
+    );
+    expect(sentInputs).toHaveLength(1);
+    expect(sentInputs[0]?.to).toBe("ok@example.invalid");
+    expect(base.deliveredAlertIds.has("a-err")).toBe(false);
+    expect(base.deliveredAlertIds.has("a-ok")).toBe(true);
+  });
 });

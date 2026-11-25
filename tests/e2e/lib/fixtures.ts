@@ -460,6 +460,7 @@ export interface EmscGeoJsonFeature {
     coordinates: [number, number, number];
   };
   properties: {
+    unid: string;
     source_id: string;
     source_catalog: string;
     time: string;
@@ -501,6 +502,7 @@ export function buildEmscEvent(
       coordinates: [lon, lat, -depthKm],
     },
     properties: {
+      unid: id,
       source_id: id,
       source_catalog: "EMSC-RTS",
       time,

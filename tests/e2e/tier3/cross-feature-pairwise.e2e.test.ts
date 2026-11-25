@@ -263,8 +263,8 @@ interface EmscMod extends Record<string, unknown> {
     magnitude: number;
     lat: number;
     lon: number;
-    depthKm: number | null;
-    occurredAt: string;
+    depth_km: number | null;
+    occurred_at: string;
   }>;
 }
 
@@ -302,7 +302,15 @@ async function fetchShareCardWithEntity(args: {
     assertPgReachable();
     if (args.kind === "onm") {
       const existing = psqlJson<{ id: string }>(
-        "SELECT id::text AS id FROM public.onm_vigilance ORDER BY sent DESC LIMIT 1;",
+        `SELECT id::text AS id
+         FROM public.onm_vigilance
+         WHERE cancelled_at IS NULL
+           AND superseded_at IS NULL
+           AND superseded_by IS NULL
+           AND msg_type <> 'Cancel'
+           AND expires > now()
+         ORDER BY sent DESC
+         LIMIT 1;`,
       );
       if (existing[0]?.id) {
         entityId = existing[0].id;
@@ -334,16 +342,41 @@ async function fetchShareCardWithEntity(args: {
       }
     } else if (args.kind === "fire") {
       const existing = psqlJson<{ short_id: string }>(
-        "SELECT short_id FROM public.fire_clusters ORDER BY last_detected_at DESC LIMIT 1;",
+        `SELECT fc.short_id
+         FROM public.fire_clusters fc
+         LEFT JOIN public.admin_units au ON au.id = fc.commune_id
+         WHERE fc.state IN ('active', 'confirmed')
+           AND fc.resolved_at IS NULL
+           AND fc.confirmed_at IS NULL
+           AND COALESCE(fc.suspected_persistent_source, false) = false
+           AND au.forest_fraction >= 0.1
+         ORDER BY fc.last_detected_at DESC
+         LIMIT 1;`,
       );
       if (existing[0]?.short_id) {
         entityId = existing[0].short_id;
       } else {
+        const forestedCommune = psqlJson<{
+          id: string;
+          parent_id: string | null;
+        }>(
+          `SELECT id::text AS id, parent_id::text AS parent_id
+           FROM public.admin_units
+           WHERE level = 'commune' AND forest_fraction >= 0.1
+           ORDER BY code
+           LIMIT 1;`,
+        );
+        const communeIdSql = forestedCommune[0]?.id
+          ? `'${forestedCommune[0].id}'::uuid`
+          : "NULL";
+        const wilayaIdSql = forestedCommune[0]?.parent_id
+          ? `'${forestedCommune[0].parent_id}'::uuid`
+          : "NULL";
         const seededUuid = "90000000-0000-4000-8000-000000000102";
         const shortId = "E2EFIRE1";
         psqlExec(
-          `INSERT INTO public.fire_clusters (id, short_id, state, lat, lon, confidence, detection_count, first_detected_at, last_detected_at, max_frp_mw)
-           VALUES ('${seededUuid}', '${shortId}', 'active', 36.7169, 4.0497, 0.88, 4, now() - interval '30 minutes', now() - interval '5 minutes', 64.2)
+          `INSERT INTO public.fire_clusters (id, short_id, state, lat, lon, confidence, detection_count, first_detected_at, last_detected_at, max_frp_mw, commune_id, wilaya_id, sources, confirmed_at)
+           VALUES ('${seededUuid}', '${shortId}', 'active', 36.7169, 4.0497, 0.88, 4, now() - interval '30 minutes', now() - interval '5 minutes', 64.2, ${communeIdSql}, ${wilayaIdSql}, ARRAY['firms', 'fci'], NULL)
            ON CONFLICT DO NOTHING;`,
         );
         entityId = shortId;
@@ -695,10 +728,10 @@ describe("Tier 3 — Cross-Feature Pairwise Combinations (All 24 Features)", () 
 
         INSERT INTO public.source_runs (
           id, contract_key, contract_version, trigger_kind, idempotency_key,
-          scheduled_for, started_at, finished_at, outcome, records_seen, job_id
+          scheduled_for, started_at, finished_at, outcome, records_seen, job_id, attempt
         ) VALUES (
           _run_hot, _contract_key, 1, 'manual', 'e2e-hot-run-linked',
-          now(), now(), now(), 'succeeded', 1, _job_linked
+          now(), now(), now(), 'succeeded', 1, _job_linked, 1
         );
 
         SELECT array_agg(id ORDER BY id) INTO _candidates
@@ -893,7 +926,16 @@ describe("Tier 3 — Cross-Feature Pairwise Combinations (All 24 Features)", () 
     expect(manifest).toContain("android.permission.POST_NOTIFICATIONS");
 
     const pushNative = readRepoFile("src/lib/push-native.ts");
-    expect(pushNative).toContain("isExactNotification: false");
+    const scheduleMatches = [
+      ...pushNative.matchAll(/localNotifications\.schedule\s*\(/gi),
+    ];
+    expect(scheduleMatches.length).toBeGreaterThanOrEqual(1);
+    for (const match of scheduleMatches) {
+      const slice = pushNative.slice(match.index, match.index + 600);
+      expect(slice).toMatch(
+        /isExactNotification:\s*(?:false|DEFAULT_LOCAL_NOTIFICATION_EXACT)\b/,
+      );
+    }
 
     const channelMod = await importRepoModule<NotificationChannelsMod>(
       "src/lib/notification-channels",
@@ -979,8 +1021,11 @@ describe("Tier 3 — Cross-Feature Pairwise Combinations (All 24 Features)", () 
       detail2?.["msgType"] ?? detail2?.["msg_type"] ?? "",
     );
     expect(msgType2.toLowerCase()).toBe("update");
-    const refs2 = detail2?.["references"];
+    const refs2 = detail2?.["cap_references"] ?? detail2?.["references"];
     expect(refs2).toBeTruthy();
+    const refIds2 = detail2?.["referenced_cap_ids"];
+    expect(Array.isArray(refIds2)).toBe(true);
+    expect(refIds2).toContain("urn:oid:2.49.0.1.12.0.20261124.100");
 
     const provenance = provenanceMod.buildAlertProvenance({
       triggerKind: "wilaya_warning",
@@ -1092,71 +1137,216 @@ describe("Tier 3 — Cross-Feature Pairwise Combinations (All 24 Features)", () 
 
       const waFormat = findExportedFn(
         waMod,
-        [
-          "formatWhatsAppBroadcast",
-          "buildWhatsAppPayload",
-          "buildWhatsAppMessage",
-          "formatWhatsAppChannelMessage",
-          "publishWhatsAppBroadcast",
-          "sendWhatsAppChannelMessage",
-        ],
+        ["formatWhatsappBroadcastMessage"],
+        waPath,
+      );
+      const waEligibility = findExportedFn(
+        waMod,
+        ["evaluateWhatsappBroadcastEligibility"],
+        waPath,
+      );
+      const waCreateTransport = findExportedFn(
+        waMod,
+        ["createMetaWhatsAppChannelTransport"],
+        waPath,
+      );
+      const waDeliver = findExportedFn(
+        waMod,
+        ["deliverWhatsappChannelBroadcasts"],
         waPath,
       );
       const emailFormat = findExportedFn(
         emailMod,
-        [
-          "buildZoneDigestEmail",
-          "formatZoneEmailDigest",
-          "renderZoneDigestEmail",
-          "buildDigestEmailPayload",
-          "sendZoneEmailDigest",
-        ],
+        ["renderZoneDigestEmail"],
+        emailPath,
+      );
+      const emailCreateTransport = findExportedFn(
+        emailMod,
+        ["createResendEmailTransport"],
+        emailPath,
+      );
+      const emailDeliver = findExportedFn(
+        emailMod,
+        ["deliverZoneEmailDigests"],
         emailPath,
       );
 
-      const activeOnmAlert = {
+      const now = new Date("2026-11-24T14:05:00Z");
+      const activeOnmCandidate = {
         id: "onm-20261124-update",
         kind: "onm",
+        phase: "update",
         msgType: "Update",
-        status: "active",
-        cancelled: false,
+        cancelledAt: null,
+        supersededBy: null,
         severity: "Extreme",
-        title: "BMS Pluies Niveau 3 (Rouge) - Alger",
+        hazard: "rain",
         headline: "BMS Pluies Niveau 3 (Rouge) - Alger",
-        body: "Cumuls > 80 mm sur Alger et Tipaza.",
+        summary: "Cumuls > 80 mm sur Alger et Tipaza.",
         areaLabel: "Alger",
-        wilayaName: "Alger",
         sourceKey: "onm",
         sourceAttribution: "ONM · Météo Algérie",
         observedAt: "2026-11-24T14:00:00Z",
-        locale: "fr",
-        endpoint: waServer.url,
-        resendUrl: resendServer.url,
+        expiresAt: "2026-11-25T02:00:00Z",
+      };
+      const cancelledOnmCandidate = {
+        ...activeOnmCandidate,
+        id: "onm-20261124-cancel",
+        phase: "cancel",
+        msgType: "Cancel",
+        cancelledAt: "2026-11-24T14:02:00Z",
       };
 
-      const waRendered = await Promise.resolve(waFormat(activeOnmAlert));
-      const waSerialized =
-        typeof waRendered === "string"
-          ? waRendered
-          : JSON.stringify(waRendered);
-      expect(waSerialized).toMatch(/ONM/i);
+      const activeCheck = waEligibility(activeOnmCandidate, now) as {
+        eligible: boolean;
+        reason?: string;
+      };
+      const cancelCheck = waEligibility(cancelledOnmCandidate, now) as {
+        eligible: boolean;
+        reason?: string;
+      };
+      expect(activeCheck.eligible).toBe(true);
+      expect(cancelCheck.eligible).toBe(false);
 
-      const emailRendered = await Promise.resolve(
-        emailFormat({
-          recipientEmail: "citizen@example.dz",
-          zoneName: "Alger Centre",
-          locale: "fr",
-          unsubscribeUrl: "https://nadhir.app/settings/unsubscribe?token=e2e",
-          alerts: [activeOnmAlert],
-          items: [activeOnmAlert],
-        }),
-      );
-      const emailSerialized =
-        typeof emailRendered === "string"
-          ? emailRendered
-          : JSON.stringify(emailRendered);
+      const waRendered = waFormat({
+        candidate: activeOnmCandidate,
+        locale: "fr",
+      }) as { text: string; provenanceFooter: string };
+      expect(waRendered.text).toMatch(/ONM/i);
+      expect(waRendered.provenanceFooter).toMatch(/ONM/i);
+
+      const waQueue: Array<{
+        id: string;
+        broadcast_id: string;
+        channel_target: string;
+        locale: string;
+        dedupe_key: string;
+        state: string;
+        attempts: number;
+        expires_at: string;
+        lease_token: string | null;
+        last_error: string | null;
+        payload: Record<string, unknown>;
+      }> = [];
+      const waTransport = waCreateTransport({
+        accessToken: "e2e-wa-token",
+        apiUrl: waServer.url,
+        fetchImpl: fetch,
+      });
+      const waSummary = (await waDeliver({
+        env: {},
+        now,
+        channelTarget: "channel-dz-fr",
+        locales: ["fr"],
+        candidates: [activeOnmCandidate, cancelledOnmCandidate],
+        transport: waTransport,
+        store: {
+          isGlobalBroadcastEnabled: async () => true,
+          isPipelineActive: async () => true,
+          enqueueBroadcast: async (input: {
+            broadcastId: string;
+            channelTarget: string;
+            locale: string;
+            dedupeKey: string;
+            payload: Record<string, unknown>;
+            expiresAt: string | null;
+          }) => {
+            const id = `wa-row-${waQueue.length + 1}`;
+            waQueue.push({
+              id,
+              broadcast_id: input.broadcastId,
+              channel_target: input.channelTarget,
+              locale: input.locale,
+              dedupe_key: input.dedupeKey,
+              state: "pending",
+              attempts: 0,
+              expires_at: input.expiresAt ?? "2026-11-25T02:00:00Z",
+              lease_token: null,
+              last_error: null,
+              payload: input.payload,
+            });
+            return id;
+          },
+          claimDeliveries: async () =>
+            waQueue
+              .filter((r) => r.state === "pending")
+              .map((r) => {
+                r.state = "leased";
+                r.attempts += 1;
+                r.lease_token = `lease-${r.id}`;
+                return r;
+              }),
+          finishDelivery: async () => true,
+        },
+      })) as { sent: number; skipped: number; failed: number };
+      expect(waSummary.sent).toBe(1);
+      expect(waSummary.skipped).toBe(1);
+      expect(waServer.requests).toHaveLength(1);
+      expect(waServer.requests[0]?.body).toMatch(/ONM/i);
+
+      const digestAlert = {
+        id: "onm-20261124-update",
+        kind: "weather",
+        severity: 4,
+        title: "BMS Pluies Niveau 3 (Rouge) - Alger",
+        body: "Cumuls > 80 mm sur Alger et Tipaza.",
+        created_at: "2026-11-24T14:00:00Z",
+        zone_name: "Alger Centre",
+        payload: {
+          onm_severity: "Extreme",
+          source_key: "onm",
+          source_attribution: "ONM · Météo Algérie",
+        },
+      };
+
+      const emailRendered = emailFormat({
+        locale: "fr",
+        recipientName: "Citoyen",
+        urgentBypass: true,
+        manageUrl: "https://nadhir.app/settings?unsubscribe=1",
+        alerts: [digestAlert],
+      }) as { subject: string; html: string; text: string };
+      const emailSerialized = `${emailRendered.subject}\n${emailRendered.html}\n${emailRendered.text}`;
       expect(emailSerialized).toMatch(/ONM/i);
-      expect(emailSerialized).toMatch(/unsubscribe|désabonner|إلغاء/i);
+      expect(emailSerialized).toMatch(/unsubscribe|préférences|désactiver/i);
+
+      const resendTransport = emailCreateTransport({
+        apiKey: "re_e2e_test_key",
+        apiUrl: resendServer.url,
+        fetchImpl: fetch,
+      });
+      const emailSummary = (await emailDeliver({
+        env: {},
+        now,
+        transport: resendTransport,
+        store: {
+          isPipelineActive: async () => true,
+          listPendingUsers: async () => [
+            {
+              user_id: "u-e2e-10",
+              email: "citizen@example.invalid",
+              display_name: "Citoyen",
+              locale: "fr",
+              email_digest_frequency: "immediate",
+              email_digest_hour_algiers: 7,
+              quiet_hours_start: 22,
+              quiet_hours_end: 6,
+              last_sent_at: null,
+            },
+          ],
+          loadUndeliveredAlerts: async () => [digestAlert],
+          claimDigestDelivery: async () => ({
+            id: "ed-1",
+            lease_token: "ed-lease-1",
+            attempts: 1,
+          }),
+          finishDigestDelivery: async () => true,
+        },
+      })) as { sent: number; failed: number };
+      expect(emailSummary.sent).toBe(1);
+      expect(resendServer.requests).toHaveLength(1);
+      expect(resendServer.requests[0]?.body).toMatch(/ONM/i);
+      expect(resendServer.requests[0]?.body).toMatch(/List-Unsubscribe/i);
 
       // Cancelled alert must not be treated as an active dispatch item
       const cancelledCheck = `${waSource}\n${emailSource}`;
@@ -1284,8 +1474,8 @@ describe("Tier 3 — Cross-Feature Pairwise Combinations (All 24 Features)", () 
     expect(quake.magnitude).toBe(4.6);
 
     const { path: craagPath, mod: craagMod } = await importFirstExistingModule([
-      "src/lib/ingest/craag.server",
       "src/lib/ingest/craag",
+      "src/lib/ingest/craag.server",
     ]);
     const craagBulletin = buildCraagBulletin({
       magnitude: 4.6,
@@ -1293,36 +1483,69 @@ describe("Tier 3 — Cross-Feature Pairwise Combinations (All 24 Features)", () 
       lon: 5.058,
       eventTime: "2026-11-24T13:42:20Z",
     });
+    const craagTableHtml = [
+      '<!DOCTYPE html><html lang="fr"><head><title>CRAAG - Bulletins sismiques</title></head><body>',
+      "<table>",
+      "  <thead><tr>",
+      "    <th>Date et Heure (UTC)</th><th>Magnitude</th><th>Latitude</th><th>Longitude</th><th>Profondeur</th><th>Localisation</th><th>Bulletin</th>",
+      "  </tr></thead>",
+      "  <tbody><tr>",
+      `    <td>${craagBulletin.eventTime}</td>`,
+      `    <td>ML ${craagBulletin.magnitude.toFixed(1)}</td>`,
+      `    <td>${craagBulletin.lat.toFixed(4)} N</td>`,
+      `    <td>${craagBulletin.lon.toFixed(4)} E</td>`,
+      `    <td>${craagBulletin.depthKm} km</td>`,
+      `    <td>${craagBulletin.locationFr}</td>`,
+      `    <td><a href="${craagBulletin.bulletinUrl}">Bulletin officiel CRAAG</a></td>`,
+      "  </tr></tbody>",
+      "</table></body></html>",
+    ].join("\n");
 
     const parseCraag = findExportedFn(
       craagMod,
-      [
-        "parseCraagHtml",
-        "parseCraagBulletins",
-        "parseCraagBulletin",
-        "extractCraagBulletins",
-      ],
+      ["parseCraagBulletins"],
       craagPath,
     );
-    const parsedBulletins = parseCraag(craagBulletin.html);
-    expect(parsedBulletins).toBeTruthy();
+    const parsedResult = parseCraag(craagTableHtml) as {
+      bulletins: Array<{
+        bulletinId: string;
+        observedAt: string;
+        lat: number;
+        lon: number;
+        magnitude: number;
+        attribution: string;
+        sourceUrl: string | null;
+      }>;
+    };
+    expect(parsedResult.bulletins).toHaveLength(1);
+    const bulletin = parsedResult.bulletins[0]!;
+    expect(bulletin.attribution).toMatch(/CRAAG/i);
+    expect(bulletin.observedAt).toBeTruthy();
 
     const matchCraag = findExportedFn(
       craagMod,
-      [
-        "matchCraagToEmsc",
-        "matchCraagBulletin",
-        "matchOfficialAttribution",
-        "matchEarthquakeAttribution",
-      ],
+      ["matchCraagToEmsc"],
       craagPath,
     );
-    const matched = matchCraag(
-      quake,
-      Array.isArray(parsedBulletins) ? parsedBulletins : [parsedBulletins],
-    );
-    expect(matched).toBeTruthy();
-    expect(JSON.stringify(matched)).toMatch(/CRAAG/i);
+    const matched = matchCraag(bulletin, [
+      {
+        id: quake.id,
+        occurred_at: quake.occurred_at,
+        lat: quake.lat,
+        lon: quake.lon,
+        magnitude: quake.magnitude,
+      },
+    ]) as {
+      earthquakeId: string;
+      distanceKm: number;
+      timeDiffSeconds: number;
+      magnitudeDiff: number;
+    } | null;
+    expect(matched).not.toBeNull();
+    expect(matched?.earthquakeId).toBe(quake.id);
+    expect(matched?.distanceKm).toBeLessThanOrEqual(50);
+    expect(matched?.timeDiffSeconds).toBeLessThanOrEqual(120);
+    expect(matched?.magnitudeDiff).toBeLessThanOrEqual(1.0);
 
     const within100Km = admin.communes.filter(
       (c) => haversineKm(quake.lat, quake.lon, c.lat, c.lon) <= 100,
@@ -1531,50 +1754,235 @@ describe("Tier 3 — Cross-Feature Pairwise Combinations (All 24 Features)", () 
 
     const buildDigest = findExportedFn(
       emailMod,
-      [
-        "buildZoneDigestEmail",
-        "formatZoneEmailDigest",
-        "renderZoneDigestEmail",
-        "buildDigestEmailPayload",
-      ],
+      ["renderZoneDigestEmail"],
       emailPath,
     );
-
-    const emailPayload = await Promise.resolve(
-      buildDigest({
-        recipientEmail: "subscriber@example.dz",
-        zoneName: "Bab El Oued",
-        locale: "fr",
-        unsubscribeUrl: "https://nadhir.app/privacy?unsubscribe=1",
-        alerts: [
-          {
-            id: "a1",
-            kind: "onm",
-            title: "BMS Pluies Niveau 2 - Alger",
-            body: "Pluies intenses attendues.",
-            sourceAttribution: "ONM · Météo Algérie",
-            observedAt: "2026-11-24T14:00:00Z",
-          },
-        ],
-        items: [
-          {
-            id: "a1",
-            kind: "onm",
-            title: "BMS Pluies Niveau 2 - Alger",
-            body: "Pluies intenses attendues.",
-            sourceAttribution: "ONM · Météo Algérie",
-            observedAt: "2026-11-24T14:00:00Z",
-          },
-        ],
-      }),
+    const deliverDigests = findExportedFn(
+      emailMod,
+      ["deliverZoneEmailDigests"],
+      emailPath,
+    );
+    const recordConsent = findExportedFn(
+      consentMod,
+      ["recordUserConsent"],
+      consentPath,
+    );
+    const withdrawConsent = findExportedFn(
+      consentMod,
+      ["withdrawUserConsent"],
+      consentPath,
     );
 
-    const serialized =
-      typeof emailPayload === "string"
-        ? emailPayload
-        : JSON.stringify(emailPayload);
-    expect(serialized).toMatch(/unsubscribe|désabonner|privacy/i);
+    const sampleAlert = {
+      id: "a1",
+      kind: "weather",
+      severity: 3,
+      title: "BMS Pluies Niveau 2 - Alger",
+      body: "Pluies intenses attendues.",
+      zone_name: "Bab El Oued",
+      created_at: "2026-11-24T14:00:00Z",
+      payload: {
+        onm_severity: "Severe",
+        source_key: "onm",
+        source_attribution: "ONM · Météo Algérie",
+      },
+    };
+
+    const emailPayload = buildDigest({
+      locale: "fr",
+      recipientName: "Abonné",
+      urgentBypass: false,
+      manageUrl: "https://nadhir.app/privacy?unsubscribe=1",
+      alerts: [sampleAlert],
+    }) as { subject: string; html: string; text: string };
+
+    const serialized = `${emailPayload.subject}\n${emailPayload.html}\n${emailPayload.text}`;
+    expect(serialized).toMatch(/unsubscribe|préférences|désactiver|privacy/i);
     expect(serialized).toMatch(/ONM/i);
+
+    // Exercise live Law 18-07/25-11 consent record -> withdrawal -> digest dispatch enforcement
+    const consentLedger = new Map<
+      string,
+      {
+        id: string;
+        user_id: string;
+        consent_type: string;
+        policy_version: string;
+        status: "granted" | "withdrawn";
+        granted_at: string | null;
+        withdrawn_at: string | null;
+        locale: string;
+        source_surface: string;
+        created_at: string;
+        updated_at: string;
+      }
+    >();
+    const privacyDeps = {
+      listConsents: async (uid: string) =>
+        [...consentLedger.values()].filter((r) => r.user_id === uid),
+      upsertConsent: async (row: {
+        user_id: string;
+        consent_type: string;
+        policy_version: string;
+        status: "granted" | "withdrawn";
+        granted_at: string | null;
+        withdrawn_at: string | null;
+        locale: string;
+        source_surface: string;
+      }) => {
+        const nowIso = "2026-11-24T14:05:00.000Z";
+        const stored = {
+          id: `consent-${row.user_id}-${row.consent_type}`,
+          ...row,
+          created_at: nowIso,
+          updated_at: nowIso,
+        };
+        consentLedger.set(`${row.user_id}:${row.consent_type}`, stored);
+        return stored;
+      },
+      now: () => new Date("2026-11-24T14:05:00.000Z"),
+    };
+
+    const testUserId = "92000000-0000-4000-8000-000000000017";
+    const granted = (await recordConsent(
+      testUserId,
+      {
+        consent_type: "email_digest",
+        locale: "fr",
+        source_surface: "settings",
+      },
+      privacyDeps,
+    )) as { status: string };
+    expect(granted.status).toBe("granted");
+
+    const withdrawn = (await withdrawConsent(
+      testUserId,
+      {
+        consent_type: "email_digest",
+        locale: "fr",
+        source_surface: "settings",
+      },
+      privacyDeps,
+    )) as { status: string; withdrawn_at: string | null };
+    expect(withdrawn.status).toBe("withdrawn");
+    expect(withdrawn.withdrawn_at).toBeTruthy();
+
+    let sentCount = 0;
+    let claimCount = 0;
+    const digestSummary = (await deliverDigests({
+      env: {},
+      now: new Date("2026-11-24T14:10:00Z"),
+      transport: {
+        sendEmail: async () => {
+          sentCount += 1;
+          return { providerMessageId: "re_should_not_send" };
+        },
+      },
+      store: {
+        isPipelineActive: async () => true,
+        isEmailConsentWithdrawn: async (uid: string) =>
+          consentLedger.get(`${uid}:email_digest`)?.status === "withdrawn",
+        listPendingUsers: async () => [
+          {
+            user_id: testUserId,
+            email: "subscriber@example.invalid",
+            display_name: "Abonné",
+            locale: "fr",
+            email_digest_frequency: "immediate",
+            email_digest_hour_algiers: 7,
+            quiet_hours_start: 22,
+            quiet_hours_end: 6,
+            last_sent_at: null,
+          },
+        ],
+        loadUndeliveredAlerts: async () => [sampleAlert],
+        claimDigestDelivery: async () => {
+          claimCount += 1;
+          return { id: "ed-x", lease_token: "lt-x", attempts: 1 };
+        },
+        finishDigestDelivery: async () => true,
+      },
+    })) as { sent: number; skipped: number };
+    expect(digestSummary.sent).toBe(0);
+    expect(digestSummary.skipped).toBe(1);
+    expect(sentCount).toBe(0);
+    expect(claimCount).toBe(0);
+
+    // Verify Postgres RPCs also enforce email_digest consent withdrawal atomically
+    assertPgReachable();
+    const sqlOut = runInRolledBackTx(`
+      DO $$
+      DECLARE
+        _uid uuid := '92000000-0000-4000-8000-000000000017';
+        _zid uuid := '92000000-0000-4000-8000-000000000117';
+        _aid uuid := '92000000-0000-4000-8000-000000000217';
+        _before_list int;
+        _withdrawn_list int;
+        _withdrawn_claim int;
+        _regranted_list int;
+      BEGIN
+        UPDATE public.delivery_pipeline_settings
+           SET enabled = true, paused = false
+         WHERE pipeline = 'email_digest';
+
+        INSERT INTO auth.users (
+          instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+          raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+        ) VALUES (
+          '00000000-0000-0000-0000-000000000000', _uid, 'authenticated', 'authenticated',
+          'e2e-t3-17@example.invalid', '', now(),
+          '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now()
+        );
+
+        UPDATE public.profiles
+           SET alert_email = true, email_digest_frequency = 'immediate', locale = 'fr'
+         WHERE id = _uid;
+
+        INSERT INTO public.zones (id, user_id, name, lat, lon, radius_km)
+        VALUES (_zid, _uid, 'Bab El Oued', 36.79, 3.05, 10);
+
+        INSERT INTO public.alerts (id, user_id, zone_id, kind, severity, dedupe_key, title, body, delivered_email)
+        VALUES (_aid, _uid, _zid, 'weather', 4, 'e2e:t3:17', 'BMS Pluies', 'Body', false);
+
+        SELECT count(*)::int INTO _before_list
+          FROM public.list_pending_email_digest_users(500)
+         WHERE user_id = _uid;
+        IF _before_list <> 1 THEN
+          RAISE EXCEPTION 'expected user listed before withdrawal, got %', _before_list;
+        END IF;
+
+        INSERT INTO public.privacy_consents (
+          user_id, consent_type, policy_version, status, granted_at, withdrawn_at, locale, source_surface
+        ) VALUES (
+          _uid, 'email_digest', '2026-11-24', 'withdrawn', now() - interval '1 hour', now(), 'fr', 'settings'
+        );
+
+        SELECT count(*)::int INTO _withdrawn_list
+          FROM public.list_pending_email_digest_users(500)
+         WHERE user_id = _uid;
+        SELECT count(*)::int INTO _withdrawn_claim
+          FROM public.claim_email_digest_delivery(
+            _uid, 'immediate', 'immediate:e2e-t3-17', 'email:e2e-t3-17', 'fr',
+            ARRAY[_aid], false, 'Blocked'
+          );
+        IF _withdrawn_list <> 0 OR _withdrawn_claim <> 0 THEN
+          RAISE EXCEPTION 'withdrawn user must be excluded (list=%, claim=%)', _withdrawn_list, _withdrawn_claim;
+        END IF;
+
+        UPDATE public.privacy_consents
+           SET status = 'granted', granted_at = now(), withdrawn_at = null
+         WHERE user_id = _uid AND consent_type = 'email_digest';
+
+        SELECT count(*)::int INTO _regranted_list
+          FROM public.list_pending_email_digest_users(500)
+         WHERE user_id = _uid;
+        IF _regranted_list <> 1 THEN
+          RAISE EXCEPTION 'regranted user must be eligible again, got %', _regranted_list;
+        END IF;
+      END $$;
+      SELECT 'OK';
+    `);
+    expect(sqlOut).toBe("OK");
   });
 
   // 18. F14 + F15
@@ -1849,6 +2257,41 @@ describe("Tier 3 — Cross-Feature Pairwise Combinations (All 24 Features)", () 
     // Must distinguish Probable Fire from confirmed official incidents
     expect(shareCardCode).toMatch(/probable|fire/i);
     expect(findEmDashesInText(shareCardCode).count).toBe(0);
+
+    // Behavioral ADR-0002 check: satellite-only corroborated cluster is "probable" (never "confirmed"),
+    // while bare uncorroborated satellite anomaly stays rejected (null / heat_signal)
+    const shareCardMod =
+      await importRepoModule<Record<string, unknown>>("src/lib/share-card");
+    const isEligibleProbableFire = findExportedFn(
+      shareCardMod,
+      ["isEligibleProbableFire"],
+      "src/lib/share-card",
+    );
+    const satelliteOnlyCluster = {
+      state: "active",
+      confirmed_at: null,
+      resolved_at: null,
+      suspected_persistent_source: false,
+      lat: 36.7169,
+      lon: 4.0497,
+      last_detected_at: "2026-11-24T13:55:00Z",
+    };
+    const probableLevel = isEligibleProbableFire(satelliteOnlyCluster, {
+      forestFraction: 0.25,
+      dangerLevel: null,
+      nearbySighting: false,
+      officialMention: false,
+    });
+    expect(probableLevel).toBe("probable");
+    expect(probableLevel).not.toBe("confirmed");
+
+    const bareHotspotLevel = isEligibleProbableFire(satelliteOnlyCluster, {
+      forestFraction: null,
+      dangerLevel: null,
+      nearbySighting: false,
+      officialMention: false,
+    });
+    expect(bareHotspotLevel).toBeNull();
   });
 
   // 26. F18 + F19
@@ -1991,10 +2434,53 @@ describe("Tier 3 — Cross-Feature Pairwise Combinations (All 24 Features)", () 
     });
     expect([401, 403]).toContain(unauthRes.status);
 
-    // Verify server upload module calls EXIF stripping and Law 18-07/25-11 privacy checks exist
+    // Verify server upload module delegates EXIF stripping and strips bytes before uploadObject
     const uploadSource = readRepoFile(`${uploadPath}.ts`);
-    expect(uploadSource).toMatch(/stripImageMetadata|stripMetadata|exif/i);
+    expect(uploadSource).toMatch(
+      /validateAndStripReportPhoto|stripImageMetadata|stripMetadata|exif/i,
+    );
     expect(repoFileExists("docs/privacy-anpdp-compliance.md")).toBe(true);
+
+    const handleUpload = findExportedFn(
+      uploadMod,
+      ["handleReportPhotoUpload"],
+      uploadPath,
+    );
+    let capturedBytes: Uint8Array | null = null;
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new File([Buffer.from(dirtyJpeg)], "flood.jpg", { type: "image/jpeg" }),
+    );
+    const authUploadReq = new Request(
+      "http://127.0.0.1:4173/api/private/report-photo",
+      {
+        method: "POST",
+        headers: { authorization: "Bearer e2e-valid-token" },
+        body: formData,
+      },
+    );
+    const uploadRes = (await handleUpload(authUploadReq, {
+      getUser: async () => ({
+        data: { user: { id: "92000000-0000-4000-8000-000000000028" } },
+        error: null,
+      }),
+      consumeRateLimit: async () => ({ data: true, error: null }),
+      uploadObject: async (_path: string, bytes: Uint8Array) => {
+        capturedBytes = new Uint8Array(bytes);
+        return { error: null };
+      },
+      randomUuid: () => "11111111-1111-4111-8111-111111111128",
+    })) as Response;
+    expect(uploadRes.status).toBe(200);
+    const uploadBody = (await uploadRes.json()) as { stripped?: boolean };
+    expect(uploadBody.stripped).toBe(true);
+    expect(capturedBytes).not.toBeNull();
+    const uploadedMeta = inspectImageForMetadata(capturedBytes!);
+    expect(uploadedMeta.hasExif).toBe(false);
+    expect(uploadedMeta.hasGps).toBe(false);
+    expect(uploadedMeta.hasCameraTags).toBe(false);
+    expect(uploadedMeta.hasTextChunks).toBe(false);
   });
 
   // 29. F23 + F24
@@ -2006,9 +2492,10 @@ describe("Tier 3 — Cross-Feature Pairwise Combinations (All 24 Features)", () 
       await importFirstExistingModule(["src/lib/turnstile.server"]);
 
     const mockTurnstile = await startMockHttpServer((req) => {
+      const params = new URLSearchParams(req.body);
+      const token = params.get("response");
       const hasValid =
-        req.body.includes("valid-e2e-token") ||
-        req.body.includes("valid_e2e_token");
+        token === "valid-e2e-token" || token === "valid_e2e_token";
       return {
         status: 200,
         headers: { "content-type": "application/json" },
@@ -2037,9 +2524,9 @@ describe("Tier 3 — Cross-Feature Pairwise Combinations (All 24 Features)", () 
 
       // Call Turnstile verifier with invalid token against local mock endpoint
       const badOutcome = await Promise.resolve(
-        verifyFn("invalid-e2e-token", {
+        verifyFn({
+          token: "invalid-e2e-token",
           secretKey: "test-secret-key",
-          endpoint: mockTurnstile.url,
           verifyUrl: mockTurnstile.url,
           fetchImpl: fetch,
         }),
@@ -2056,16 +2543,19 @@ describe("Tier 3 — Cross-Feature Pairwise Combinations (All 24 Features)", () 
       };
 
       expect(isOk(badOutcome)).toBe(false);
+      expect((badOutcome as { skipped?: boolean }).skipped).not.toBe(true);
 
       const goodOutcome = await Promise.resolve(
-        verifyFn("valid-e2e-token", {
+        verifyFn({
+          token: "valid-e2e-token",
           secretKey: "test-secret-key",
-          endpoint: mockTurnstile.url,
           verifyUrl: mockTurnstile.url,
           fetchImpl: fetch,
         }),
       );
       expect(isOk(goodOutcome)).toBe(true);
+      expect((goodOutcome as { skipped?: boolean }).skipped).not.toBe(true);
+      expect(mockTurnstile.requests).toHaveLength(2);
     } finally {
       await mockTurnstile.close();
     }
@@ -2073,10 +2563,16 @@ describe("Tier 3 — Cross-Feature Pairwise Combinations (All 24 Features)", () 
 
   // 30. F24 + F2
   it("30. [F24+F2] Turnstile protects write endpoints while leaving public read-only hazard feeds accessible and zero Paraito refs exist", async () => {
+    assertPgReachable();
+    const seededCommune = psqlJson<{ code: string }>(
+      "SELECT code FROM public.admin_units WHERE level = 'commune' ORDER BY code LIMIT 1;",
+    );
+    const weatherCommune = seededCommune[0]?.code ?? "0101";
+
     const publicFeeds = [
       "/api/public/v1/status",
       "/api/public/v1/fires",
-      "/api/public/v1/weather",
+      `/api/public/v1/weather?commune=${encodeURIComponent(weatherCommune)}`,
       "/api/public/v1/civil",
     ];
     for (const feed of publicFeeds) {
