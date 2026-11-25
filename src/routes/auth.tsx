@@ -18,7 +18,8 @@ import {
   supabase,
 } from "@/integrations/supabase/client";
 import { authErrorKey } from "@/lib/auth-errors";
-import { authDestination } from "@/lib/auth-destination";
+import { authDestination, resolveAuthLocale } from "@/lib/auth-destination";
+import type { AnyLocale } from "@/i18n";
 import {
   authMode,
   callbackDestination,
@@ -42,10 +43,15 @@ import { APP_ORIGIN, NATIVE, openOnWeb } from "@/lib/platform";
 export const Route = createFileRoute("/auth")({
   validateSearch: (
     search: Record<string, unknown>,
-  ): { returnTo: string; mode?: AuthMode } => ({
-    returnTo: authDestination(search["returnTo"]),
-    mode: authMode(search["mode"]),
-  }),
+  ): { returnTo: string; mode?: AuthMode; lang?: AnyLocale } => {
+    const returnTo = authDestination(search["returnTo"]);
+    const lang = resolveAuthLocale(search["lang"], returnTo);
+    return {
+      returnTo,
+      mode: authMode(search["mode"]),
+      ...(lang ? { lang } : {}),
+    };
+  },
   head: () => ({
     meta: titledMeta("account.authMetaTitle", "account.authSubtitle"),
   }),
@@ -140,12 +146,21 @@ function AuthPage() {
         const unconsumedCode = new URL(window.location.href).searchParams.has(
           "code",
         );
-        if (callbackAttempt)
+        if (callbackAttempt) {
+          const cleanParams = new URLSearchParams({
+            mode:
+              recovery || modeRef.current === "reset"
+                ? "reset"
+                : modeRef.current,
+            returnTo,
+          });
+          if (search.lang) cleanParams.set("lang", search.lang);
           window.history.replaceState(
             window.history.state,
             "",
-            `/auth?${new URLSearchParams({ mode: recovery || modeRef.current === "reset" ? "reset" : modeRef.current, returnTo })}`,
+            `/auth?${cleanParams}`,
           );
+        }
         if (
           callbackError ||
           initialized.error ||
@@ -193,13 +208,19 @@ function AuthPage() {
     setCaptchaResetKey((prev) => prev + 1);
     void navigate({
       to: "/auth",
-      search: { mode: next, returnTo },
+      search: {
+        mode: next,
+        returnTo,
+        ...(search.lang ? { lang: search.lang } : {}),
+      },
       replace: true,
     });
   }
   function redirectTo(next: AuthMode = "signin") {
     const origin = NATIVE ? APP_ORIGIN : window.location.origin;
-    return `${origin}/auth?${new URLSearchParams({ mode: next, returnTo })}`;
+    const params = new URLSearchParams({ mode: next, returnTo });
+    if (search.lang) params.set("lang", search.lang);
+    return `${origin}/auth?${params}`;
   }
   async function sendEmail(kind: "signup" | "recovery") {
     const generation = requestGeneration.current;

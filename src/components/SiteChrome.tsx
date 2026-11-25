@@ -297,7 +297,7 @@ export function SiteHeader() {
                 key={item.to}
                 to={item.to}
                 activeOptions={{ exact: item.to === "/" }}
-                className="rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground [&.active]:bg-muted [&.active]:font-medium [&.active]:text-foreground"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground [&.active]:bg-muted [&.active]:font-medium [&.active]:text-foreground"
               >
                 {t(item.key)}
               </Link>
@@ -441,41 +441,41 @@ export function SiteFooter() {
   const { t } = useTranslation();
   return (
     <footer className="border-t border-border bg-surface">
-      <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-x-5 gap-y-2 px-4 py-5 text-xs text-muted-foreground">
+      <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-xs text-muted-foreground">
         <span>{t("common.appName")}</span>
         <Link
           to="/about"
-          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center px-1 hover:text-foreground"
         >
           {t("nav.about")}
         </Link>
         <Link
           to="/developers"
-          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center px-1 hover:text-foreground"
         >
           {t("nav.developers")}
         </Link>
         <Link
           to="/status"
-          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center px-1 hover:text-foreground"
         >
           {t("nav.status")}
         </Link>
         <Link
           to="/contribute"
-          className="inline-flex items-center font-semibold text-[var(--accent)] hover:opacity-80 pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center px-1 font-semibold text-[var(--accent)] hover:opacity-80"
         >
           {t("nav.contribute")}
         </Link>
         <Link
           to="/terms"
-          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center px-1 hover:text-foreground"
         >
           {t("legal.terms")}
         </Link>
         <Link
           to="/privacy"
-          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center px-1 hover:text-foreground"
         >
           {t("legal.privacy")}
         </Link>

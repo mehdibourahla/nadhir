@@ -102,8 +102,7 @@ function main(): void {
   }
 
   if (runScreenshots) {
-    const code = runCommand("bun", [
-      "run",
+    const code = runCommand("node", [
       "tests/e2e/screenshots/capture-ui.ts",
       ...extraArgs,
     ]);

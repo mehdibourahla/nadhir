@@ -216,8 +216,8 @@ interface EmscMod extends Record<string, unknown> {
     magnitude: number;
     lat: number;
     lon: number;
-    depthKm: number | null;
-    occurredAt: string;
+    depth_km: number | null;
+    occurred_at: string;
   }>;
 }
 
@@ -272,20 +272,45 @@ async function fetchEntityShareCard(args: {
   } else if (!id && args.kind === "fire") {
     assertPgReachable();
     const rows = psqlJson<{ short_id: string }>(
-      "SELECT short_id FROM public.fire_clusters ORDER BY last_detected_at DESC LIMIT 1;",
+      `SELECT fc.short_id
+       FROM public.fire_clusters fc
+       LEFT JOIN public.admin_units au ON au.id = fc.commune_id
+       WHERE fc.state IN ('active', 'confirmed')
+         AND fc.resolved_at IS NULL
+         AND fc.confirmed_at IS NULL
+         AND COALESCE(fc.suspected_persistent_source, false) = false
+         AND au.forest_fraction >= 0.1
+       ORDER BY fc.last_detected_at DESC
+       LIMIT 1;`,
     );
     if (rows[0]?.short_id) {
       id = rows[0].short_id;
     } else {
+      const forestedCommune = psqlJson<{
+        id: string;
+        parent_id: string | null;
+      }>(
+        `SELECT id::text AS id, parent_id::text AS parent_id
+         FROM public.admin_units
+         WHERE level = 'commune' AND forest_fraction >= 0.1
+         ORDER BY code
+         LIMIT 1;`,
+      );
+      const communeIdSql = forestedCommune[0]?.id
+        ? `'${forestedCommune[0].id}'::uuid`
+        : "NULL";
+      const wilayaIdSql = forestedCommune[0]?.parent_id
+        ? `'${forestedCommune[0].parent_id}'::uuid`
+        : "NULL";
       const seededUuid = "92000000-0000-4000-8000-000000000201";
       const shortId = "E2ETIZI1";
+      cleanupSql = `DELETE FROM public.fire_clusters WHERE id = '${seededUuid}';`;
       psqlExec(
-        `INSERT INTO public.fire_clusters (id, short_id, state, lat, lon, confidence, detection_count, first_detected_at, last_detected_at, max_frp_mw)
-         VALUES ('${seededUuid}', '${shortId}', 'active', 36.7169, 4.0497, 0.91, 5, now() - interval '20 minutes', now() - interval '2 minutes', 64.2)
+        `INSERT INTO public.fire_clusters (id, short_id, state, lat, lon, confidence, detection_count, first_detected_at, last_detected_at, max_frp_mw, commune_id, wilaya_id, sources, confirmed_at)
+         VALUES ('${seededUuid}', '${shortId}', 'active', 36.7169, 4.0497, 0.91, 5, now() - interval '20 minutes', now() - interval '2 minutes', 64.2, ${communeIdSql}, ${wilayaIdSql}, ARRAY['firms', 'fci'], NULL)
          ON CONFLICT DO NOTHING;`,
       );
       id = shortId;
-      cleanupSql = `DELETE FROM public.fire_clusters WHERE id = '${seededUuid}';`;
     }
   }
 
@@ -452,6 +477,7 @@ describe("Tier 4 — 12 Real-World Algerian Multi-Hazard Application Scenarios",
       const waBuild = findExportedFn(
         waMod,
         [
+          "formatWhatsappBroadcastMessage",
           "formatWhatsAppBroadcast",
           "buildWhatsAppPayload",
           "buildWhatsAppMessage",
@@ -459,77 +485,130 @@ describe("Tier 4 — 12 Real-World Algerian Multi-Hazard Application Scenarios",
         ],
         waPath,
       );
+      const waTransportFactory = findExportedFn(
+        waMod,
+        ["createMetaWhatsAppChannelTransport"],
+        waPath,
+      );
       const emailBuild = findExportedFn(
         emailMod,
         [
+          "renderZoneDigestEmail",
           "buildZoneDigestEmail",
           "formatZoneEmailDigest",
-          "renderZoneDigestEmail",
           "buildDigestEmailPayload",
         ],
         emailPath,
       );
+      const resendTransportFactory = findExportedFn(
+        emailMod,
+        ["createResendEmailTransport"],
+        emailPath,
+      );
 
       const waOut = waBuild({
-        id: "s1-onm-extreme",
-        kind: "onm",
-        severity: "Extreme",
-        title: "BMS Pluies Niveau 3 (Rouge) - Alger et Tipaza",
-        body: dgpcFlood.textFr,
-        sourceAttribution: "Office National de la Météorologie (ONM)",
-        areaLabel: "Alger, Tipaza",
-        observedAt: "2026-11-24T15:00:00+01:00",
+        candidate: {
+          id: "s1-onm-extreme",
+          kind: "onm",
+          phase: "update",
+          severity: "Extreme",
+          hazard: "rain",
+          sourceKey: "onm",
+          sourceAttribution: "Office National de la Météorologie (ONM)",
+          authorityStatus: "official",
+          headline: "BMS Pluies Niveau 3 (Rouge) - Alger et Tipaza",
+          summary: dgpcFlood.textFr,
+          areaLabel: "Alger, Tipaza",
+          observedAt: "2026-11-24T15:00:00+01:00",
+          provenance,
+        },
         locale: "fr",
-        provenance,
-      });
-      expect(JSON.stringify(waOut)).toMatch(/ONM/i);
+      }) as {
+        text: string;
+        deepLink: string;
+        provenanceFooter: string;
+      };
+      expect(waOut.text).toMatch(/ONM/i);
+      expect(waOut.provenanceFooter.length).toBeGreaterThan(10);
 
       const emailOut = emailBuild({
-        recipientEmail: "algiers.citizen@example.dz",
-        zoneName: "Bab El Oued & Ain Benian",
         locale: "fr",
-        unsubscribeUrl: "https://nadhir.app/privacy?unsubscribe=s1",
+        urgentBypass: true,
+        manageUrl: "https://nadhir.app/privacy?unsubscribe=s1",
         alerts: [
           {
             id: "s1-onm-extreme",
             kind: "onm",
-            severity: "Extreme",
+            severity: 5,
             title: "BMS Pluies Niveau 3 (Rouge) - Alger et Tipaza",
             body: dgpcFlood.textFr,
-            sourceAttribution: "Office National de la Météorologie (ONM)",
-            observedAt: "2026-11-24T15:00:00+01:00",
-            provenance,
+            created_at: "2026-11-24T15:00:00+01:00",
+            zone_name: "Bab El Oued & Ain Benian",
+            payload: {
+              ...provenanceMod.toProvenancePayload(provenance),
+              onm_severity: "Extreme",
+              source_key: "onm",
+              source_attribution: "Office National de la Météorologie (ONM)",
+            },
           },
         ],
-        items: [
-          {
-            id: "s1-onm-extreme",
-            kind: "onm",
-            severity: "Extreme",
-            title: "BMS Pluies Niveau 3 (Rouge) - Alger et Tipaza",
-            body: dgpcFlood.textFr,
-            sourceAttribution: "Office National de la Météorologie (ONM)",
-            observedAt: "2026-11-24T15:00:00+01:00",
-            provenance,
-          },
-        ],
-      });
-      const emailStr =
-        typeof emailOut === "string" ? emailOut : JSON.stringify(emailOut);
+      }) as {
+        subject: string;
+        html: string;
+        text: string;
+        provenanceLines: string[];
+      };
+      const emailStr = `${emailOut.subject}\n${emailOut.html}\n${emailOut.text}`;
       expect(emailStr).toMatch(/ONM/i);
       expect(emailStr).toMatch(/unsubscribe|désabonner|privacy/i);
+      expect(emailOut.provenanceLines.length).toBeGreaterThan(0);
 
-      // Verify local mock endpoints respond cleanly (zero live prod calls)
-      const waPing = await fetchText(waMock.url, {
-        method: "POST",
-        body: JSON.stringify(waOut),
+      // Exercise real Meta WhatsApp & Resend transports against local mocks (zero live prod calls)
+      const waTransport = waTransportFactory({
+        accessToken: "s1-mock-wa-token",
+        apiUrl: waMock.url,
+        fetchImpl: fetch,
+      }) as {
+        sendChannelMessage: (input: {
+          channelId: string;
+          text: string;
+          linkPreview?: boolean;
+          idempotencyKey: string;
+          locale: string;
+        }) => Promise<{ providerMessageId: string }>;
+      };
+      const waSent = await waTransport.sendChannelMessage({
+        channelId: "nadhir-channel-dz",
+        text: waOut.text,
+        linkPreview: true,
+        idempotencyKey: "wa:s1-onm-extreme:fr",
+        locale: "fr",
       });
-      const resendPing = await fetchText(resendMock.url, {
-        method: "POST",
-        body: emailStr,
+      expect(waSent.providerMessageId).toBe("wamid.s1.flood");
+
+      const resendTransport = resendTransportFactory({
+        apiKey: "s1-mock-resend-key",
+        apiUrl: resendMock.url,
+        fetchImpl: fetch,
+      }) as {
+        sendEmail: (input: {
+          from: string;
+          to: string;
+          subject: string;
+          html: string;
+          text: string;
+          idempotencyKey: string;
+        }) => Promise<{ providerMessageId: string }>;
+      };
+      const resendSent = await resendTransport.sendEmail({
+        from: "alerts@nadhir.app",
+        to: "algiers.citizen@example.dz",
+        subject: emailOut.subject,
+        html: emailOut.html,
+        text: emailOut.text,
+        idempotencyKey: "email:s1-onm-extreme:fr",
       });
-      expect(waPing.status).toBe(200);
-      expect(resendPing.status).toBe(200);
+      expect(resendSent.providerMessageId).toBe("resend_s1_flood");
       expect(waMock.requests).toHaveLength(1);
       expect(resendMock.requests).toHaveLength(1);
     } finally {
@@ -570,17 +649,34 @@ describe("Tier 4 — 12 Real-World Algerian Multi-Hazard Application Scenarios",
       lon: 5.058,
       eventTime: "2026-11-24T13:42:20Z",
     });
+    const craagTableHtml = [
+      '<!DOCTYPE html><html lang="fr"><head><title>CRAAG - Bulletins sismiques</title></head><body>',
+      "<table>",
+      "  <thead><tr>",
+      "    <th>Date et Heure (UTC)</th><th>Magnitude</th><th>Latitude</th><th>Longitude</th><th>Profondeur</th><th>Localisation</th><th>Bulletin</th>",
+      "  </tr></thead>",
+      "  <tbody><tr>",
+      `    <td>${craagFixture.eventTime}</td>`,
+      `    <td>ML ${craagFixture.magnitude.toFixed(1)}</td>`,
+      `    <td>${craagFixture.lat.toFixed(4)} N</td>`,
+      `    <td>${craagFixture.lon.toFixed(4)} E</td>`,
+      `    <td>${craagFixture.depthKm} km</td>`,
+      `    <td>${craagFixture.locationFr}</td>`,
+      `    <td><a href="${craagFixture.bulletinUrl}">Bulletin officiel CRAAG</a></td>`,
+      "  </tr></tbody>",
+      "</table></body></html>",
+    ].join("\n");
     const craagServer = await startMockHttpServer(() => ({
       status: 200,
       headers: { "content-type": "text/html; charset=utf-8" },
-      body: craagFixture.html,
+      body: craagTableHtml,
     }));
 
     try {
       const { path: craagPath, mod: craagMod } =
         await importFirstExistingModule([
-          "src/lib/ingest/craag.server",
           "src/lib/ingest/craag",
+          "src/lib/ingest/craag.server",
         ]);
       const fetchedHtml = await fetchText(craagServer.url);
       expect(fetchedHtml.status).toBe(200);
@@ -588,8 +684,8 @@ describe("Tier 4 — 12 Real-World Algerian Multi-Hazard Application Scenarios",
       const parseCraag = findExportedFn(
         craagMod,
         [
-          "parseCraagHtml",
           "parseCraagBulletins",
+          "parseCraagHtml",
           "parseCraagBulletin",
           "extractCraagBulletins",
         ],
@@ -606,13 +702,40 @@ describe("Tier 4 — 12 Real-World Algerian Multi-Hazard Application Scenarios",
         craagPath,
       );
 
-      const bulletins = parseCraag(fetchedHtml.text);
-      const matched = matchCraag(
-        quake,
-        Array.isArray(bulletins) ? bulletins : [bulletins],
-      );
-      expect(matched).toBeTruthy();
-      expect(JSON.stringify(matched)).toMatch(/CRAAG/i);
+      const parsed = parseCraag(fetchedHtml.text) as {
+        bulletins: Array<{
+          bulletinId: string;
+          observedAt: string;
+          lat: number;
+          lon: number;
+          magnitude: number;
+          attribution: string;
+          sourceUrl: string | null;
+        }>;
+      };
+      expect(parsed.bulletins).toHaveLength(1);
+      const bulletin = parsed.bulletins[0]!;
+      expect(bulletin.attribution).toMatch(/CRAAG/i);
+
+      const matched = matchCraag(bulletin, [
+        {
+          id: quake.id,
+          occurred_at: quake.occurred_at,
+          lat: quake.lat,
+          lon: quake.lon,
+          magnitude: quake.magnitude,
+        },
+      ]) as {
+        earthquakeId: string;
+        distanceKm: number;
+        timeDiffSeconds: number;
+        magnitudeDiff: number;
+      } | null;
+      expect(matched).not.toBeNull();
+      expect(matched?.earthquakeId).toBe(quake.id);
+      expect(matched?.distanceKm).toBeLessThanOrEqual(50);
+      expect(matched?.timeDiffSeconds).toBeLessThanOrEqual(120);
+      expect(matched?.magnitudeDiff).toBeLessThanOrEqual(1.0);
     } finally {
       await craagServer.close();
     }
@@ -762,16 +885,18 @@ describe("Tier 4 — 12 Real-World Algerian Multi-Hazard Application Scenarios",
     const { path: turnstilePath, mod: turnstileMod } =
       await importFirstExistingModule(["src/lib/turnstile.server"]);
 
-    const mockTurnstile = await startMockHttpServer((req) => ({
-      status: 200,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        success: req.body.includes("turnstile-valid-s4"),
-        "error-codes": req.body.includes("turnstile-valid-s4")
-          ? []
-          : ["invalid-input-response"],
-      }),
-    }));
+    const mockTurnstile = await startMockHttpServer((req) => {
+      const token = new URLSearchParams(req.body).get("response");
+      const valid = token === "turnstile-valid-s4";
+      return {
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          success: valid,
+          "error-codes": valid ? [] : ["invalid-input-response"],
+        }),
+      };
+    });
 
     try {
       const verifyFn = findExportedFn(
@@ -784,23 +909,30 @@ describe("Tier 4 — 12 Real-World Algerian Multi-Hazard Application Scenarios",
         ],
         turnstilePath,
       );
-      const okRes = await Promise.resolve(
-        verifyFn("turnstile-valid-s4", {
+      const okRes = (await Promise.resolve(
+        verifyFn({
+          token: "turnstile-valid-s4",
           secretKey: "s4-secret",
-          endpoint: mockTurnstile.url,
           verifyUrl: mockTurnstile.url,
           fetchImpl: fetch,
+          required: true,
         }),
-      );
-      const passed =
-        typeof okRes === "boolean"
-          ? okRes
-          : Boolean(
-              (okRes as Record<string, unknown>)?.["ok"] ??
-              (okRes as Record<string, unknown>)?.["success"] ??
-              (okRes as Record<string, unknown>)?.["valid"],
-            );
-      expect(passed).toBe(true);
+      )) as Record<string, unknown>;
+      expect(okRes["ok"]).toBe(true);
+      expect("skipped" in okRes).toBe(false);
+
+      const badRes = (await Promise.resolve(
+        verifyFn({
+          token: "turnstile-invalid-s4",
+          secretKey: "s4-secret",
+          verifyUrl: mockTurnstile.url,
+          fetchImpl: fetch,
+          required: true,
+        }),
+      )) as Record<string, unknown>;
+      expect(badRes["ok"]).toBe(false);
+      expect(badRes["status"]).toBe(403);
+      expect(mockTurnstile.requests).toHaveLength(2);
     } finally {
       await mockTurnstile.close();
     }
@@ -941,12 +1073,12 @@ describe("Tier 4 — 12 Real-World Algerian Multi-Hazard Application Scenarios",
 
         INSERT INTO public.source_runs (
           id, contract_key, contract_version, trigger_kind, idempotency_key,
-          scheduled_for, started_at, finished_at, outcome, records_seen, job_id
+          scheduled_for, started_at, finished_at, outcome, records_seen, job_id, attempt
         ) VALUES
           ('95000000-0000-4000-8000-000000000051', _contract_key, 1, 'manual', 's5-run-cold-retire',
-           _cold_ts, _cold_ts, _cold_ts + interval '1 min', 'succeeded', 1, NULL),
+           _cold_ts, _cold_ts, _cold_ts + interval '1 min', 'succeeded', 1, NULL, NULL),
           ('95000000-0000-4000-8000-000000000052', _contract_key, 1, 'manual', 's5-run-hot-keep',
-           _hot_ts, _hot_ts, _hot_ts + interval '1 min', 'succeeded', 1, '95000000-0000-4000-8000-000000000062');
+           _hot_ts, _hot_ts, _hot_ts + interval '1 min', 'succeeded', 1, '95000000-0000-4000-8000-000000000062', 1);
 
         -- Seed storage.objects entries for all 6 tables on _cold_day
         INSERT INTO storage.objects (bucket_id, name, metadata)
@@ -1391,7 +1523,12 @@ describe("Tier 4 — 12 Real-World Algerian Multi-Hazard Application Scenarios",
     expect(
       String(dCancel["msgType"] ?? dCancel["msg_type"] ?? "").toLowerCase(),
     ).toBe("cancel");
-    expect(dCancel["references"]).toBeTruthy();
+    expect(String(dCancel["cap_references"] ?? "")).toContain(
+      "urn:oid:2.49.0.1.12.0.s8.002",
+    );
+    expect(dCancel["referenced_cap_ids"]).toContain(
+      "urn:oid:2.49.0.1.12.0.s8.002",
+    );
     expect(dNoExp).toBeTruthy();
 
     // Channel routing reflects escalation & cancel
@@ -1599,11 +1736,21 @@ describe("Tier 4 — 12 Real-World Algerian Multi-Hazard Application Scenarios",
       const craagRes = await fetchText(craagDownServer.url);
       expect(craagRes.status).toBe(503);
 
-      // HTML error page detection check
+      // HTML error page detection check: M6 Gate requires throwing rather than silent empty success
       const errRes = await fetchText(htmlErrorServer.url);
       expect(errRes.status).toBe(200);
       expect(errRes.text).toContain("MapServer Error");
-      expect(emscMod.parseEmsc(errRes.text)).toEqual([]);
+      expect(() => emscMod.parseEmsc(errRes.text)).toThrow(/unexpected shape/i);
+      const { path: craagPath, mod: craagMod } =
+        await importFirstExistingModule(["src/lib/ingest/craag"]);
+      const parseCraagBulletins = findExportedFn(
+        craagMod,
+        ["parseCraagBulletins"],
+        craagPath,
+      );
+      expect(() => parseCraagBulletins(errRes.text)).toThrow(
+        /maintenance|error|challenge/i,
+      );
     } finally {
       await htmlErrorServer.close();
       await emscOkServer.close();
@@ -1700,7 +1847,11 @@ describe("Tier 4 — 12 Real-World Algerian Multi-Hazard Application Scenarios",
     expect(mainActivity).toMatch(/NotificationChannels\./);
 
     const pushNative = readRepoFile("src/lib/push-native.ts");
-    expect(pushNative).toContain("isExactNotification: false");
+    expect(channelMod.DEFAULT_LOCAL_NOTIFICATION_EXACT).toBe(false);
+    expect(pushNative).toContain("localNotifications.schedule(");
+    expect(pushNative).toMatch(
+      /isExactNotification:\s*(?:false|DEFAULT_LOCAL_NOTIFICATION_EXACT)/,
+    );
 
     // Stage C: assetlinks.json + Play Store listing / Data Safety docs
     const assetLinks = readRepoJson<

@@ -24,6 +24,7 @@ import {
 } from "@/lib/account";
 import { titledMeta } from "@/lib/page-meta";
 import { DevicePush } from "@/components/DevicePush";
+import { Switch } from "@/components/ui/switch";
 import { signOutAccount } from "@/lib/sign-out";
 import { NATIVE, apiUrl } from "@/lib/platform";
 import {
@@ -189,7 +190,7 @@ function SettingsPage() {
             onChange={(e) =>
               setDraft({ ...draft, display_name: e.target.value })
             }
-            className="w-full rounded-md border border-border bg-background px-3 py-2"
+            className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2"
           />
         </label>
         <label className="block">
@@ -200,7 +201,7 @@ function SettingsPage() {
             inputMode="tel"
             value={draft.phone}
             onChange={(e) => setDraft({ ...draft, phone: e.target.value })}
-            className="tabular w-full rounded-md border border-border bg-background px-3 py-2"
+            className="tabular min-h-11 w-full rounded-md border border-border bg-background px-3 py-2"
           />
         </label>
         <label className="block">
@@ -210,7 +211,7 @@ function SettingsPage() {
           <select
             value={draft.locale}
             onChange={(e) => setDraft({ ...draft, locale: e.target.value })}
-            className="w-full rounded-md border border-border bg-background px-3 py-2"
+            className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2"
           >
             {LOCALES.map((l) => (
               <option key={l} value={l}>
@@ -228,7 +229,7 @@ function SettingsPage() {
             onChange={(e) =>
               setDraft({ ...draft, min_danger_level: Number(e.target.value) })
             }
-            className="w-full rounded-md border border-border bg-background px-3 py-2"
+            className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2"
           >
             {[1, 2, 3, 4, 5].map((l) => (
               <option key={l} value={l}>
@@ -245,13 +246,12 @@ function SettingsPage() {
             {t("account.channels")}
           </legend>
           <div className="space-y-2 rounded-md border border-border/70 p-3">
-            <label className="flex min-h-11 cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
-                className="h-5 w-5"
+            <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3">
+              <span>{t("emailDigest.settingsLabel")}</span>
+              <Switch
+                aria-label={t("emailDigest.settingsLabel")}
                 checked={draft.alert_email}
-                onChange={(e) => {
-                  const enabled = e.target.checked;
+                onCheckedChange={(enabled) => {
                   setDraft({
                     ...draft,
                     alert_email: enabled,
@@ -263,7 +263,6 @@ function SettingsPage() {
                   });
                 }}
               />
-              <span>{t("emailDigest.settingsLabel")}</span>
             </label>
             <label className="block">
               <span className="mb-1 block text-xs text-muted-foreground">
@@ -298,23 +297,22 @@ function SettingsPage() {
               {t("emailDigest.settingsHint")}
             </p>
           </div>
-          <label className="flex min-h-11 cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
-              className="h-5 w-5"
+          <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3">
+            <span>{t("account.channelPush")}</span>
+            <Switch
+              aria-label={t("account.channelPush")}
               checked={draft.alert_push}
-              onChange={(e) =>
-                setDraft({ ...draft, alert_push: e.target.checked })
+              onCheckedChange={(enabled) =>
+                setDraft({ ...draft, alert_push: enabled })
               }
             />
-            {t("account.channelPush")}
           </label>
           {draft.alert_push &&
           pushState !== "granted" &&
           pushState !== "unsupported" ? (
             <button
               type="button"
-              className="rounded border border-border px-3 py-2"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border px-3 py-2"
               onClick={async () =>
                 setPushState(await requestNotificationPermission())
               }
@@ -348,7 +346,7 @@ function SettingsPage() {
               onChange={(e) =>
                 setDraft({ ...draft, quiet_hours_start: e.target.value })
               }
-              className="tabular w-full rounded-md border border-border bg-background px-3 py-2"
+              className="tabular min-h-11 w-full rounded-md border border-border bg-background px-3 py-2"
             />
           </label>
           <label className="block">
@@ -363,7 +361,7 @@ function SettingsPage() {
               onChange={(e) =>
                 setDraft({ ...draft, quiet_hours_end: e.target.value })
               }
-              className="tabular w-full rounded-md border border-border bg-background px-3 py-2"
+              className="tabular min-h-11 w-full rounded-md border border-border bg-background px-3 py-2"
             />
           </label>
         </div>
@@ -374,7 +372,7 @@ function SettingsPage() {
           <button
             type="submit"
             disabled={save.isPending}
-            className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground disabled:opacity-60"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground disabled:opacity-60"
           >
             {t("account.save")}
           </button>
@@ -382,7 +380,7 @@ function SettingsPage() {
             type="button"
             onClick={signOut}
             disabled={signingOut}
-            className="rounded-md border border-border px-4 py-2 hover:bg-secondary"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-border px-4 py-2 hover:bg-secondary"
           >
             {t("account.signOut")}
           </button>
@@ -405,7 +403,7 @@ function SettingsPage() {
       </section>
       <PrivacyControls />
       <details className="panel mt-6 p-5">
-        <summary className="cursor-pointer font-semibold text-destructive">
+        <summary className="inline-flex min-h-11 cursor-pointer items-center font-semibold text-destructive">
           {t("account.deleteAccount")}
         </summary>
         <p className="mt-3 text-sm">{t("account.deleteWarning")}</p>
@@ -415,14 +413,14 @@ function SettingsPage() {
             autoComplete="off"
             value={deleteConfirmation}
             onChange={(e) => setDeleteConfirmation(e.target.value)}
-            className="mt-2 block w-full rounded border border-border bg-background px-3 py-2"
+            className="mt-2 block min-h-11 w-full rounded border border-border bg-background px-3 py-2"
           />
         </label>
         <button
           type="button"
           disabled={deleteConfirmation !== "DELETE" || removeAccount.isPending}
           onClick={() => removeAccount.mutate()}
-          className="mt-3 rounded bg-destructive px-4 py-2 text-destructive-foreground disabled:opacity-50"
+          className="mt-3 inline-flex min-h-11 min-w-11 items-center justify-center rounded bg-destructive px-4 py-2 text-destructive-foreground disabled:opacity-50"
         >
           {t("account.deleteAccount")}
         </button>
