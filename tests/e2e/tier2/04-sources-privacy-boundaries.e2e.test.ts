@@ -847,11 +847,11 @@ describe("Tier 2 Boundaries — F18–F24: M6 New-Source Gate, Tariki, CRAAG/EMS
         if (pr31GuardFiles.has(relPath)) {
           text = text
             .replace(
-              /const\s+PROHIBITED_[A-Z0-9_]+\s*=\s*\[[\s\S]*?\]\s*as\s+const;/g,
+              /const\s+PROHIBITED_[A-Z0-9_]+\s*=\s*\[[^\]]*?\]\s*as\s+const;/g,
               "",
             )
             .replace(
-              /throw\s+new\s+Error\([\s\S]*?prohibited[\s\S]*?\);/gi,
+              /throw\s+new\s+Error\(\s*(?:"[^"\n]*\bprohibited\b[^"\n]*"|'[^'\n]*\bprohibited\b[^'\n]*'|`[^`]*\bprohibited\b[^`]*`)\s*,?\s*\);/gi,
               "",
             );
         }

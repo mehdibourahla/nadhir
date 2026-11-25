@@ -114,6 +114,111 @@ describe("parseFciFeatures", () => {
       });
     }
   });
+
+  it("never lets an unparseable time poison latestSlot", () => {
+    const res = parseFciFeatures({
+      features: [
+        {
+          geometry: { coordinates: [3.05, 36.75] },
+          properties: {
+            time: "2026-11-24T12:00:00Z",
+            FRP: 15,
+            Confidence: 80,
+            SZA: 45,
+          },
+        },
+        {
+          geometry: { coordinates: [3.05, 36.75] },
+          properties: {
+            time: "invalid-date",
+            FRP: 15,
+            Confidence: 80,
+            SZA: 45,
+          },
+        },
+        {
+          geometry: { coordinates: [3.05, 36.75] },
+          properties: {
+            time: "2026-02-30T12:00:00Z",
+            FRP: 15,
+            Confidence: 80,
+            SZA: 45,
+          },
+        },
+      ],
+    });
+    expect(res.latestSlot).toBe("2026-11-24T12:00:00Z");
+    expect(res.rows).toHaveLength(1);
+    expect(res.outside).toBe(0);
+  });
+
+  it("drops impossible WGS84 coordinates without incrementing outside", () => {
+    const res = parseFciFeatures({
+      features: [
+        {
+          geometry: { coordinates: [3.0, 95.0] },
+          properties: { time: "2026-11-24T12:00:00Z" },
+        },
+        {
+          geometry: { coordinates: [200.0, 36.0] },
+          properties: { time: "2026-11-24T12:00:00Z" },
+        },
+        {
+          geometry: { coordinates: [-181.0, 36.0] },
+          properties: { time: "2026-11-24T12:00:00Z" },
+        },
+        {
+          geometry: { coordinates: [3.0, -91.0] },
+          properties: { time: "2026-11-24T12:00:00Z" },
+        },
+      ],
+    });
+    expect(res.rows).toHaveLength(0);
+    expect(res.outside).toBe(0);
+    expect(res.filtered).toBe(0);
+    expect(res.latestSlot).toBeNull();
+  });
+
+  it("guards non-finite or non-numeric Confidence, SZA, and FRP values", () => {
+    const res = parseFciFeatures({
+      features: [
+        {
+          geometry: { coordinates: [3.5087, 36.5124] },
+          properties: {
+            time: "2026-11-24T12:00:00Z",
+            Confidence: Number.NaN,
+            SZA: null as unknown as number,
+            FRP: Number.POSITIVE_INFINITY,
+          },
+        },
+        {
+          geometry: { coordinates: [3.5088, 36.5125] },
+          properties: {
+            time: "2026-11-24T12:00:00Z",
+            Confidence: "high" as unknown as number,
+            SZA: "bad" as unknown as number,
+            FRP: Number.NaN,
+          },
+        },
+        {
+          geometry: { coordinates: [3.5089, 36.5126] },
+          properties: {
+            time: "2026-11-24T12:00:00Z",
+            Confidence: null as unknown as number,
+            SZA: Number.NaN,
+            FRP: "15" as unknown as number,
+          },
+        },
+      ],
+    });
+    expect(res.rows).toHaveLength(3);
+    for (const row of res.rows) {
+      expect(Number.isFinite(row.confidence_raw)).toBe(true);
+      expect(row.confidence_raw).toBe(0.5);
+      expect(row.daynight).toBeNull();
+      expect(row.frp_mw).toBeNull();
+    }
+  });
 });
 
 describe("parseWfsFireFeatures for Sentinel-3 SLSTR", () => {

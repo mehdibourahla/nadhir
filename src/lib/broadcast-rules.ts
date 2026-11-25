@@ -867,6 +867,9 @@ export function planEarthquakeBroadcast(
     return suppress("invalid_magnitude");
   }
 
+  if ((input.lat !== undefined) !== (input.lon !== undefined)) {
+    return suppress("invalid_coordinates");
+  }
   if (input.lat !== undefined) {
     if (
       typeof input.lat !== "number" ||
@@ -888,6 +891,9 @@ export function planEarthquakeBroadcast(
     }
   }
 
+  if ((input.occurredMs !== undefined) !== (input.nowMs !== undefined)) {
+    return suppress("invalid_timestamp");
+  }
   if (input.occurredMs !== undefined) {
     if (
       typeof input.occurredMs !== "number" ||

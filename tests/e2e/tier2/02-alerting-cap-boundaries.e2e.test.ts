@@ -21,10 +21,11 @@ import { findBannedSafeLabels, findEmDashesInText } from "../lib/playwright.ts";
 
 const HOUR = 3_600_000;
 
-function stripJsComments(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|\s)\/\/.*$/gm, "$1");
+function stripJsComments(src: string): string {
+  return src.replace(
+    /("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`)|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g,
+    (match, strLiteral: string | undefined) => (strLiteral ? match : ""),
+  );
 }
 
 type AnyFn = (...args: unknown[]) => unknown;

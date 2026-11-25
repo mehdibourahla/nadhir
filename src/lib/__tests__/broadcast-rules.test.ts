@@ -1139,4 +1139,37 @@ describe("planEarthquakeBroadcast (F9)", () => {
     });
     expect(JSON.stringify(downward)).not.toMatch(/safe|all[-\s]clear/i);
   });
+
+  it("suppresses half-provided coordinate or timestamp pairs while allowing both members to be omitted", () => {
+    const halfCoordCases = [
+      { magnitude: 4.5, lat: 36.7 },
+      { magnitude: 4.5, lon: 3.0 },
+    ];
+    for (const input of halfCoordCases) {
+      expect(planEarthquakeBroadcast(input)).toEqual({
+        action: "suppress",
+        shouldBroadcast: false,
+        send: false,
+        retract: false,
+        severity: null,
+        reason: "invalid_coordinates",
+      });
+    }
+
+    const halfTimeCases = [
+      { magnitude: 4.5, occurredMs: 0 },
+      { magnitude: 4.5, occurredMs: Date.now() + 365 * 24 * 3600_000 },
+      { magnitude: 4.5, nowMs: Date.parse("2026-11-24T15:00:00Z") },
+    ];
+    for (const input of halfTimeCases) {
+      expect(planEarthquakeBroadcast(input)).toEqual({
+        action: "suppress",
+        shouldBroadcast: false,
+        send: false,
+        retract: false,
+        severity: null,
+        reason: "invalid_timestamp",
+      });
+    }
+  });
 });

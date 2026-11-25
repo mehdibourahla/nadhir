@@ -126,6 +126,62 @@ describe("parseEmsc", () => {
     ]);
     expect(parsed[0]!.updated_at).toBe("2026-11-25T10:00:00Z");
   });
+
+  it("rejects empty/whitespace unid, numeric/non-ISO timestamps, and calendar rollovers while accepting valid leap-day timestamps", () => {
+    const parsed = parseEmsc({
+      features: [
+        {
+          properties: {
+            unid: "",
+            time: "2026-11-25T10:00:00Z",
+            lat: 36.7,
+            lon: 3.0,
+            mag: 3.5,
+          },
+        },
+        {
+          properties: {
+            unid: "   ",
+            time: "2026-11-25T10:00:00Z",
+            lat: 36.7,
+            lon: 3.0,
+            mag: 3.5,
+          },
+        },
+        {
+          properties: {
+            unid: "emsc-time-zero",
+            time: "0",
+            lat: 36.7,
+            lon: 3.0,
+            mag: 3.5,
+          },
+        },
+        {
+          properties: {
+            unid: "emsc-feb-30",
+            time: "2026-02-30T00:00:00Z",
+            lat: 36.7,
+            lon: 3.0,
+            mag: 3.5,
+          },
+        },
+        {
+          properties: {
+            unid: "emsc-leap-day",
+            time: "2024-02-29T12:00:00Z",
+            lastupdate: "2026-02-30T00:00:00Z",
+            lat: 36.7,
+            lon: 3.0,
+            mag: 3.5,
+          },
+        },
+      ],
+    });
+    expect(parsed.map((e) => e.id)).toEqual(["emsc-leap-day"]);
+    expect(parsed[0]!.occurred_at).toBe("2024-02-29T12:00:00Z");
+    expect(parsed[0]!.updated_at).toBe("2024-02-29T12:00:00Z");
+  });
 });
 
 describe("locateEvents", () => {

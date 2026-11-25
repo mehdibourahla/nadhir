@@ -23,6 +23,45 @@ const EMSC_PLAUSIBLE_MAX_MAGNITUDE = 10;
 const finite = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 
+const ISO_TIMESTAMP_RE =
+  /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|([+-])(\d{2}):(\d{2}))$/i;
+
+function isStrictIsoTimestamp(value: string): boolean {
+  const m = ISO_TIMESTAMP_RE.exec(value);
+  if (!m) return false;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const second = Number(m[6]);
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31 ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59
+  ) {
+    return false;
+  }
+  if (m[10] !== undefined && m[11] !== undefined) {
+    const tzHour = Number(m[10]);
+    const tzMinute = Number(m[11]);
+    if (tzHour > 23 || tzMinute > 59) return false;
+  }
+  const check = new Date(Date.UTC(year, month - 1, day));
+  if (
+    check.getUTCFullYear() !== year ||
+    check.getUTCMonth() !== month - 1 ||
+    check.getUTCDate() !== day
+  ) {
+    return false;
+  }
+  return Number.isFinite(Date.parse(value.replace(" ", "T")));
+}
+
 export type ParseEmscOptions = {
   minMagnitude?: number;
 };
@@ -43,8 +82,9 @@ export function parseEmsc(
     if (
       !p ||
       typeof p["unid"] !== "string" ||
+      p["unid"].trim().length === 0 ||
       typeof p["time"] !== "string" ||
-      !Number.isFinite(Date.parse(p["time"])) ||
+      !isStrictIsoTimestamp(p["time"]) ||
       !finite(p["lat"]) ||
       p["lat"] < -90 ||
       p["lat"] > 90 ||
@@ -61,7 +101,7 @@ export function parseEmsc(
     const magnitude = Math.round(p["mag"] * 10) / 10;
     const updatedAt =
       typeof p["lastupdate"] === "string" &&
-      Number.isFinite(Date.parse(p["lastupdate"]))
+      isStrictIsoTimestamp(p["lastupdate"])
         ? p["lastupdate"]
         : p["time"];
     return [
