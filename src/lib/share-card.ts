@@ -130,10 +130,12 @@ export function effectiveFireConfirmedAt(
   confirmedAt: string | null | undefined,
   confirmedMentionTier?: string | null,
 ): string | null {
+  if (typeof confirmedAt !== "string") return null;
+  const trimmed = confirmedAt.trim();
   if (
-    typeof confirmedAt !== "string" ||
-    confirmedAt.trim().length === 0 ||
-    !Number.isFinite(Date.parse(confirmedAt))
+    trimmed.length === 0 ||
+    !/^\d{4}-\d{2}-\d{2}/.test(trimmed) ||
+    !Number.isFinite(Date.parse(trimmed))
   ) {
     return null;
   }
@@ -143,7 +145,7 @@ export function effectiveFireConfirmedAt(
   ) {
     return null;
   }
-  return confirmedAt;
+  return trimmed;
 }
 
 export const isShareable = (

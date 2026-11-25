@@ -491,6 +491,11 @@ export async function loadFireModel(
               "first_reported_at",
               new Date(lastDetectedMs - LINK_AFTER_MS).toISOString(),
             )
+            .lte(
+              "first_reported_at",
+              new Date(lastDetectedMs + LINK_BEFORE_MS).toISOString(),
+            )
+            .order("first_reported_at", { ascending: true })
             .limit(50)
         : Promise.resolve({ data: [], error: null }),
     ],
@@ -550,12 +555,12 @@ export async function loadFireModel(
       .map((incident) => Date.parse(incident.first_reported_at))
       .filter(Number.isFinite);
     if (reported.length > 0) {
+      const SIBLING_LIMIT = 200;
       const { data: siblingRows, error: siblingError } = await client
         .from("fire_clusters")
         .select("id, wilaya_id, state, confirmed_at, last_detected_at")
         .eq("wilaya_id", cluster.wilaya_id)
         .neq("state", "false_positive")
-        .neq("state", "extinguished")
         .gte(
           "last_detected_at",
           new Date(Math.min(...reported) - LINK_BEFORE_MS).toISOString(),
@@ -564,9 +569,10 @@ export async function loadFireModel(
           "last_detected_at",
           new Date(Math.max(...reported) + LINK_AFTER_MS).toISOString(),
         )
-        .limit(200);
+        .order("id", { ascending: true })
+        .limit(SIBLING_LIMIT);
 
-      if (!siblingError) {
+      if (!siblingError && (siblingRows?.length ?? 0) < SIBLING_LIMIT) {
         type LinkCandidate = {
           id: string;
           wilaya_id: string | null;
@@ -775,7 +781,7 @@ export async function handleUniversalShareRequest(
       parsed.id,
       failure,
     );
-    return new Response("upstream unavailable", {
+    return new Response(isHead ? null : "upstream unavailable", {
       status: 503,
       headers: {
         "retry-after": "30",
@@ -786,7 +792,7 @@ export async function handleUniversalShareRequest(
     });
   }
   if (!model) {
-    return new Response("not found", {
+    return new Response(isHead ? null : "not found", {
       status: 404,
       headers: {
         "access-control-allow-origin": "*",
@@ -828,7 +834,9 @@ export async function handleUniversalShareRequest(
   const limited = await limit();
   if (limited) {
     limited.headers.set("access-control-allow-origin", "*");
-    return limited;
+    return isHead
+      ? new Response(null, { status: limited.status, headers: limited.headers })
+      : limited;
   }
 
   let image: Uint8Array<ArrayBuffer> | null;
@@ -846,10 +854,11 @@ export async function handleUniversalShareRequest(
       parsed.format,
       failure,
     );
-    return new Response("render failed", {
+    return new Response(isHead ? null : "render failed", {
       status: 503,
       headers: {
         "retry-after": "30",
+        "cache-control": "no-store",
         "access-control-allow-origin": "*",
         "x-content-type-options": "nosniff",
       },
@@ -857,9 +866,10 @@ export async function handleUniversalShareRequest(
   }
 
   if (!image) {
-    return new Response("browser rendering unavailable here", {
+    return new Response(isHead ? null : "browser rendering unavailable here", {
       status: 501,
       headers: {
+        "cache-control": "no-store",
         "access-control-allow-origin": "*",
         "x-content-type-options": "nosniff",
       },

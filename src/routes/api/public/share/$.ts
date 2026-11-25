@@ -13,9 +13,11 @@ async function serveUniversalShare(request: Request): Promise<Response> {
   const rawPathname = extractRawPathname(request.url);
   const parsed = parseUniversalSharePath(rawPathname, url.searchParams);
   if (!parsed.ok) {
-    return new Response(parsed.error, {
+    const isHead = request.method.toUpperCase() === "HEAD";
+    return new Response(isHead ? null : parsed.error, {
       status: parsed.status,
       headers: {
+        "cache-control": "no-store",
         "access-control-allow-origin": "*",
         "x-content-type-options": "nosniff",
       },

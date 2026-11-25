@@ -7,6 +7,7 @@ import type { FireContext } from "@/lib/fire-confidence";
 import type { OfficialIncident, OnmVigilance } from "@/lib/nadhir";
 import {
   MAX_SHARE_CARD_BYTES,
+  effectiveFireConfirmedAt,
   extractRawPathname,
   fireCardModel,
   isEligibleEarthquake,
@@ -489,6 +490,17 @@ describe("ADR-0002 strict eligibility & 5-entity models", () => {
       ),
     ).toBe("probable");
 
+    // Bare numeric strings that Date.parse accepts in V8/Bun MUST be rejected by ISO-date shape guard
+    expect(effectiveFireConfirmedAt("0")).toBeNull();
+    expect(effectiveFireConfirmedAt("2026")).toBeNull();
+    expect(effectiveFireConfirmedAt("12345")).toBeNull();
+    expect(effectiveFireConfirmedAt("0", "national")).toBeNull();
+    expect(effectiveFireConfirmedAt("2026", "national")).toBeNull();
+    expect(effectiveFireConfirmedAt("12345", "national")).toBeNull();
+    expect(effectiveFireConfirmedAt("2026-11-25T11:00:00Z", "national")).toBe(
+      "2026-11-25T11:00:00Z",
+    );
+
     // Non-official authority tiers ("citizen", "unknown", "") NEVER grant "confirmed"
     for (const badTier of ["citizen", "unknown", ""]) {
       expect(
@@ -783,6 +795,8 @@ describe("handleUniversalShareRequest (GET, HEAD, cache, rate-limit, errors)", (
       limit: async () => null,
     });
     expect(res501.status).toBe(501);
+    expect(res501.headers.get("cache-control")).toBe("no-store");
+    expect(await res501.text()).toBe("browser rendering unavailable here");
 
     vi.spyOn(console, "error").mockImplementation(() => {});
     const res503 = await handleUniversalShareRequest(req, parsedTarget, {
@@ -795,6 +809,8 @@ describe("handleUniversalShareRequest (GET, HEAD, cache, rate-limit, errors)", (
     });
     expect(res503.status).toBe(503);
     expect(res503.headers.get("retry-after")).toBe("30");
+    expect(res503.headers.get("cache-control")).toBe("no-store");
+    expect(await res503.text()).toBe("render failed");
     expect(MAX_SHARE_CARD_BYTES).toBe(37_888);
   });
 
@@ -821,9 +837,135 @@ describe("handleUniversalShareRequest (GET, HEAD, cache, rate-limit, errors)", (
     expect(res.headers.get("cache-control")).toBe("no-store");
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(await res.text()).toBe("upstream unavailable");
     expect(match).not.toHaveBeenCalled();
     expect(put).not.toHaveBeenCalled();
     expect(render).not.toHaveBeenCalled();
+  });
+
+  it("enforces RFC 9110 empty body on HEAD across ALL error responses (loadModel 503, 404, 429, render 503, 501) and route parse errors", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const headReq = new Request(
+      `https://nadhir.app/api/public/share/incident/${sampleModel.id}.whatsapp.webp?lang=fr`,
+      { method: "HEAD" },
+    );
+
+    const headLoad503 = await handleUniversalShareRequest(
+      headReq,
+      parsedTarget,
+      {
+        loadModel: async () => {
+          throw new Error("upstream down");
+        },
+        render: async () => new Uint8Array([1]),
+        cache: null,
+        limit: async () => null,
+      },
+    );
+    expect(headLoad503.status).toBe(503);
+    expect(headLoad503.headers.get("cache-control")).toBe("no-store");
+    expect(headLoad503.headers.get("retry-after")).toBe("30");
+    expect((await headLoad503.arrayBuffer()).byteLength).toBe(0);
+
+    const head404 = await handleUniversalShareRequest(headReq, parsedTarget, {
+      loadModel: async () => null,
+      render: async () => new Uint8Array([1]),
+      cache: null,
+      limit: async () => null,
+    });
+    expect(head404.status).toBe(404);
+    expect((await head404.arrayBuffer()).byteLength).toBe(0);
+
+    const head429 = await handleUniversalShareRequest(headReq, parsedTarget, {
+      loadModel: async () => sampleModel,
+      render: async () => new Uint8Array([1]),
+      cache: null,
+      limit: async () =>
+        new Response("rate limited", {
+          status: 429,
+          headers: { "retry-after": "60" },
+        }),
+    });
+    expect(head429.status).toBe(429);
+    expect(head429.headers.get("retry-after")).toBe("60");
+    expect(head429.headers.get("access-control-allow-origin")).toBe("*");
+    expect((await head429.arrayBuffer()).byteLength).toBe(0);
+
+    const headRender503 = await handleUniversalShareRequest(
+      headReq,
+      parsedTarget,
+      {
+        loadModel: async () => sampleModel,
+        render: async () => {
+          throw new Error("cdp crash");
+        },
+        cache: null,
+        limit: async () => null,
+      },
+    );
+    expect(headRender503.status).toBe(503);
+    expect(headRender503.headers.get("cache-control")).toBe("no-store");
+    expect(headRender503.headers.get("retry-after")).toBe("30");
+    expect((await headRender503.arrayBuffer()).byteLength).toBe(0);
+
+    const head501 = await handleUniversalShareRequest(headReq, parsedTarget, {
+      loadModel: async () => sampleModel,
+      render: async () => null,
+      cache: null,
+      limit: async () => null,
+    });
+    expect(head501.status).toBe(501);
+    expect(head501.headers.get("cache-control")).toBe("no-store");
+    expect((await head501.arrayBuffer()).byteLength).toBe(0);
+
+    // Route-level parse errors (400 / 404) must also emit 0-byte body on HEAD
+    const [{ Route: splatRoute }, { Route: legacyRoute }] = await Promise.all([
+      import("@/routes/api/public/share/$"),
+      import("@/routes/api/public/share/incident.$id.$format"),
+    ]);
+    type RouteHandlers = {
+      HEAD: (ctx: { request: Request }) => Promise<Response>;
+      GET: (ctx: { request: Request }) => Promise<Response>;
+    };
+    const splatHandlers = (
+      splatRoute.options as unknown as { server?: { handlers?: RouteHandlers } }
+    ).server?.handlers;
+    const legacyHandlers = (
+      legacyRoute.options as unknown as {
+        server?: { handlers?: RouteHandlers };
+      }
+    ).server?.handlers;
+
+    expect(splatHandlers).toBeDefined();
+    expect(legacyHandlers).toBeDefined();
+
+    const splatBadHead = await splatHandlers!.HEAD({
+      request: new Request(
+        "https://nadhir.app/api/public/share/wilaya/alger.bogus.webp",
+        { method: "HEAD" },
+      ),
+    });
+    expect(splatBadHead.status).toBe(400);
+    expect(splatBadHead.headers.get("cache-control")).toBe("no-store");
+    expect((await splatBadHead.arrayBuffer()).byteLength).toBe(0);
+
+    const splatBadGet = await splatHandlers!.GET({
+      request: new Request(
+        "https://nadhir.app/api/public/share/wilaya/alger.bogus.webp",
+      ),
+    });
+    expect(splatBadGet.status).toBe(400);
+    expect((await splatBadGet.text()).length).toBeGreaterThan(0);
+
+    const legacyBadHead = await legacyHandlers!.HEAD({
+      request: new Request(
+        "https://nadhir.app/api/public/share/incident/abc/gif",
+        { method: "HEAD" },
+      ),
+    });
+    expect(legacyBadHead.status).toBe(400);
+    expect(legacyBadHead.headers.get("cache-control")).toBe("no-store");
+    expect((await legacyBadHead.arrayBuffer()).byteLength).toBe(0);
   });
 });
 
@@ -832,6 +974,7 @@ type RecordedQuery = {
   table: string;
   select: string | null;
   filters: { op: string; col: string; val: unknown }[];
+  orders: { col: string; ascending: boolean }[];
 };
 
 function createMockFireSupabase(fixtures: {
@@ -853,7 +996,12 @@ function createMockFireSupabase(fixtures: {
   };
 
   const makeBuilder = (table: string) => {
-    const record: RecordedQuery = { table, select: null, filters: [] };
+    const record: RecordedQuery = {
+      table,
+      select: null,
+      filters: [],
+      orders: [],
+    };
     queries.push(record);
     let maxRows: number | null = null;
 
@@ -887,6 +1035,23 @@ function createMockFireSupabase(fixtures: {
           }
         });
       }
+      if (record.orders.length > 0) {
+        rows.sort((a, b) => {
+          for (const o of record.orders) {
+            const av = a[o.col];
+            const bv = b[o.col];
+            if (av === bv) continue;
+            const cmp =
+              typeof av === "string" && typeof bv === "string"
+                ? av < bv
+                  ? -1
+                  : 1
+                : Number(av) - Number(bv);
+            return o.ascending ? cmp : -cmp;
+          }
+          return 0;
+        });
+      }
       if (maxRows !== null) rows = rows.slice(0, maxRows);
       return { data: rows, error: null };
     };
@@ -918,6 +1083,10 @@ function createMockFireSupabase(fixtures: {
       },
       lte(col: string, val: unknown) {
         record.filters.push({ op: "lte", col, val });
+        return builder;
+      },
+      order(col: string, opts?: { ascending?: boolean }) {
+        record.orders.push({ col, ascending: opts?.ascending ?? true });
         return builder;
       },
       limit(n: number) {
@@ -1167,5 +1336,172 @@ describe("loadFireModel (ADR-0002 corroboration, multi-cluster ambiguity, mentio
     expect(model?.eyebrow).toContain("DGF");
     expect(model?.eyebrow).not.toContain("DGPC");
     expect(model?.eyebrowLtr).toBe(true);
+  });
+
+  it("does NOT promote an active heat_signal when an extinguished sibling cluster is inside [reported - 24h, reported + 6h]", async () => {
+    const extinguishedSibling = baseClusterRow({
+      id: "fire-ext-a",
+      short_id: "F-EXT-A",
+      state: "extinguished",
+      confirmed_at: null,
+      last_detected_at: "2026-11-24T10:30:00Z",
+    });
+    const activeHeat = baseClusterRow({
+      id: "fire-heat-b",
+      short_id: "F-HEAT-B",
+      state: "active",
+      confirmed_at: null,
+      last_detected_at: "2026-11-25T11:30:00Z",
+    });
+    const mock = createMockFireSupabase({
+      fire_clusters: [extinguishedSibling, activeHeat],
+      admin_units: [wilayaUnit, lowForestCommune],
+      official_incidents: [
+        {
+          wilaya_id: "w-15",
+          commune_id: null,
+          kind: "vegetation",
+          authority_tier: "national",
+          first_reported_at: "2026-11-25T08:00:00Z",
+        },
+      ],
+    });
+
+    const model = await loadFireModel("F-HEAT-B", "en", NOW_MS, mock.client);
+    expect(model).toBeNull();
+
+    const siblingQuery = mock.queries.find(
+      (q) =>
+        q.table === "fire_clusters" &&
+        q.filters.some((f) => f.op === "eq" && f.col === "wilaya_id"),
+    );
+    expect(siblingQuery).toBeDefined();
+    expect(siblingQuery?.filters).toContainEqual({
+      op: "neq",
+      col: "state",
+      val: "false_positive",
+    });
+    expect(siblingQuery?.filters).not.toContainEqual({
+      op: "neq",
+      col: "state",
+      val: "extinguished",
+    });
+  });
+
+  it("bounds official_incidents to lastDetectedMs + 24h with deterministic ordering so later incidents and 205 newer clusters cannot evict a true sibling", async () => {
+    const targetLastDetected = "2026-11-10T10:30:00Z";
+    const targetCluster = baseClusterRow({
+      id: "fire-z-target",
+      short_id: "F-TARGET",
+      state: "active",
+      confirmed_at: null,
+      last_detected_at: targetLastDetected,
+    });
+    const trueSibling = baseClusterRow({
+      id: "fire-z-sibling",
+      short_id: "F-SIBLING",
+      state: "active",
+      confirmed_at: null,
+      last_detected_at: "2026-11-10T10:45:00Z",
+    });
+    const newerClusters = Array.from({ length: 205 }, (_, i) =>
+      baseClusterRow({
+        id: `fire-a-${String(i).padStart(3, "0")}`,
+        short_id: `F-NEW-${i}`,
+        state: "active",
+        confirmed_at: null,
+        last_detected_at: "2026-11-20T10:30:00Z",
+      }),
+    );
+
+    const mock = createMockFireSupabase({
+      fire_clusters: [...newerClusters, targetCluster, trueSibling],
+      admin_units: [wilayaUnit, lowForestCommune],
+      official_incidents: [
+        {
+          wilaya_id: "w-15",
+          commune_id: null,
+          kind: "vegetation",
+          authority_tier: "national",
+          first_reported_at: "2026-11-20T10:00:00Z",
+        },
+        {
+          wilaya_id: "w-15",
+          commune_id: null,
+          kind: "vegetation",
+          authority_tier: "national",
+          first_reported_at: "2026-11-10T10:00:00Z",
+        },
+      ],
+    });
+
+    const model = await loadFireModel("F-TARGET", "en", NOW_MS, mock.client);
+    expect(model).toBeNull();
+
+    const incQuery = mock.queries.find((q) => q.table === "official_incidents");
+    expect(incQuery?.filters).toContainEqual({
+      op: "lte",
+      col: "first_reported_at",
+      val: new Date(
+        Date.parse(targetLastDetected) + 24 * 3_600_000,
+      ).toISOString(),
+    });
+    expect(incQuery?.orders).toContainEqual({
+      col: "first_reported_at",
+      ascending: true,
+    });
+
+    const siblingQuery = mock.queries.find(
+      (q) =>
+        q.table === "fire_clusters" &&
+        q.filters.some((f) => f.op === "eq" && f.col === "wilaya_id"),
+    );
+    expect(siblingQuery?.orders).toContainEqual({
+      col: "id",
+      ascending: true,
+    });
+  });
+
+  it("fails closed when sibling fire_clusters query saturates the 200-row limit", async () => {
+    const targetCluster = baseClusterRow({
+      id: "fire-z-target",
+      short_id: "F-SAT-TARGET",
+      state: "active",
+      confirmed_at: null,
+      last_detected_at: "2026-11-25T10:30:00Z",
+    });
+    // 200 already-confirmed clusters in the same window would fill the 200-row limit
+    // and could hide a 201st unconfirmed sibling; loadFireModel MUST fail closed.
+    const confirmedNoise = Array.from({ length: 200 }, (_, i) =>
+      baseClusterRow({
+        id: `fire-c-${String(i).padStart(3, "0")}`,
+        short_id: `F-CONF-${i}`,
+        state: "active",
+        confirmed_at: "2026-11-25T10:15:00Z",
+        last_detected_at: "2026-11-25T10:20:00Z",
+      }),
+    );
+
+    const mock = createMockFireSupabase({
+      fire_clusters: [...confirmedNoise, targetCluster],
+      admin_units: [wilayaUnit, lowForestCommune],
+      official_incidents: [
+        {
+          wilaya_id: "w-15",
+          commune_id: null,
+          kind: "vegetation",
+          authority_tier: "national",
+          first_reported_at: "2026-11-25T10:00:00Z",
+        },
+      ],
+    });
+
+    const model = await loadFireModel(
+      "F-SAT-TARGET",
+      "en",
+      NOW_MS,
+      mock.client,
+    );
+    expect(model).toBeNull();
   });
 });
