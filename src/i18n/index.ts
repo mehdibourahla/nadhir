@@ -26,11 +26,13 @@ import {
 } from "./locales-list";
 import {
   LOCALE_COOKIE,
+  parseAnyQueryLocale,
+  readActiveLocale,
   readLocaleCookie,
   writeLocaleCookie,
 } from "./locale-cookie";
 
-export { readLocaleCookie };
+export { readActiveLocale, readLocaleCookie };
 
 export const LOCALE_LABELS: Record<AnyLocale, string> = {
   ar: "العربية",
@@ -72,11 +74,6 @@ export function isLocale(value: string | null | undefined): value is Locale {
   return !!value && (LOCALES as readonly string[]).includes(value);
 }
 
-function detectLocale(): Locale {
-  if (typeof window === "undefined") return "ar";
-  return readLocaleCookie();
-}
-
 export function applyLocale(locale: Locale) {
   if (typeof document === "undefined") return;
   void i18n.changeLanguage(locale);
@@ -86,10 +83,22 @@ export function applyLocale(locale: Locale) {
   writeLocaleCookie(locale);
 }
 
-/** Keeps <html lang/dir> in sync with the locale resolved from the cookie. */
-export function syncClientLocale() {
+/** Keeps <html lang/dir> in sync with the active locale (including explicit ?lang=kab without persisting kab). */
+export function syncClientLocale(override?: AnyLocale) {
   if (typeof window === "undefined") return;
-  applyLocale(detectLocale());
+  const active = override ?? readActiveLocale();
+  if (isLocale(active)) {
+    applyLocale(active);
+    return;
+  }
+  if (typeof document === "undefined") return;
+  void i18n.changeLanguage(active);
+  document.documentElement.lang = active;
+  document.documentElement.dir = (RTL_LOCALES as readonly string[]).includes(
+    active,
+  )
+    ? "rtl"
+    : "ltr";
 }
 
 /**
@@ -98,7 +107,7 @@ export function syncClientLocale() {
  * Server renders get their own instance; the browser keeps the singleton so
  * applyLocale still switches the live tree.
  */
-export function localeInstance(locale: Locale) {
+export function localeInstance(locale: AnyLocale) {
   if (typeof window === "undefined") {
     return i18n.cloneInstance({ lng: locale });
   }
@@ -111,13 +120,14 @@ export function localeInstance(locale: Locale) {
  * translator to one language without mutating the instance shared by in-flight
  * server requests.
  */
-export function headTranslator() {
-  return i18n.getFixedT(readLocaleCookie());
+export function headTranslator(locale?: AnyLocale) {
+  return i18n.getFixedT(locale ?? readActiveLocale());
 }
 
 /** Runs on both server and client before render so SSR and hydration agree. */
-export function initLocale(): Locale {
-  const locale = readLocaleCookie();
+export function initLocale(searchOverride?: string): AnyLocale {
+  const explicit = searchOverride ? parseAnyQueryLocale(searchOverride) : null;
+  const locale = explicit ?? readActiveLocale();
   if (typeof window !== "undefined" && i18n.language !== locale) {
     void i18n.changeLanguage(locale);
   }

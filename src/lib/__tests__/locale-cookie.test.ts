@@ -5,6 +5,7 @@ import {
   parseAnyQueryLocale,
   parseLocale,
   parseQueryLocale,
+  resolveActiveLocale,
   resolveRequestLocale,
 } from "@/i18n/locale-cookie";
 
@@ -77,5 +78,28 @@ describe("locale-cookie", () => {
         isNative: true,
       }),
     ).toBe("en");
+  });
+
+  it("honors explicit ?lang=kab via resolveActiveLocale without changing parseLocale", () => {
+    expect(
+      resolveActiveLocale({
+        search: "?lang=kab",
+        cookieHeader: `${LOCALE_COOKIE}=ar`,
+      }),
+    ).toBe("kab");
+    expect(
+      resolveActiveLocale({
+        search: "",
+        cookieHeader: `${LOCALE_COOKIE}=fr`,
+      }),
+    ).toBe("fr");
+    expect(
+      resolveActiveLocale({
+        search: "?lang=invalid",
+        cookieHeader: `${LOCALE_COOKIE}=en`,
+      }),
+    ).toBe("en");
+    expect(parseLocale("kab")).toBe("ar");
+    expect(parseQueryLocale("?lang=kab")).toBeNull();
   });
 });

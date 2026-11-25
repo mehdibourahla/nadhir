@@ -166,6 +166,127 @@ export const track3En = {
         earthquake: "Earthquake damage",
       },
     },
+    forecast: {
+      metaTitle: "Multi-Hazard Forecast for Algeria · Nadhir",
+      metaDescription:
+        "Official ONM weather warnings, fire danger, hourly weather, air quality, official incidents and seismic context across Algeria.",
+      authorityBannerTitle: "Official warnings vs. model forecasts",
+      authorityBannerBody:
+        "Official weather warnings come from ONM · Météo Algérie and cover the full wilaya. Weather, fire danger (Open-Meteo) and air quality (CAMS) are numerical model outputs, not observed rainfall or lightning detection: a quiet model never refutes an ONM warning, and no warning is not a guarantee of absence of risk.",
+      onmEvent: {
+        snow: "Snow and ice",
+        cold: "Cold wave",
+        flood: "Flooding",
+        waves: "High waves",
+        fog: "Dense fog",
+      },
+      viewWilayaPage: "Open {{wilaya}} page",
+      localContextTitle: "Live multi-hazard context near {{place}}",
+      localContextBody:
+        "Official bulletins, recent seismic observations and nearest airport station, separate from model forecasts.",
+      incidentsTitle: "Official incidents (72h)",
+      incidentsError: "Could not load official incidents for this wilaya.",
+      incidentsEmpty:
+        "No official DGPC or authority incident recorded in this wilaya over the last 72 hours.",
+      incidentsCount: "{{count}} active incident(s)",
+      quakesTitle: "Seismic observations (72h, 100 km)",
+      quakesError: "Could not load recent seismic observations.",
+      quakesEmpty:
+        "No earthquake of magnitude 2.0+ recorded within 100 km over the last 72 hours.",
+      quakeDistance: "{{km}} km away",
+      stationTitle: "Nearest observed station",
+      stationError: "Could not load observed airport weather stations.",
+      stationEmpty:
+        "No fresh airport station observation within 50 km in the last 3 hours.",
+      stationObservedBadge: "Observed",
+      stationModelNote: "Observed at {{station}} ({{km}} km), not a model.",
+      stationTemp: "{{temp}}°C",
+      stationWind: "Wind {{wind}} km/h",
+      stationGust: "Gusts {{gust}} km/h",
+      stationVisibility: "Visibility {{km}} km",
+      nationalIncidents: "{{count}} official incident(s)",
+      nationalQuake: "M{{magnitude}} earthquake",
+      wilayaDirectoryTitle: "Browse all 69 wilayas",
+      wilayaDirectoryBody:
+        "Direct bilingual hazard pages for every Algerian wilaya under Law 26-06.",
+      wilayaDirectoryToggle: "Show all 69 wilayas",
+      wilayaDirectoryHide: "Hide wilaya list",
+      openWilayaLink: "Wilaya page",
+      retryAction: "Try again",
+    },
+    wilaya: {
+      metaTitle:
+        "{{wilaya}} ({{code}}) Alerts and Multi-Hazard Outlook · Nadhir",
+      metaDescription:
+        "Official ONM · Météo Algérie warnings, active incidents, probable fires, recent earthquakes, fire danger and communes for Wilaya of {{wilaya}} ({{code}}), Algeria.",
+      ogImageAlt:
+        "Multi-hazard alert summary for Wilaya of {{wilaya}}, Algeria",
+      heading: "Wilaya of {{wilaya}}",
+      codeBadge: "Wilaya {{code}}",
+      coordsLabel: "Coordinates",
+      communesStat: "{{count}} communes",
+      languageSwitcherLabel: "Page language",
+      backToMap: "Live map",
+      openForecast: "Multi-hazard forecast",
+      openEmergency: "Emergency 14",
+      dataUnavailableTitle: "Live hazard feed temporarily unavailable",
+      dataUnavailableBody:
+        "Static information for Wilaya of {{wilaya}} is shown below. Live hazard feeds could not be reached right now.",
+      dataPartialNote:
+        "Some hazard sources could not be loaded right now. Other sections remain available.",
+      retryLoad: "Reload live data",
+      updatedAt: "Checked {{time}} (Algiers)",
+      hazardsTitle: "Current hazard situation",
+      honestEmptyTitle:
+        "No active warnings or probable hazards currently listed",
+      honestEmptyBody:
+        "No active ONM · Météo Algérie warning, official incident, probable fire or nearby earthquake is currently recorded for Wilaya of {{wilaya}}. Absence of listed alerts does not guarantee absence of risk.",
+      onmSectionTitle: "Official ONM · Météo Algérie warnings",
+      onmAttribution: "ONM · Météo Algérie",
+      onmValidWindow: "Valid {{from}} to {{to}}",
+      incidentsSectionTitle: "Official incidents (72h)",
+      firesSectionTitle: "Active probable fires (72h)",
+      firesConfirmedBadge: "Confirmed",
+      firesProbableBadge: "Probable fire",
+      firesDetections: "{{count}} satellite detections",
+      heatSignalsNote:
+        "{{count}} uncorroborated satellite heat signal(s) also detected in this wilaya. Heat signals alone are not confirmed fires.",
+      quakesSectionTitle: "Recent earthquakes (72h, within 100 km)",
+      quakeDepth: "Depth {{km}} km",
+      fireDangerSectionTitle: "Fire danger summary (today)",
+      fireDangerFwi: "FWI {{fwi}}",
+      fireDangerPercentile: "p{{percentile}}",
+      fireDangerFuelLimited:
+        "{{count}} commune(s) have sparse vegetation (fuel-limited).",
+      fireDangerAllFuelLimited:
+        "All reported communes in this wilaya are currently marked fuel-limited (sparse vegetation).",
+      stationSectionTitle: "Nearest observed weather station",
+      stationObservedLabel: "Observed METAR",
+      communesSectionTitle: "Communes in Wilaya of {{wilaya}}",
+      communesSectionBody:
+        "Open a commune in the multi-hazard forecast for 6-day weather, fire danger and air quality.",
+      communesOfflineNote:
+        "Wilaya of {{wilaya}} includes {{count}} communes. The interactive list could not be loaded right now; open the multi-hazard forecast to search all communes.",
+      showAllCommunes: "Show all {{count}} communes",
+      showFewerCommunes: "Show fewer communes",
+      neighboringTitle: "Other wilayas",
+      notFoundTitle: "Wilaya not found",
+      notFoundBody:
+        "This wilaya page does not match any of the 69 Algerian wilayas.",
+      notFoundBackForecast: "Browse all 69 wilayas on Forecast",
+      notFoundBackMap: "Return to live map",
+      kind: {
+        forest_fire: "Wildfire",
+        brush_fire: "Brush fire",
+        crop_fire: "Crop fire",
+        urban_fire: "Urban fire",
+        flood: "Flood",
+        storm: "Storm",
+        road: "Road hazard",
+        structure: "Structural incident",
+        other: "Incident",
+      },
+    },
   },
 };
 

@@ -19,7 +19,7 @@ import {
   headTranslator,
   initLocale,
   localeInstance,
-  readLocaleCookie,
+  readActiveLocale,
   RTL_LOCALES,
   syncClientLocale,
 } from "../i18n";
@@ -110,7 +110,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         openOnWeb(location.href);
         throw redirect({ to: "/", replace: true });
       }
-      return { locale: initLocale() };
+      return { locale: initLocale(location.searchStr) };
     },
     head: () => ({
       meta: [
@@ -153,12 +153,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 );
 
 function RootShell({ children }: { children: ReactNode }) {
-  const locale = readLocaleCookie();
+  const locale = readActiveLocale();
   const theme = readThemeCookie();
   return (
     <html
       lang={locale}
-      dir={RTL_LOCALES.includes(locale) ? "rtl" : "ltr"}
+      dir={(RTL_LOCALES as readonly string[]).includes(locale) ? "rtl" : "ltr"}
       className={theme === "dark" ? "dark" : undefined}
       suppressHydrationWarning
     >
@@ -195,9 +195,9 @@ function RootComponent() {
   });
 
   useEffect(() => {
-    // Keeps <html lang/dir> aligned with the cookie locale after hydration.
-    syncClientLocale();
-  }, []);
+    // Keeps <html lang/dir> aligned with the active locale after hydration and ?lang= navigation.
+    syncClientLocale(locale);
+  }, [locale]);
 
   useEffect(() => {
     if (bare || NATIVE) return;

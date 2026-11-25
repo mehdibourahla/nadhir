@@ -77,8 +77,10 @@ function LanguageSwitcher() {
   const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const current =
-    LOCALES.find((locale) => locale === i18n.language) ?? LOCALES[0];
-  const rtl = RTL_LOCALES.includes(current);
+    i18n.language === "kab"
+      ? "kab"
+      : (LOCALES.find((locale) => locale === i18n.language) ?? LOCALES[0]);
+  const rtl = (RTL_LOCALES as readonly string[]).includes(current);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger

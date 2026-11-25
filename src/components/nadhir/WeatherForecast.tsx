@@ -394,7 +394,7 @@ export function WeatherForecast({ communeId }: { communeId?: string } = {}) {
         href="https://open-meteo.com/"
         target="_blank"
         rel="noreferrer"
-        className="mt-2 inline-block text-sm underline"
+        className="mt-1 inline-flex min-h-11 items-center text-sm underline"
       >
         Open-Meteo
       </a>
@@ -458,7 +458,7 @@ export function WeatherForecast({ communeId }: { communeId?: string } = {}) {
                     href={warning.cap_url}
                     rel="noreferrer"
                     target="_blank"
-                    className="mt-2 inline-block text-sm underline"
+                    className="mt-1 inline-flex min-h-11 items-center text-sm underline"
                   >
                     {t("officialSource")}
                   </a>

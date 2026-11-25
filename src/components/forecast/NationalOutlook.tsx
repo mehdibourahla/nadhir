@@ -1,13 +1,25 @@
+import { Link } from "@tanstack/react-router";
+import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { riskInk, riskTint } from "@/components/nadhir/risk-visuals";
 import { ErrorState, SkeletonList } from "@/components/nadhir/states";
-import type { Locale } from "@/i18n";
+import type { AnyLocale } from "@/i18n";
 import type { WilayaOutlook } from "@/lib/forecast-outlook";
 import { dangerLevelKey, unitName } from "@/lib/nadhir";
+import { wilayaByCode } from "@/lib/wilaya-slugs";
 
 const FIRST = 8;
+
+const WEATHER_NS_ONM_EVENTS = new Set([
+  "rain",
+  "storm",
+  "sand",
+  "wind",
+  "heat",
+  "other",
+]);
 
 export function NationalOutlook({
   rows,
@@ -23,9 +35,14 @@ export function NationalOutlook({
   onPick: (row: WilayaOutlook) => void;
 }) {
   const { t, i18n } = useTranslation("weather");
-  const locale = i18n.language as Locale;
+  const locale = i18n.language as AnyLocale;
   const [all, setAll] = useState(false);
   const shown = all ? rows : rows.slice(0, FIRST);
+
+  const onmEventLabel = (eventKey: string) =>
+    WEATHER_NS_ONM_EVENTS.has(eventKey)
+      ? t(`outlook.event.${eventKey}`)
+      : t(`translation:track3.forecast.onmEvent.${eventKey}`);
 
   return (
     <section aria-labelledby="national-title" className="mt-12">
@@ -48,48 +65,88 @@ export function NationalOutlook({
       ) : (
         <>
           <ul className="mt-4 divide-y divide-border border-y border-border">
-            {shown.map((row) => (
-              <li key={row.wilaya.id}>
-                <button
-                  type="button"
-                  onClick={() => onPick(row)}
-                  className="flex min-h-11 w-full flex-wrap items-center gap-x-4 gap-y-1.5 py-3 text-start hover:bg-muted"
+            {shown.map((row) => {
+              const slugEntry = wilayaByCode(row.wilaya.code);
+              const wilayaLabel = unitName(row.wilaya, locale);
+              return (
+                <li
+                  key={row.wilaya.id}
+                  className="flex flex-wrap items-center gap-2 py-1"
                 >
-                  <span
-                    aria-hidden
-                    className="tabular inline-flex size-8 shrink-0 items-center justify-center rounded-md text-sm font-semibold"
-                    style={{
-                      backgroundColor: riskTint(row.level),
-                      color: riskInk(row.level),
-                    }}
+                  <button
+                    type="button"
+                    onClick={() => onPick(row)}
+                    className="flex min-h-11 min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg px-2 py-2 text-start transition-colors hover:bg-muted"
                   >
-                    {row.level}
-                  </span>
-                  <span className="min-w-32 flex-1 font-medium">
-                    {unitName(row.wilaya, locale)}
-                  </span>
-                  <span className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                    {row.weather ? (
+                    <span
+                      aria-hidden
+                      className="tabular inline-flex size-8 shrink-0 items-center justify-center rounded-md text-sm font-semibold"
+                      style={{
+                        backgroundColor: riskTint(row.level),
+                        color: riskInk(row.level),
+                      }}
+                    >
+                      {row.level}
+                    </span>
+                    <span className="min-w-28 flex-1 font-medium">
+                      {wilayaLabel}
+                    </span>
+                    <span className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                      {row.weather ? (
+                        <span>
+                          {t(`outlook.onmLevel.${row.weather.level}`)}:{" "}
+                          {row.weather.events
+                            .map(onmEventLabel)
+                            .join(t("outlook.separator"))}
+                        </span>
+                      ) : null}
+                      {row.fire != null ? (
+                        <span>
+                          {t("outlook.nationalFire", {
+                            level: t(
+                              `translation:risk.${dangerLevelKey(row.fire)}`,
+                            ),
+                          })}
+                        </span>
+                      ) : null}
+                      {row.incidents > 0 ? (
+                        <span>
+                          {t("translation:track3.forecast.nationalIncidents", {
+                            count: row.incidents,
+                          })}
+                        </span>
+                      ) : null}
+                      {row.quake ? (
+                        <span>
+                          {t("translation:track3.forecast.nationalQuake", {
+                            magnitude: row.quake.magnitude.toFixed(1),
+                          })}
+                        </span>
+                      ) : null}
+                    </span>
+                  </button>
+                  {slugEntry ? (
+                    <Link
+                      to="/wilaya/$slug"
+                      params={{ slug: slugEntry.slug }}
+                      aria-label={t(
+                        "translation:track3.forecast.viewWilayaPage",
+                        { wilaya: wilayaLabel },
+                      )}
+                      className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                    >
                       <span>
-                        {t(`outlook.onmLevel.${row.weather.level}`)}:{" "}
-                        {row.weather.events
-                          .map((e) => t(`outlook.event.${e}`))
-                          .join(t("outlook.separator"))}
+                        {t("translation:track3.forecast.openWilayaLink")}
                       </span>
-                    ) : null}
-                    {row.fire != null ? (
-                      <span>
-                        {t("outlook.nationalFire", {
-                          level: t(
-                            `translation:risk.${dangerLevelKey(row.fire)}`,
-                          ),
-                        })}
-                      </span>
-                    ) : null}
-                  </span>
-                </button>
-              </li>
-            ))}
+                      <ChevronRight
+                        aria-hidden
+                        className="size-3.5 shrink-0 rtl:rotate-180"
+                      />
+                    </Link>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
           {rows.length > FIRST && !all ? (
             <button

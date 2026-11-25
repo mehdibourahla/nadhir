@@ -18,6 +18,7 @@ import { Route as DevelopersRouteImport } from './routes/developers'
 import { Route as ForecastRouteImport } from './routes/forecast'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as StatusRouteImport } from './routes/status'
 import { Route as SurvivalRouteRouteImport } from './routes/survival/route'
 import { Route as TermsRouteImport } from './routes/terms'
@@ -33,6 +34,7 @@ import { Route as SurvivalIndexRouteImport } from './routes/survival/index'
 import { Route as SurvivalAreasRouteImport } from './routes/survival/areas'
 import { Route as SurvivalCheckinRouteImport } from './routes/survival/checkin'
 import { Route as SurvivalSosRouteImport } from './routes/survival/sos'
+import { Route as WilayaSlugRouteImport } from './routes/wilaya.$slug'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAuditRouteImport } from './routes/_authenticated/admin/audit'
 import { Route as AuthenticatedAdminBroadcastsRouteImport } from './routes/_authenticated/admin/broadcasts'
@@ -117,6 +119,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StatusRoute = StatusRouteImport.update({
   id: '/status',
   path: '/status',
@@ -191,6 +198,11 @@ const SurvivalSosRoute = SurvivalSosRouteImport.update({
   id: '/sos',
   path: '/sos',
   getParentRoute: () => SurvivalRouteRoute,
+} as any)
+const WilayaSlugRoute = WilayaSlugRouteImport.update({
+  id: '/wilaya/$slug',
+  path: '/wilaya/$slug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
@@ -410,6 +422,7 @@ export interface FileRoutesByFullPath {
   '/forecast': typeof ForecastRoute
   '/history': typeof HistoryRoute
   '/privacy': typeof PrivacyRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/status': typeof StatusRoute
   '/terms': typeof TermsRoute
   '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
@@ -423,6 +436,7 @@ export interface FileRoutesByFullPath {
   '/survival/areas': typeof SurvivalAreasRoute
   '/survival/checkin': typeof SurvivalCheckinRoute
   '/survival/sos': typeof SurvivalSosRoute
+  '/wilaya/$slug': typeof WilayaSlugRoute
   '/survival/': typeof SurvivalIndexRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/broadcasts': typeof AuthenticatedAdminBroadcastsRoute
@@ -473,6 +487,7 @@ export interface FileRoutesByTo {
   '/forecast': typeof ForecastRoute
   '/history': typeof HistoryRoute
   '/privacy': typeof PrivacyRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/status': typeof StatusRoute
   '/terms': typeof TermsRoute
   '/alerts': typeof AuthenticatedAlertsRoute
@@ -485,6 +500,7 @@ export interface FileRoutesByTo {
   '/survival/areas': typeof SurvivalAreasRoute
   '/survival/checkin': typeof SurvivalCheckinRoute
   '/survival/sos': typeof SurvivalSosRoute
+  '/wilaya/$slug': typeof WilayaSlugRoute
   '/survival': typeof SurvivalIndexRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/broadcasts': typeof AuthenticatedAdminBroadcastsRoute
@@ -538,6 +554,7 @@ export interface FileRoutesById {
   '/forecast': typeof ForecastRoute
   '/history': typeof HistoryRoute
   '/privacy': typeof PrivacyRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/status': typeof StatusRoute
   '/terms': typeof TermsRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteRouteWithChildren
@@ -551,6 +568,7 @@ export interface FileRoutesById {
   '/survival/areas': typeof SurvivalAreasRoute
   '/survival/checkin': typeof SurvivalCheckinRoute
   '/survival/sos': typeof SurvivalSosRoute
+  '/wilaya/$slug': typeof WilayaSlugRoute
   '/survival/': typeof SurvivalIndexRoute
   '/_authenticated/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/_authenticated/admin/broadcasts': typeof AuthenticatedAdminBroadcastsRoute
@@ -604,6 +622,7 @@ export interface FileRouteTypes {
     | '/forecast'
     | '/history'
     | '/privacy'
+    | '/sitemap.xml'
     | '/status'
     | '/terms'
     | '/admin'
@@ -617,6 +636,7 @@ export interface FileRouteTypes {
     | '/survival/areas'
     | '/survival/checkin'
     | '/survival/sos'
+    | '/wilaya/$slug'
     | '/survival/'
     | '/admin/audit'
     | '/admin/broadcasts'
@@ -667,6 +687,7 @@ export interface FileRouteTypes {
     | '/forecast'
     | '/history'
     | '/privacy'
+    | '/sitemap.xml'
     | '/status'
     | '/terms'
     | '/alerts'
@@ -679,6 +700,7 @@ export interface FileRouteTypes {
     | '/survival/areas'
     | '/survival/checkin'
     | '/survival/sos'
+    | '/wilaya/$slug'
     | '/survival'
     | '/admin/audit'
     | '/admin/broadcasts'
@@ -731,6 +753,7 @@ export interface FileRouteTypes {
     | '/forecast'
     | '/history'
     | '/privacy'
+    | '/sitemap.xml'
     | '/status'
     | '/terms'
     | '/_authenticated/admin'
@@ -744,6 +767,7 @@ export interface FileRouteTypes {
     | '/survival/areas'
     | '/survival/checkin'
     | '/survival/sos'
+    | '/wilaya/$slug'
     | '/survival/'
     | '/_authenticated/admin/audit'
     | '/_authenticated/admin/broadcasts'
@@ -797,10 +821,12 @@ export interface RootRouteChildren {
   ForecastRoute: typeof ForecastRoute
   HistoryRoute: typeof HistoryRoute
   PrivacyRoute: typeof PrivacyRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   StatusRoute: typeof StatusRoute
   TermsRoute: typeof TermsRoute
   FireIdRoute: typeof FireIdRoute
   IncidentIdRoute: typeof IncidentIdRoute
+  WilayaSlugRoute: typeof WilayaSlugRoute
   ApiPrivateAccountRoute: typeof ApiPrivateAccountRoute
   ApiPrivateAlertCheckRoute: typeof ApiPrivateAlertCheckRoute
   ApiPrivateEnsembleRoute: typeof ApiPrivateEnsembleRoute
@@ -891,6 +917,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/status': {
@@ -997,6 +1030,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/survival/sos'
       preLoaderRoute: typeof SurvivalSosRouteImport
       parentRoute: typeof SurvivalRouteRoute
+    }
+    '/wilaya/$slug': {
+      id: '/wilaya/$slug'
+      path: '/wilaya/$slug'
+      fullPath: '/wilaya/$slug'
+      preLoaderRoute: typeof WilayaSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
@@ -1364,10 +1404,12 @@ const rootRouteChildren: RootRouteChildren = {
   ForecastRoute: ForecastRoute,
   HistoryRoute: HistoryRoute,
   PrivacyRoute: PrivacyRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   StatusRoute: StatusRoute,
   TermsRoute: TermsRoute,
   FireIdRoute: FireIdRoute,
   IncidentIdRoute: IncidentIdRoute,
+  WilayaSlugRoute: WilayaSlugRoute,
   ApiPrivateAccountRoute: ApiPrivateAccountRoute,
   ApiPrivateAlertCheckRoute: ApiPrivateAlertCheckRoute,
   ApiPrivateEnsembleRoute: ApiPrivateEnsembleRoute,

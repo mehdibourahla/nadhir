@@ -168,5 +168,130 @@ export const track3Fr: Track3Translation = {
         earthquake: "Dégâts sismiques",
       },
     },
+    forecast: {
+      metaTitle: "Prévisions multi-aléas en Algérie · Nadhir",
+      metaDescription:
+        "Vigilances officielles ONM · Météo Algérie, danger d'incendie, météo horaire, qualité de l'air, incidents officiels et contexte sismique en Algérie.",
+      authorityBannerTitle: "Vigilances officielles vs modèles numériques",
+      authorityBannerBody:
+        "Les vigilances officielles proviennent de l'ONM · Météo Algérie et couvrent toute la wilaya. La météo, le danger d'incendie (Open-Meteo) et la qualité de l'air (CAMS) sont des sorties de modèles numériques et non des pluies ou impacts de foudre observés : un modèle calme n'infirme jamais une vigilance ONM, et l'absence d'alerte ne garantit pas l'absence de risque.",
+      onmEvent: {
+        snow: "Neige et verglas",
+        cold: "Vague de froid",
+        flood: "Inondations",
+        waves: "Vagues et mer forte",
+        fog: "Brouillard dense",
+      },
+      viewWilayaPage: "Ouvrir la page {{wilaya}}",
+      localContextTitle: "Contexte multi-aléas en direct près de {{place}}",
+      localContextBody:
+        "Bulletins officiels, observations sismiques récentes et station aéroportuaire la plus proche, séparés des modèles.",
+      incidentsTitle: "Incidents officiels (72 h)",
+      incidentsError:
+        "Impossible de charger les incidents officiels pour cette wilaya.",
+      incidentsEmpty:
+        "Aucun incident officiel de la Protection civile ou d'une autorité enregistré dans cette wilaya sur les 72 dernières heures.",
+      incidentsCount: "{{count}} incident(s) actif(s)",
+      quakesTitle: "Observations sismiques (72 h, 100 km)",
+      quakesError: "Impossible de charger les observations sismiques récentes.",
+      quakesEmpty:
+        "Aucun séisme de magnitude 2.0+ enregistré dans un rayon de 100 km sur les 72 dernières heures.",
+      quakeDistance: "À {{km}} km",
+      stationTitle: "Station météo observée la plus proche",
+      stationError:
+        "Impossible de charger les observations des stations aéroportuaires.",
+      stationEmpty:
+        "Aucune observation récente de station aéroportuaire dans un rayon de 50 km au cours des 3 dernières heures.",
+      stationObservedBadge: "Observé",
+      stationModelNote:
+        "Observé à {{station}} ({{km}} km), pas une sortie de modèle.",
+      stationTemp: "{{temp}} °C",
+      stationWind: "Vent {{wind}} km/h",
+      stationGust: "Rafales {{gust}} km/h",
+      stationVisibility: "Visibilité {{km}} km",
+      nationalIncidents: "{{count}} incident(s) officiel(s)",
+      nationalQuake: "Séisme M{{magnitude}}",
+      wilayaDirectoryTitle: "Parcourir les 69 wilayas",
+      wilayaDirectoryBody:
+        "Pages bilingues directes de suivi des aléas pour chaque wilaya algérienne selon la loi 26-06.",
+      wilayaDirectoryToggle: "Afficher les 69 wilayas",
+      wilayaDirectoryHide: "Masquer la liste des wilayas",
+      openWilayaLink: "Page wilaya",
+      retryAction: "Réessayer",
+    },
+    wilaya: {
+      metaTitle:
+        "Alertes et prévisions multi-aléas Wilaya de {{wilaya}} ({{code}}) · Nadhir",
+      metaDescription:
+        "Vigilances officielles ONM · Météo Algérie, incidents officiels, incendies probables, séismes récents, danger d'incendie et communes de la wilaya de {{wilaya}} ({{code}}), Algérie.",
+      ogImageAlt:
+        "Résumé des alertes multi-aléas pour la wilaya de {{wilaya}}, Algérie",
+      heading: "Wilaya de {{wilaya}}",
+      codeBadge: "Wilaya {{code}}",
+      coordsLabel: "Coordonnées",
+      communesStat: "{{count}} communes",
+      languageSwitcherLabel: "Langue de la page",
+      backToMap: "Carte en direct",
+      openForecast: "Prévisions multi-aléas",
+      openEmergency: "Urgence 14",
+      dataUnavailableTitle:
+        "Flux d'aléas en direct temporairement indisponible",
+      dataUnavailableBody:
+        "Les informations statiques de la wilaya de {{wilaya}} s'affichent ci-dessous. Les flux en direct n'ont pas pu être joints pour le moment.",
+      dataPartialNote:
+        "Certaines sources d'aléas n'ont pas pu être chargées pour l'instant. Les autres sections restent disponibles.",
+      retryLoad: "Recharger les données en direct",
+      updatedAt: "Vérifié {{time}} (Alger)",
+      hazardsTitle: "Situation actuelle des aléas",
+      honestEmptyTitle:
+        "Aucune vigilance active ni aléa probable listé pour l'instant",
+      honestEmptyBody:
+        "Aucune vigilance ONM · Météo Algérie active, aucun incident officiel, aucun incendie probable ni séisme proche n'est enregistré actuellement pour la wilaya de {{wilaya}}. L'absence d'alerte listée ne garantit pas l'absence de risque.",
+      onmSectionTitle: "Vigilances officielles ONM · Météo Algérie",
+      onmAttribution: "ONM · Météo Algérie",
+      onmValidWindow: "Valide du {{from}} au {{to}}",
+      incidentsSectionTitle: "Incidents officiels (72 h)",
+      firesSectionTitle: "Incendies probables actifs (72 h)",
+      firesConfirmedBadge: "Confirmé",
+      firesProbableBadge: "Incendie probable",
+      firesDetections: "{{count}} détections satellite",
+      heatSignalsNote:
+        "{{count}} signal(aux) thermique(s) satellite non corroboré(s) également détecté(s) dans cette wilaya. Un signal thermique seul n'est pas un incendie confirmé.",
+      quakesSectionTitle: "Séismes récents (72 h, rayon 100 km)",
+      quakeDepth: "Profondeur {{km}} km",
+      fireDangerSectionTitle: "Synthèse du danger d'incendie (aujourd'hui)",
+      fireDangerFwi: "IFM {{fwi}}",
+      fireDangerPercentile: "p{{percentile}}",
+      fireDangerFuelLimited:
+        "{{count}} commune(s) à végétation clairsemée (combustible limité).",
+      fireDangerAllFuelLimited:
+        "Toutes les communes publiées de cette wilaya sont classées à végétation clairsemée (combustible limité).",
+      stationSectionTitle: "Station météo observée la plus proche",
+      stationObservedLabel: "METAR observé",
+      communesSectionTitle: "Communes de la wilaya de {{wilaya}}",
+      communesSectionBody:
+        "Ouvrez une commune dans les prévisions multi-aléas pour la météo à 6 jours, le danger d'incendie et la qualité de l'air.",
+      communesOfflineNote:
+        "La wilaya de {{wilaya}} compte {{count}} communes. La liste interactive n'a pas pu être chargée maintenant ; ouvrez les prévisions pour rechercher toutes les communes.",
+      showAllCommunes: "Afficher les {{count}} communes",
+      showFewerCommunes: "Afficher moins de communes",
+      neighboringTitle: "Autres wilayas",
+      notFoundTitle: "Wilaya introuvable",
+      notFoundBody:
+        "Cette page ne correspond à aucune des 69 wilayas algériennes.",
+      notFoundBackForecast: "Parcourir les 69 wilayas sur Prévisions",
+      notFoundBackMap: "Retour à la carte en direct",
+      kind: {
+        forest_fire: "Incendie de forêt",
+        brush_fire: "Feu de broussaille",
+        crop_fire: "Feu de récoltes",
+        urban_fire: "Incendie urbain",
+        flood: "Inondation",
+        storm: "Tempête",
+        road: "Danger routier",
+        structure: "Incident structurel",
+        other: "Incident",
+      },
+    },
   },
 };

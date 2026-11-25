@@ -37,5 +37,51 @@ describe("OutlookGrid", () => {
     expect(html).toContain("outlook.rowError");
     expect(html).toContain("outlook.notPublished");
     expect(html).toContain('colSpan="3"');
+    expect(html).toContain('role="region"');
+    expect(html).toContain('tabindex="0"');
+    expect(html).not.toContain("\u2014");
+  });
+
+  it("renders winter ONM events, R-06 icons+numerals on ONM/Air, and dir=ltr numeric weather", () => {
+    const html = renderToStaticMarkup(
+      <OutlookGrid
+        days={DAYS}
+        place="Tizi Ouzou"
+        onm={{
+          status: "ok",
+          cells: [
+            { state: "warning", level: 4, events: ["snow", "flood"] },
+            { state: "none" },
+            { state: "not_issued" },
+          ],
+        }}
+        fire={{ status: "ok", cells: [null, null, null] }}
+        weather={{
+          status: "ok",
+          cells: [{ tempC: 4, windKmh: 45, rainMm: 12.4 }, null, null],
+        }}
+        air={{
+          status: "ok",
+          cells: [
+            {
+              state: "ok",
+              level: "high",
+              pollutant: "pm10",
+              pm25: 12,
+              pm10: 95,
+            },
+            { state: "beyond" },
+            { state: "beyond" },
+          ],
+        }}
+      />,
+    );
+
+    expect(html).toContain("translation:track3.forecast.onmEvent.snow");
+    expect(html).toContain("translation:track3.forecast.onmEvent.flood");
+    expect(html).toContain("outlook.airLevel.high");
+    expect(html.match(/<bdi dir="ltr">/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(html).toContain("<svg");
+    expect(html).not.toContain("\u2014");
   });
 });

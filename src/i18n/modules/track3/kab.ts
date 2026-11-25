@@ -167,5 +167,126 @@ export const track3Kab: Track3Translation = {
         earthquake: "Ixṣaṛen n zzelzla",
       },
     },
+    forecast: {
+      metaTitle: "Tazrawt n waṭas n wuguren deg Lezzayer · Nadhir",
+      metaDescription:
+        "Ilɣa unṣiben n ONM · Météo Algérie, ugur n tmes, tagnit n tegnawt s tsaɛet, tɣara n uzwu, tidyanin tunṣibin d zzelzla deg Lezzayer.",
+      authorityBannerTitle: "Ilɣa unṣiben mgal tazrawt n tmacinin",
+      authorityBannerBody:
+        "Ilɣa unṣiben n tegnawt kkan-d seg ONM · Météo Algérie, ḥuzan akk tawilayt. Tagnit n tegnawt, ugur n tmes (Open-Meteo) d tɣara n uzwu (CAMS) d tazrawt n tmacinin kan, mačči d asekles n ugeffur neɣ n lebraq: tazrawt yersan ur tetteksen ara alɣu n ONM, u lqella n ulɣu ur d-tettak ara ttbut n ulac ugur.",
+      onmEvent: {
+        snow: "Adfel d ugris",
+        cold: "Asemmiḍ aquran",
+        flood: "Iḥemmalen",
+        waves: "Lemwaj iɛlayen",
+        fog: "Agu iẓẓayen",
+      },
+      viewWilayaPage: "Ldi asebter n {{wilaya}}",
+      localContextTitle: "Tagnit n waṭas n wuguren srid tama n {{place}}",
+      localContextBody:
+        "Ilɣa unṣiben, asekles n zzelzla amaynut d taɣsert n unafag i iqerben, bḍan ɣef tazrawt n tmacinin.",
+      incidentsTitle: "Tidyanin tunṣibin (72 tsaɛtin)",
+      incidentsError: "Ur izmir ara ad d-yali tidyanin tunṣibin i twilayt-a.",
+      incidentsEmpty:
+        "Ulac tadyant tunṣibt n Umesten aɣarim neɣ n udabu yettwaskelsen deg twilayt-a deg 72 tsaɛtin yezrin.",
+      incidentsCount: "{{count}} n tedyanin turmidin",
+      quakesTitle: "Asekles n zzelzla (72 tsaɛtin, 100 km)",
+      quakesError: "Ur izmir ara ad d-yali asekles n zzelzla amaynut.",
+      quakesEmpty:
+        "Ulac zzelzla n M2.0+ yettwaskelsen deg 100 km deg 72 tsaɛtin yezrin.",
+      quakeDistance: "Azal n {{km}} km",
+      stationTitle: "Taɣsert n tegnawt yettwaskelsen i iqerben",
+      stationError: "Ur izmir ara ad d-yali iseklasen n teɣsar n unafag.",
+      stationEmpty:
+        "Ulac asekles amaynut n teɣsert n unafag deg 50 km deg 3 tsaɛtin yezrin.",
+      stationObservedBadge: "Yettwaskles",
+      stationModelNote:
+        "Yettwaskles deg {{station}} ({{km}} km), mačči d tazrawt.",
+      stationTemp: "{{temp}}°C",
+      stationWind: "Aḍu {{wind}} km/h",
+      stationGust: "Tazmert n waḍu {{gust}} km/h",
+      stationVisibility: "Tamuɣli {{km}} km",
+      nationalIncidents: "{{count}} n tedyanin tunṣibin",
+      nationalQuake: "Zzelzla M{{magnitude}}",
+      wilayaDirectoryTitle: "Wali akk 69 n twilayin",
+      wilayaDirectoryBody:
+        "Isebtar s snat n tutlayin i uḍfar n wuguren i yal tawilayt n Lezzayer s usaḍuf 26-06.",
+      wilayaDirectoryToggle: "Sken akk 69 n twilayin",
+      wilayaDirectoryHide: "Ffer tabdart n twilayin",
+      openWilayaLink: "Asebter n twilayt",
+      retryAction: "Ɛiwed tikkelt-nniḍen",
+    },
+    wilaya: {
+      metaTitle:
+        "Ilɣa d tazrawt n wuguren deg twilayt n {{wilaya}} ({{code}}) · Nadhir",
+      metaDescription:
+        "Ilɣa unṣiben n ONM · Météo Algérie, tidyanin tunṣibin, times yezmer ad tili, zzelzla tamaynut, ugur n tmes d tɣiwanin n twilayt n {{wilaya}} ({{code}}), Lezzayer.",
+      ogImageAlt:
+        "Agzul n yilɣa n waṭas n wuguren i twilayt n {{wilaya}}, Lezzayer",
+      heading: "Tawilayt n {{wilaya}}",
+      codeBadge: "Tawilayt {{code}}",
+      coordsLabel: "Timsisiyin",
+      communesStat: "{{count}} n tɣiwanin",
+      languageSwitcherLabel: "Tutlayt n usebter",
+      backToMap: "Takarḍa srid",
+      openForecast: "Tazrawt n waṭas n wuguren",
+      openEmergency: "Tuffɣa 14",
+      dataUnavailableTitle: "Isalen srid n wuguren ur llin ara tura",
+      dataUnavailableBody:
+        "Isalen imezgiyen n twilayt n {{wilaya}} banen-d ddaw-a. Isalen srid ur zmiren ara ad d-alin tura.",
+      dataPartialNote:
+        "Kra n yiɣbula n wuguren ur zmiren ara ad d-alin tura. Iḥricen-nniḍen mazal llan.",
+      retryLoad: "Ɛiwed asali n yisalen srid",
+      updatedAt: "Yettusenqed {{time}} (Lezzayer)",
+      hazardsTitle: "Tagnit tamirant n wuguren",
+      honestEmptyTitle: "Ulac alɣu urmid neɣ ugur yettwaskelsen tura",
+      honestEmptyBody:
+        "Ulac alɣu urmid n ONM · Météo Algérie, ulac tadyant tunṣibt, ulac times yezmer ad tili neɣ zzelzla i iqerben yettwaskelsen tura i twilayt n {{wilaya}}. Lqella n yilɣa ur d-tettak ara ttbut belli ulac ugur.",
+      onmSectionTitle: "Ilɣa unṣiben n ONM · Météo Algérie",
+      onmAttribution: "ONM · Météo Algérie",
+      onmValidWindow: "Yedda seg {{from}} ar {{to}}",
+      incidentsSectionTitle: "Tidyanin tunṣibin (72 tsaɛtin)",
+      firesSectionTitle: "Times turmidt yezmer ad tili (72 tsaɛtin)",
+      firesConfirmedBadge: "Yettusentem",
+      firesProbableBadge: "Times yezmer ad tili",
+      firesDetections: "{{count}} n yiseklasen s ugensa",
+      heatSignalsNote:
+        "Ttwaskelsent daɣen {{count}} n tmuɣliwin n lḥamu s ugensa ur nettusentem ara deg twilayt-a. Tamuɣli n lḥamu weḥd-s mačči d times yettusentmen.",
+      quakesSectionTitle: "Zzelzla tamaynut (72 tsaɛtin, deg 100 km)",
+      quakeDepth: "Talqayt {{km}} km",
+      fireDangerSectionTitle: "Agzul n wugur n tmes (ass-a)",
+      fireDangerFwi: "FWI {{fwi}}",
+      fireDangerPercentile: "p{{percentile}}",
+      fireDangerFuelLimited:
+        "{{count}} n tɣiwanin s yimɣan drus (aserɣu ur yegti ara).",
+      fireDangerAllFuelLimited:
+        "Akk tiɣiwanin yettwassufɣen deg twilayt-a sɛant imɣan drus (aserɣu ur yegti ara).",
+      stationSectionTitle: "Taɣsert n tegnawt yettwaskelsen i iqerben",
+      stationObservedLabel: "METAR yettwaskles",
+      communesSectionTitle: "Tiɣiwanin n twilayt n {{wilaya}}",
+      communesSectionBody:
+        "Ldi taɣiwant deg tazrawt n waṭas n wuguren akken ad twaliḍ tagnit n 6 wussan, ugur n tmes d tɣara n uzwu.",
+      communesOfflineNote:
+        "Tawilayt n {{wilaya}} tesɛa {{count}} n tɣiwanin. Tabdart ur tezmir ara ad d-tali tura; ldi tazrawt akken ad tnadiḍ deg akk tiɣiwanin.",
+      showAllCommunes: "Sken akk {{count}} n tɣiwanin",
+      showFewerCommunes: "Sken drus n tɣiwanin",
+      neighboringTitle: "Tiwilayin-nniḍen",
+      notFoundTitle: "Tawilayt ulac-itt",
+      notFoundBody:
+        "Asebter-a ur yemṣada ara d yiwen seg 69 n twilayin n Lezzayer.",
+      notFoundBackForecast: "Wali akk 69 n twilayin deg Tazrawt",
+      notFoundBackMap: "Uɣal ɣer tkarḍa srid",
+      kind: {
+        forest_fire: "Times n teẓgi",
+        brush_fire: "Times n yimɣan",
+        crop_fire: "Times n tkerza",
+        urban_fire: "Times n temdint",
+        flood: "Iḥemmalen",
+        storm: "Tabucidant",
+        road: "Ugur deg ubrid",
+        structure: "Tadyant n uxxam",
+        other: "Tadyant",
+      },
+    },
   },
 };

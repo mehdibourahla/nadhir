@@ -458,6 +458,24 @@ export const effisDangerQuery = queryOptions({
   },
 });
 
+export function communeEffisDangerQuery(communeId: string) {
+  return queryOptions({
+    queryKey: ["effis_danger", "commune", communeId],
+    enabled: communeId.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("effis_danger")
+        .select("id, commune_id, date, danger_class, created_at")
+        .eq("commune_id", communeId)
+        .order("date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return (data as EffisDanger | null) ?? null;
+    },
+  });
+}
+
 export const sourceHealthQuery = queryOptions({
   queryKey: ["source_health"],
   queryFn: async () => {
