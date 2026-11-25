@@ -185,4 +185,49 @@ export const track2Fr: Track2Translation = {
       },
     },
   },
+  whatsapp: {
+    header: "Nadhir",
+    algiersTime: "{{time}} (heure d'Alger)",
+    sourceLine: "Source : {{source}}",
+    areaLine: "Zone : {{area}}",
+    detailsLink: "Détails : {{url}}",
+    whySeeingPrefix: "Pourquoi je vois ceci : {{line}}",
+    infoDisclaimer:
+      "Information uniquement. Suivez les consignes de la Protection Civile (14) et des autorités officielles.",
+    phaseInitial: "Bulletin actif",
+    phaseUpdate: "Mise à jour du bulletin",
+    phaseEnd: "Fin d'observation",
+    severityExtreme: "Extrême",
+    severitySevere: "Sévère",
+  },
+  emailDigest: {
+    subjectSingle: "Nadhir : {{title}}",
+    subjectDigest: "Nadhir : {{count}} alertes de zone ({{zone}})",
+    subjectUrgentPrefix: "[Urgent] ",
+    heading: "Votre résumé d'alertes de zone Nadhir",
+    headingUrgent: "Alerte de zone urgente Nadhir",
+    intro:
+      "Mises à jour de risques observés correspondant à vos zones surveillées.",
+    urgentBypassNote:
+      "Envoyé pendant vos heures silencieuses car un seuil urgent a été atteint.",
+    algiersTime: "{{time}} (heure d'Alger)",
+    sourceLabel: "Source : {{source}}",
+    areaLabel: "Zone : {{area}}",
+    viewDetails: "Ouvrir dans Nadhir",
+    whySeeingLabel: "Pourquoi je vois ceci ?",
+    infoDisclaimer:
+      "Nadhir relaie les observations et les bulletins officiels attribués. Suivez les consignes de la Protection Civile (14) et des autorités officielles.",
+    managePreferences:
+      "Gérer les préférences de résumé e-mail ou désactiver les e-mails",
+    settingsLabel: "Résumé e-mail des zones surveillées",
+    settingsHint:
+      "Recevez par e-mail les mises à jour de risques de vos zones surveillées. Les risques urgents (vigilance ONM extrême, incidents officiels actifs, séismes M5+, incendies urgents) franchissent les heures silencieuses.",
+    frequencyLabel: "Fréquence du résumé e-mail",
+    frequency: {
+      off: "Désactivé",
+      immediate: "Immédiat",
+      hourly: "Résumé horaire",
+      daily: "Résumé quotidien",
+    },
+  },
 };

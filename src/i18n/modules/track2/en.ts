@@ -177,6 +177,49 @@ export const track2En = {
       },
     },
   },
+  whatsapp: {
+    header: "Nadhir",
+    algiersTime: "{{time}} (Algiers time)",
+    sourceLine: "Source: {{source}}",
+    areaLine: "Area: {{area}}",
+    detailsLink: "Details: {{url}}",
+    whySeeingPrefix: "Why am I seeing this: {{line}}",
+    infoDisclaimer:
+      "Information only. Follow Civil Protection (14) and official authority directives.",
+    phaseInitial: "Active bulletin",
+    phaseUpdate: "Updated bulletin",
+    phaseEnd: "Observation ended",
+    severityExtreme: "Extreme",
+    severitySevere: "Severe",
+  },
+  emailDigest: {
+    subjectSingle: "Nadhir: {{title}}",
+    subjectDigest: "Nadhir: {{count}} zone alerts ({{zone}})",
+    subjectUrgentPrefix: "[Urgent] ",
+    heading: "Your Nadhir zone alert digest",
+    headingUrgent: "Urgent zone alert from Nadhir",
+    intro: "Observed hazard updates matched to your watch zones.",
+    urgentBypassNote:
+      "Sent during your quiet hours because an urgent threshold was reached.",
+    algiersTime: "{{time}} (Algiers time)",
+    sourceLabel: "Source: {{source}}",
+    areaLabel: "Zone: {{area}}",
+    viewDetails: "Open in Nadhir",
+    whySeeingLabel: "Why am I seeing this?",
+    infoDisclaimer:
+      "Nadhir relays observations and attributed official bulletins. Follow Civil Protection (14) and official authority directives.",
+    managePreferences: "Manage email digest settings or turn off emails",
+    settingsLabel: "Zone email digest",
+    settingsHint:
+      "Receive watch-zone hazard updates by email. Urgent hazards (Extreme ONM, active official incidents, M5+ earthquakes, urgent fires) break through quiet hours.",
+    frequencyLabel: "Email digest frequency",
+    frequency: {
+      off: "Off",
+      immediate: "Immediate",
+      hourly: "Hourly digest",
+      daily: "Daily digest",
+    },
+  },
 };
 
 export type Track2Translation = typeof track2En;

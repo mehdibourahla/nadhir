@@ -26,6 +26,8 @@ const secrets = Array.from(
       process.env["FIRMS_MAP_KEY"] ?? "",
       process.env["EUMETSAT_CONSUMER_SECRET"] ?? "",
       process.env["TELEGRAM_BOT_TOKEN"] ?? "",
+      process.env["WHATSAPP_ACCESS_TOKEN"] ?? "",
+      process.env["RESEND_API_KEY"] ?? "",
     ].filter(Boolean),
   ),
 );

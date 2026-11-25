@@ -16,7 +16,11 @@ import {
   isLocale,
   type Locale,
 } from "@/i18n";
-import { profileQuery, saveProfileSettings } from "@/lib/account";
+import {
+  profileQuery,
+  saveProfileSettings,
+  type EmailDigestFrequency,
+} from "@/lib/account";
 import { titledMeta } from "@/lib/page-meta";
 import { DevicePush } from "@/components/DevicePush";
 import { signOutAccount } from "@/lib/sign-out";
@@ -43,6 +47,8 @@ function SettingsPage() {
     display_name: "",
     phone: "",
     locale: "ar",
+    alert_email: false,
+    email_digest_frequency: "off" as EmailDigestFrequency,
     alert_push: false,
     min_danger_level: 3,
     quiet_hours_start: "",
@@ -92,10 +98,18 @@ function SettingsPage() {
 
   useEffect(() => {
     if (!profile.data) return;
+    const freq: EmailDigestFrequency =
+      profile.data.email_digest_frequency === "immediate" ||
+      profile.data.email_digest_frequency === "hourly" ||
+      profile.data.email_digest_frequency === "daily"
+        ? profile.data.email_digest_frequency
+        : "off";
     setDraft({
       display_name: profile.data.display_name ?? "",
       phone: profile.data.phone ?? "",
       locale: profile.data.locale,
+      alert_email: Boolean(profile.data.alert_email) && freq !== "off",
+      email_digest_frequency: freq,
       alert_push: profile.data.alert_push,
       min_danger_level: profile.data.min_danger_level,
       quiet_hours_start: profile.data.quiet_hours_start?.toString() ?? "",
@@ -109,7 +123,11 @@ function SettingsPage() {
         display_name: draft.display_name || null,
         phone: draft.phone || null,
         locale: draft.locale,
-        alert_email: false,
+        alert_email:
+          draft.alert_email && draft.email_digest_frequency !== "off",
+        email_digest_frequency: draft.alert_email
+          ? draft.email_digest_frequency
+          : "off",
         alert_push: draft.alert_push,
         min_danger_level: draft.min_danger_level,
         quiet_hours_start:
@@ -220,16 +238,68 @@ function SettingsPage() {
             ))}
           </select>
         </label>
-        <fieldset className="space-y-2">
+        <fieldset className="space-y-3">
           <legend className="mb-1 text-muted-foreground">
             {t("account.channels")}
           </legend>
-          <p className="text-muted-foreground">
-            {t("account.emailUnavailable")}
-          </p>
-          <label className="flex items-center gap-2">
+          <div className="space-y-2 rounded-md border border-border/70 p-3">
+            <label className="flex min-h-11 cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                className="h-5 w-5"
+                checked={draft.alert_email}
+                onChange={(e) => {
+                  const enabled = e.target.checked;
+                  setDraft({
+                    ...draft,
+                    alert_email: enabled,
+                    email_digest_frequency: enabled
+                      ? draft.email_digest_frequency === "off"
+                        ? "daily"
+                        : draft.email_digest_frequency
+                      : "off",
+                  });
+                }}
+              />
+              <span>{t("emailDigest.settingsLabel")}</span>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-muted-foreground">
+                {t("emailDigest.frequencyLabel")}
+              </span>
+              <select
+                aria-label={t("emailDigest.frequencyLabel")}
+                value={draft.email_digest_frequency}
+                onChange={(e) => {
+                  const next = e.target.value as EmailDigestFrequency;
+                  setDraft({
+                    ...draft,
+                    email_digest_frequency: next,
+                    alert_email: next !== "off",
+                  });
+                }}
+                className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2"
+              >
+                <option value="off">{t("emailDigest.frequency.off")}</option>
+                <option value="immediate">
+                  {t("emailDigest.frequency.immediate")}
+                </option>
+                <option value="hourly">
+                  {t("emailDigest.frequency.hourly")}
+                </option>
+                <option value="daily">
+                  {t("emailDigest.frequency.daily")}
+                </option>
+              </select>
+            </label>
+            <p className="text-xs text-muted-foreground">
+              {t("emailDigest.settingsHint")}
+            </p>
+          </div>
+          <label className="flex min-h-11 cursor-pointer items-center gap-2">
             <input
               type="checkbox"
+              className="h-5 w-5"
               checked={draft.alert_push}
               onChange={(e) =>
                 setDraft({ ...draft, alert_push: e.target.checked })

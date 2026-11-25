@@ -3,6 +3,8 @@ import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { LiveContext } from "@/lib/zone-status";
 
+export type EmailDigestFrequency = "off" | "immediate" | "hourly" | "daily";
+
 export type Profile = {
   id: string;
   display_name: string | null;
@@ -10,6 +12,8 @@ export type Profile = {
   phone: string | null;
   alert_email: boolean;
   alert_push: boolean;
+  email_digest_frequency?: EmailDigestFrequency;
+  email_digest_hour_algiers?: number;
   quiet_hours_start: number | null;
   quiet_hours_end: number | null;
   min_danger_level: number;
@@ -22,6 +26,8 @@ export type ProfileSettingsInput = Pick<
   | "locale"
   | "alert_email"
   | "alert_push"
+  | "email_digest_frequency"
+  | "email_digest_hour_algiers"
   | "quiet_hours_start"
   | "quiet_hours_end"
   | "min_danger_level"

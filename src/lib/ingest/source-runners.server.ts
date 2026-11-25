@@ -1,5 +1,7 @@
 import { drainWebhookDeliveries } from "@/lib/webhooks.server";
 import { evaluateAlerts } from "@/lib/alerts-engine.server";
+import { deliverZoneEmailDigests } from "@/lib/delivery/email-digest.server";
+import { deliverWhatsappChannelBroadcasts } from "@/lib/delivery/whatsapp-channel.server";
 import {
   retryDispositionForReason,
   type ClaimedSourceJob,
@@ -83,6 +85,8 @@ export type SourceRunnerDependencies = {
   publishBroadcasts: typeof publishBroadcasts;
   deliverBroadcasts: typeof deliverBroadcasts;
   drainWebhookDeliveries: typeof drainWebhookDeliveries;
+  deliverWhatsappChannel?: typeof deliverWhatsappChannelBroadcasts;
+  deliverEmailDigests?: typeof deliverZoneEmailDigests;
 };
 
 function baseReport(
@@ -396,6 +400,22 @@ export function createSourceRunners(
     },
     alert_evaluation: async (job) => {
       const run = await dependencies.evaluateAlerts();
+      let emailDigestChecks: Record<string, unknown> = {};
+      if (dependencies.deliverEmailDigests) {
+        try {
+          const emailRun = await dependencies.deliverEmailDigests();
+          emailDigestChecks = {
+            email_digest_sent: emailRun.sent,
+            email_digest_deferred_quiet: emailRun.deferredQuietHours,
+            email_digest_failed: emailRun.failed,
+            email_digest_bounced: emailRun.bounced,
+            email_digest_unconfigured: emailRun.unconfigured,
+            email_digest_disabled: emailRun.disabled,
+          };
+        } catch {
+          emailDigestChecks = { email_digest_error: true };
+        }
+      }
       return {
         ...baseReport(job),
         outcome: "succeeded",
@@ -408,6 +428,7 @@ export function createSourceRunners(
         qualityChecks: {
           delivery_failed: run.failed ?? 0,
           suppressed: run.suppressed,
+          ...emailDigestChecks,
         },
         retryDisposition: "none",
       };
@@ -426,14 +447,29 @@ export function createSourceRunners(
       };
     },
     broadcast_delivery: async (job) => {
-      const [broadcasts, webhooks] = await Promise.allSettled([
+      const [broadcasts, webhooks, whatsapp] = await Promise.allSettled([
         dependencies.deliverBroadcasts(),
         dependencies.drainWebhookDeliveries(),
+        dependencies.deliverWhatsappChannel
+          ? dependencies.deliverWhatsappChannel()
+          : Promise.resolve(null),
       ]);
       if (broadcasts.status === "rejected") throw broadcasts.reason;
       if (webhooks.status === "rejected") throw webhooks.reason;
       const run = broadcasts.value;
       const webhookRun = webhooks.value;
+      const whatsappChecks: Record<string, unknown> =
+        whatsapp.status === "fulfilled" && whatsapp.value !== null
+          ? {
+              whatsapp_sent: whatsapp.value.sent,
+              whatsapp_retried: whatsapp.value.retried,
+              whatsapp_failed: whatsapp.value.failed,
+              whatsapp_unconfigured: whatsapp.value.unconfigured,
+              whatsapp_disabled: whatsapp.value.disabled,
+            }
+          : whatsapp.status === "rejected"
+            ? { whatsapp_error: true }
+            : {};
       const broadcastHealth = deliveryRunOutcome(run);
       const health =
         webhookRun.failed > 0 && broadcastHealth.outcome !== "failed"
@@ -456,6 +492,7 @@ export function createSourceRunners(
           telegram_channels: run.telegramChannels,
           webhook_sent: webhookRun.sent,
           webhook_failed: webhookRun.failed,
+          ...whatsappChecks,
         },
         retryDisposition: retryDisposition(
           health.outcome,
@@ -486,6 +523,8 @@ const sourceRunnerDependencies: SourceRunnerDependencies = {
   publishBroadcasts,
   deliverBroadcasts,
   drainWebhookDeliveries,
+  deliverWhatsappChannel: deliverWhatsappChannelBroadcasts,
+  deliverEmailDigests: deliverZoneEmailDigests,
 };
 
 export const SOURCE_RUNNERS = createSourceRunners(sourceRunnerDependencies);

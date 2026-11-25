@@ -716,6 +716,194 @@ export type Database = {
         };
         Relationships: [];
       };
+      delivery_pipeline_settings: {
+        Row: {
+          enabled: boolean;
+          pause_reason: string | null;
+          paused: boolean;
+          pipeline: string;
+          updated_at: string;
+        };
+        Insert: {
+          enabled?: boolean;
+          pause_reason?: string | null;
+          paused?: boolean;
+          pipeline: string;
+          updated_at?: string;
+        };
+        Update: {
+          enabled?: boolean;
+          pause_reason?: string | null;
+          paused?: boolean;
+          pipeline?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      email_digest_deliveries: {
+        Row: {
+          alert_count: number;
+          alert_ids: string[];
+          attempts: number;
+          bounced_at: string | null;
+          created_at: string;
+          dedupe_key: string;
+          digest_kind: string;
+          id: string;
+          last_error: string | null;
+          lease_token: string | null;
+          lease_until: string | null;
+          locale: string;
+          next_attempt_at: string;
+          provider: string;
+          provider_message_id: string | null;
+          sent_at: string | null;
+          state: string;
+          subject: string | null;
+          updated_at: string;
+          urgent_bypass: boolean;
+          user_id: string;
+          window_key: string;
+        };
+        Insert: {
+          alert_count?: number;
+          alert_ids?: string[];
+          attempts?: number;
+          bounced_at?: string | null;
+          created_at?: string;
+          dedupe_key: string;
+          digest_kind: string;
+          id?: string;
+          last_error?: string | null;
+          lease_token?: string | null;
+          lease_until?: string | null;
+          locale: string;
+          next_attempt_at?: string;
+          provider?: string;
+          provider_message_id?: string | null;
+          sent_at?: string | null;
+          state?: string;
+          subject?: string | null;
+          updated_at?: string;
+          urgent_bypass?: boolean;
+          user_id: string;
+          window_key: string;
+        };
+        Update: {
+          alert_count?: number;
+          alert_ids?: string[];
+          attempts?: number;
+          bounced_at?: string | null;
+          created_at?: string;
+          dedupe_key?: string;
+          digest_kind?: string;
+          id?: string;
+          last_error?: string | null;
+          lease_token?: string | null;
+          lease_until?: string | null;
+          locale?: string;
+          next_attempt_at?: string;
+          provider?: string;
+          provider_message_id?: string | null;
+          sent_at?: string | null;
+          state?: string;
+          subject?: string | null;
+          updated_at?: string;
+          urgent_bypass?: boolean;
+          user_id?: string;
+          window_key?: string;
+        };
+        Relationships: [];
+      };
+      email_digest_suppressions: {
+        Row: {
+          provider_error: string | null;
+          reason: string;
+          suppressed_at: string;
+          user_id: string;
+        };
+        Insert: {
+          provider_error?: string | null;
+          reason: string;
+          suppressed_at?: string;
+          user_id: string;
+        };
+        Update: {
+          provider_error?: string | null;
+          reason?: string;
+          suppressed_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
+      whatsapp_channel_deliveries: {
+        Row: {
+          attempts: number;
+          broadcast_id: string;
+          channel_target: string;
+          created_at: string;
+          dedupe_key: string;
+          delivered_at: string | null;
+          expires_at: string;
+          id: string;
+          last_error: string | null;
+          lease_token: string | null;
+          lease_until: string | null;
+          locale: string;
+          next_attempt_at: string;
+          payload: Json;
+          provider_message_id: string | null;
+          state: string;
+          updated_at: string;
+        };
+        Insert: {
+          attempts?: number;
+          broadcast_id: string;
+          channel_target: string;
+          created_at?: string;
+          dedupe_key: string;
+          delivered_at?: string | null;
+          expires_at?: string;
+          id?: string;
+          last_error?: string | null;
+          lease_token?: string | null;
+          lease_until?: string | null;
+          locale?: string;
+          next_attempt_at?: string;
+          payload?: Json;
+          provider_message_id?: string | null;
+          state?: string;
+          updated_at?: string;
+        };
+        Update: {
+          attempts?: number;
+          broadcast_id?: string;
+          channel_target?: string;
+          created_at?: string;
+          dedupe_key?: string;
+          delivered_at?: string | null;
+          expires_at?: string;
+          id?: string;
+          last_error?: string | null;
+          lease_token?: string | null;
+          lease_until?: string | null;
+          locale?: string;
+          next_attempt_at?: string;
+          payload?: Json;
+          provider_message_id?: string | null;
+          state?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_channel_deliveries_broadcast_id_fkey";
+            columns: ["broadcast_id"];
+            isOneToOne: false;
+            referencedRelation: "broadcasts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       operational_incidents: {
         Row: {
           acknowledged_at: string | null;
@@ -2550,6 +2738,8 @@ export type Database = {
           alert_push: boolean;
           created_at: string;
           display_name: string | null;
+          email_digest_frequency: string;
+          email_digest_hour_algiers: number;
           id: string;
           locale: string;
           min_confidence: number;
@@ -2564,6 +2754,8 @@ export type Database = {
           alert_push?: boolean;
           created_at?: string;
           display_name?: string | null;
+          email_digest_frequency?: string;
+          email_digest_hour_algiers?: number;
           id: string;
           locale?: string;
           min_confidence?: number;
@@ -2578,6 +2770,8 @@ export type Database = {
           alert_push?: boolean;
           created_at?: string;
           display_name?: string | null;
+          email_digest_frequency?: string;
+          email_digest_hour_algiers?: number;
           id?: string;
           locale?: string;
           min_confidence?: number;
@@ -3953,6 +4147,110 @@ export type Database = {
       apply_onm_cap_chain: {
         Args: { _cap_ids: string[] };
         Returns: Json;
+      };
+      claim_email_digest_delivery: {
+        Args: {
+          _alert_ids: string[];
+          _dedupe_key: string;
+          _digest_kind: string;
+          _locale: string;
+          _subject: string;
+          _urgent_bypass: boolean;
+          _user_id: string;
+          _window_key: string;
+        };
+        Returns: {
+          attempts: number;
+          id: string;
+          lease_token: string;
+        }[];
+      };
+      claim_whatsapp_deliveries: {
+        Args: { _limit?: number };
+        Returns: {
+          attempts: number;
+          broadcast_id: string;
+          channel_target: string;
+          created_at: string;
+          dedupe_key: string;
+          delivered_at: string | null;
+          expires_at: string;
+          id: string;
+          last_error: string | null;
+          lease_token: string | null;
+          lease_until: string | null;
+          locale: string;
+          next_attempt_at: string;
+          payload: Json;
+          provider_message_id: string | null;
+          state: string;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "whatsapp_channel_deliveries";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      enqueue_whatsapp_broadcast: {
+        Args: {
+          _broadcast_id: string;
+          _channel_target: string;
+          _dedupe_key: string;
+          _expires_at?: string | null;
+          _locale: string;
+          _payload?: Json;
+        };
+        Returns: string | null;
+      };
+      finish_email_digest_delivery: {
+        Args: {
+          _bounced?: boolean;
+          _error?: string | null;
+          _id: string;
+          _lease_token: string;
+          _permanent?: boolean;
+          _provider_message_id?: string | null;
+          _retry_after_seconds?: number | null;
+          _sent: boolean;
+        };
+        Returns: boolean;
+      };
+      finish_whatsapp_delivery: {
+        Args: {
+          _delivered: boolean;
+          _error?: string | null;
+          _id: string;
+          _lease_token: string;
+          _permanent?: boolean;
+          _provider_message_id?: string | null;
+          _retry_after_seconds?: number | null;
+        };
+        Returns: boolean;
+      };
+      list_pending_email_digest_users: {
+        Args: { _limit?: number };
+        Returns: {
+          display_name: string | null;
+          email: string;
+          email_digest_frequency: string;
+          email_digest_hour_algiers: number;
+          last_sent_at: string | null;
+          locale: string;
+          quiet_hours_end: number | null;
+          quiet_hours_start: number | null;
+          user_id: string;
+        }[];
+      };
+      set_delivery_pipeline_state: {
+        Args: {
+          _enabled?: boolean | null;
+          _pause_reason?: string | null;
+          _paused?: boolean | null;
+          _pipeline: string;
+        };
+        Returns: boolean;
       };
       onm_suppressions_logged: { Args: { _ids: string[] }; Returns: string[] };
       store_onm_detail: {

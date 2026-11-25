@@ -181,4 +181,48 @@ export const track2Kab: Track2Translation = {
       },
     },
   },
+  whatsapp: {
+    header: "Nadhir",
+    algiersTime: "{{time}} (akud n Lezzayer)",
+    sourceLine: "Aɣbalu: {{source}}",
+    areaLine: "Tamnaḍt: {{area}}",
+    detailsLink: "Talqayt: {{url}}",
+    whySeeingPrefix: "Ayɣer i ttwaliɣ aya: {{line}}",
+    infoDisclaimer:
+      "Talɣut kan. Ḍfer iwellihen n Umesten Aɣarim (14) d yiduba unṣiben.",
+    phaseInitial: "Taɣri turmidt",
+    phaseUpdate: "Aleqqem n teɣri",
+    phaseEnd: "Taggara n uḍfar",
+    severityExtreme: "Afellay",
+    severitySevere: "Iqseḥ",
+  },
+  emailDigest: {
+    subjectSingle: "Nadhir: {{title}}",
+    subjectDigest: "Nadhir: {{count}} n yilɣa n temnaḍt ({{zone}})",
+    subjectUrgentPrefix: "[Aɛjil] ",
+    heading: "Agzul n yilɣa n temnaḍin-ik Nadhir",
+    headingUrgent: "Alɣu aɛjil n temnaḍt sɣur Nadhir",
+    intro:
+      "Ileqman n yimihiten yettwaḍefren i yemṣadan d temnaḍin-ik n uɛassi.",
+    urgentBypassNote:
+      "Yettwaɛeyyen deg yisragen-ik n tsusmi acku yewweḍ ɣer talast taɛjilt.",
+    algiersTime: "{{time}} (akud n Lezzayer)",
+    sourceLabel: "Aɣbalu: {{source}}",
+    areaLabel: "Tamnaḍt: {{area}}",
+    viewDetails: "Ldi deg Nadhir",
+    whySeeingLabel: "Ayɣer i ttwaliɣ aya?",
+    infoDisclaimer:
+      "Nadhir yessawaḍ iḍfaren akked teɣriyin tunṣibin yettwabedren s uɣbalu-nsent. Ḍfer iwellihen n Umesten Aɣarim (14) d yiduba unṣiben.",
+    managePreferences: "Sefrek iɣewwaren n ugzul n yimayl neɣ sens imaylen",
+    settingsLabel: "Agzul n yimayl n temnaḍin n uɛassi",
+    settingsHint:
+      "Ṭṭef s yimayl ileqman n yimihiten n temnaḍin-ik n uɛassi. Imihiten uɛjilen (ONM afellay, tidyanin tunṣibin turmidin, izilzalen M5+, times taɛjilt) zeggren isragen n tsusmi.",
+    frequencyLabel: "Asnagar n ugzul n yimayl",
+    frequency: {
+      off: "Yensa",
+      immediate: "Imir-a",
+      hourly: "Agzul yal asrag",
+      daily: "Agzul ayalas",
+    },
+  },
 };
