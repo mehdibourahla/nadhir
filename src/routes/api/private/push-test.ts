@@ -13,7 +13,14 @@ export const Route = createFileRoute("/api/private/push-test")({
         return withAppCors(request, await handlePushTest(request));
       },
       ANY: () =>
-        new Response(null, { status: 405, headers: { Allow: "POST" } }),
+        new Response(JSON.stringify({ error: "method not allowed" }), {
+          status: 405,
+          headers: {
+            Allow: "POST, OPTIONS",
+            "Content-Type": "application/json",
+            "Cache-Control": "private, no-store",
+          },
+        }),
     },
   },
 });

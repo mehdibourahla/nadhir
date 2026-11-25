@@ -27,7 +27,12 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { auth: session },
 }));
 
-import { appLink, nativeTransport, startNativePush } from "@/lib/push-native";
+import {
+  appLink,
+  nativeTransport,
+  notificationId,
+  startNativePush,
+} from "@/lib/push-native";
 import {
   setUserPush,
   subscribeToCommunes,
@@ -317,4 +322,22 @@ it("never lets a startup re-sync rejoin communes the user just left", async () =
   await Promise.all([sync, leave]);
   expect(ops).toEqual(["join 1503.ar", "leave 1503.ar"]);
   expect(store.has("nadhir.push.v1")).toBe(false);
+});
+
+it("keeps notificationId strictly within signed 32-bit int range [0, 2147483647] even on INT32_MIN hash collisions", () => {
+  // "polygenelubricants" has a classic Java/31-multiplier hashCode of -2147483648 (INT32_MIN)
+  const samples = [
+    "polygenelubricants",
+    "GydZG_",
+    "DESIGNING WORKHOUSES",
+    "fire-DZ1",
+    "",
+    "الجزائر",
+  ];
+  for (const key of samples) {
+    const id = notificationId(key);
+    expect(Number.isInteger(id), key).toBe(true);
+    expect(id, key).toBeGreaterThanOrEqual(0);
+    expect(id, key).toBeLessThanOrEqual(2_147_483_647);
+  }
 });

@@ -100,4 +100,42 @@ describe("OemBatteryGuide component (SSR)", () => {
       }
     }
   });
+
+  it("ensures every aria-controls attribute references a mounted DOM element id in both collapsed and expanded states", () => {
+    const assertValidAriaControls = (html: string, label: string) => {
+      const mountedIds = new Set(
+        Array.from(html.matchAll(/\bid="([^"]+)"/g), (match) => match[1]!),
+      );
+      const controls = Array.from(
+        html.matchAll(/\baria-controls="([^"]+)"/g),
+        (match) => match[1]!,
+      );
+      for (const targetId of controls) {
+        expect(mountedIds.has(targetId), `${label}:${targetId}`).toBe(true);
+      }
+      return controls;
+    };
+
+    const collapsed = renderInLocale("fr", { defaultOpen: false });
+    expect(assertValidAriaControls(collapsed, "collapsed")).toEqual([]);
+
+    for (const family of OEM_BATTERY_FAMILIES) {
+      const expanded = renderInLocale("ar", {
+        defaultOpen: true,
+        defaultOem: family,
+      });
+      const controls = assertValidAriaControls(expanded, `open:${family}`);
+      // Toggle button -> panelId, active tab -> activePanelId (inactive tabs omit aria-controls)
+      expect(controls, `open:${family}`).toHaveLength(2);
+      const tabButtons =
+        expanded.match(/<button\b[^>]*role="tab"[^>]*>/g) ?? [];
+      const tabsWithControls = tabButtons.filter((tab) =>
+        tab.includes("aria-controls="),
+      );
+      expect(tabsWithControls, `open:${family}`).toHaveLength(1);
+      expect(tabsWithControls[0], `open:${family}`).toContain(
+        'aria-selected="true"',
+      );
+    }
+  });
 });

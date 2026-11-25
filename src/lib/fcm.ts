@@ -154,10 +154,10 @@ export function fcmMessageForAlert(
 ): FcmUserMessage {
   const payload = asRecord(alert.payload);
   const shortId =
-    alert.kind === "fire" && payload && "short_id" in payload
-      ? String(payload["short_id"])
-      : null;
-  const link = shortId ? `${APP_URL}/fire/${shortId}` : `${APP_URL}/alerts`;
+    alert.kind === "fire" ? readString(payload, "short_id") : null;
+  const link = shortId
+    ? `${APP_URL}/fire/${encodeURIComponent(shortId.trim())}`
+    : `${APP_URL}/alerts`;
   const tag = alert.source_id ?? alert.cluster_id ?? alert.id;
 
   const authoritySource = readString(payload, "authority");
@@ -440,12 +440,13 @@ export function fcmMessagesForOfficial(args: {
     areaLabel: args.areaLabel,
     observedAt: args.observedAt ?? new Date().toISOString(),
   });
+  const provenanceData = toProvenancePayload(provenance);
   const data: Record<string, string> & {
     broadcast_id: string;
     severity: string;
     kind: string;
   } = {
-    ...toProvenancePayload(provenance),
+    ...provenanceData,
     broadcast_id: args.broadcastId,
     severity: args.severity,
     kind: "official",
@@ -453,11 +454,13 @@ export function fcmMessagesForOfficial(args: {
     ...(args.phase ? { phase: args.phase } : {}),
     ...(args.status ? { status: args.status } : {}),
     ...(args.sourceKey ? { source_key: args.sourceKey } : {}),
-    ...(args.sourceAttribution
-      ? { source_attribution: args.sourceAttribution }
+    ...(args.sourceAttribution?.trim() && provenanceData["provenance_source"]
+      ? { source_attribution: provenanceData["provenance_source"] }
       : {}),
     ...(args.observedAt ? { observed_at: args.observedAt } : {}),
-    ...(args.areaLabel ? { area_label: args.areaLabel } : {}),
+    ...(provenanceData["provenance_area"]
+      ? { area_label: provenanceData["provenance_area"] }
+      : {}),
   };
   const link = args.incidentId
     ? `${APP_URL}/?event=${encodeURIComponent(`official:${args.incidentId}`)}`
@@ -510,23 +513,28 @@ export function fcmMessagesForEarthquake(args: {
     areaLabel: args.areaLabel,
     observedAt: args.observedAt ?? new Date().toISOString(),
   });
+  const provenanceData = toProvenancePayload(provenance);
   const data: Record<string, string> & {
     broadcast_id: string;
     severity: string;
     kind: string;
   } = {
-    ...toProvenancePayload(provenance),
+    ...provenanceData,
     broadcast_id: args.broadcastId,
     severity: args.severity,
     kind: "earthquake",
     hazard: "earthquake",
-    magnitude: args.magnitude.toFixed(1),
+    ...(Number.isFinite(args.magnitude)
+      ? { magnitude: args.magnitude.toFixed(1) }
+      : {}),
     source_key: args.sourceKey ?? "emsc",
-    ...(args.sourceAttribution
-      ? { source_attribution: args.sourceAttribution }
+    ...(args.sourceAttribution?.trim() && provenanceData["provenance_source"]
+      ? { source_attribution: provenanceData["provenance_source"] }
       : {}),
     ...(args.observedAt ? { observed_at: args.observedAt } : {}),
-    ...(args.areaLabel ? { area_label: args.areaLabel } : {}),
+    ...(provenanceData["provenance_area"]
+      ? { area_label: provenanceData["provenance_area"] }
+      : {}),
   };
   const tag = `quake-${args.earthquakeId}`;
   const out: FcmMessage[] = [];

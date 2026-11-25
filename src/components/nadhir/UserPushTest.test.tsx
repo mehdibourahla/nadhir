@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { I18nextProvider } from "react-i18next";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import i18n, { type AnyLocale } from "@/i18n";
 import { BANNED_STATUS_LABELS } from "@/lib/alert-provenance";
@@ -127,5 +127,154 @@ describe("UserPushTest component (SSR)", () => {
     });
     expect(deviceNotOwnedHtml).toContain('role="alert"');
     expect(deviceNotOwnedHtml).toContain("Activez d&#x27;abord");
+  });
+
+  it("handles malformed receivedAt safely without throwing RangeError and falls back to common.notRecorded", () => {
+    for (const locale of LOCALES) {
+      const t = i18n.getFixedT(locale);
+      for (const badDate of ["not-a-valid-date", "2026-02-31T00:00:00Z", ""]) {
+        const html = renderInLocale(locale, {
+          mode: "authenticated",
+          initialState: "received",
+          initialReceivedAt: badDate,
+        });
+        expect(html, `${locale}:${badDate}`).toContain(t("common.notRecorded"));
+        expect(html, `${locale}:${badDate}`).not.toContain("\u2014");
+      }
+    }
+  });
+
+  it("defers browser pushSupported() check to client useEffect so SSR idle markup matches hydrated button", () => {
+    for (const locale of LOCALES) {
+      const t = i18n.getFixedT(locale);
+      const html = renderInLocale(locale, {
+        mode: "authenticated",
+        initialState: "idle",
+      });
+      expect(html, locale).toContain(t("pushTest.sendButton"));
+      expect(html, locale).not.toContain(t("pushTest.unsupported"));
+    }
+  });
+
+  it("invokes setState('timeout') and onTimeout() directly from the interval callback (never inside a state updater)", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.resetModules();
+      const stateValues: unknown[] = [];
+      const setStateCalls: { index: number; arg: unknown }[] = [];
+      const effects: (() => void | (() => void))[] = [];
+      const refObjects: { current: unknown }[] = [];
+      let stateCursor = 0;
+
+      vi.doMock("react", async (importOriginal) => {
+        const actual = await importOriginal<typeof import("react")>();
+        return {
+          ...actual,
+          useState: <T,>(initial: T | (() => T)) => {
+            const idx = stateCursor++;
+            const val =
+              typeof initial === "function" ? (initial as () => T)() : initial;
+            stateValues[idx] = val;
+            const setter = (next: T | ((prev: T) => T)) => {
+              setStateCalls.push({ index: idx, arg: next });
+              if (typeof next === "function") {
+                stateValues[idx] = (next as (prev: T) => T)(
+                  stateValues[idx] as T,
+                );
+              } else {
+                stateValues[idx] = next;
+              }
+            };
+            return [val, setter] as const;
+          },
+          useRef: <T,>(initial: T) => {
+            const ref = { current: initial };
+            refObjects.push(ref);
+            return ref;
+          },
+          useEffect: (fn: () => void | (() => void)) => {
+            effects.push(fn);
+          },
+        };
+      });
+      vi.doMock("react-i18next", () => ({
+        useTranslation: () => ({
+          t: (key: string) => key,
+          i18n: { language: "en" },
+        }),
+      }));
+
+      const [{ UserPushTest: FreshUserPushTest }, { emitTestPushArrival }] =
+        await Promise.all([
+          import("./UserPushTest"),
+          import("@/lib/push-test-events"),
+        ]);
+
+      // Scenario 1: countdown reaches 0 -> calls setState("timeout") & onTimeout() directly (zero functional updaters)
+      const onTimeout = vi.fn();
+      FreshUserPushTest({
+        mode: "public",
+        initialState: "waiting",
+        timeoutSeconds: 3,
+        onTimeout,
+      });
+
+      const cleanups = effects
+        .map((effect) => effect())
+        .filter((c): c is () => void => typeof c === "function");
+
+      vi.advanceTimersByTime(3000);
+
+      // Every single setter call during countdown must receive a direct value, NEVER a functional updater
+      expect(setStateCalls.some((call) => typeof call.arg === "function")).toBe(
+        false,
+      );
+      // secondsLeft (state index 2) decremented cleanly: 2 -> 1 -> 0
+      expect(
+        setStateCalls.filter((c) => c.index === 2).map((c) => c.arg),
+      ).toEqual([2, 1, 0]);
+      // state (index 0) transitioned directly to "timeout" and onTimeout fired once
+      expect(
+        setStateCalls.filter((c) => c.index === 0).map((c) => c.arg),
+      ).toEqual(["timeout"]);
+      expect(onTimeout).toHaveBeenCalledOnce();
+      for (const cleanup of cleanups) cleanup();
+
+      // Scenario 2: arrival event fires before timeout -> transitions to "received" and cancels timeout
+      stateValues.length = 0;
+      setStateCalls.length = 0;
+      effects.length = 0;
+      refObjects.length = 0;
+      stateCursor = 0;
+      const onTimeout2 = vi.fn();
+
+      FreshUserPushTest({
+        mode: "public",
+        initialState: "waiting",
+        timeoutSeconds: 3,
+        onTimeout: onTimeout2,
+      });
+      const cleanups2 = effects
+        .map((effect) => effect())
+        .filter((c): c is () => void => typeof c === "function");
+
+      vi.advanceTimersByTime(1000);
+      emitTestPushArrival({
+        testId: "t-arrived",
+        receivedAt: "2026-11-25T12:00:00Z",
+      });
+      vi.advanceTimersByTime(5000);
+
+      expect(
+        setStateCalls.filter((c) => c.index === 0).map((c) => c.arg),
+      ).toEqual(["received"]);
+      expect(onTimeout2).not.toHaveBeenCalled();
+      for (const cleanup of cleanups2) cleanup();
+    } finally {
+      vi.doUnmock("react");
+      vi.doUnmock("react-i18next");
+      vi.resetModules();
+      vi.useRealTimers();
+    }
   });
 });

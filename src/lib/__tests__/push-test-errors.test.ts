@@ -130,4 +130,55 @@ describe("sendUserPushTest client transport", () => {
       lang: "fr",
     });
   });
+
+  it("throws typed UserPushTestError('unavailable') on non-JSON or malformed HTTP 200 responses", async () => {
+    for (const payload of [
+      "<html>Bad Gateway</html>",
+      "null",
+      "[]",
+      JSON.stringify({ ok: true }),
+    ]) {
+      const fetchImpl = vi.fn(
+        async () => new Response(payload, { status: 200 }),
+      ) as unknown as typeof fetch;
+
+      await expect(
+        sendUserPushTest({
+          mode: "public",
+          lang: "ar",
+          transport,
+          fetchImpl,
+        }),
+      ).rejects.toSatisfy(
+        (err: unknown) =>
+          err instanceof UserPushTestError && err.code === "unavailable",
+      );
+    }
+  });
+
+  it("requires strictly numeric Retry-After headers and falls back to 60s for partial strings like '12abc'", async () => {
+    for (const badHeader of ["12abc", "0", "-5", "12.5", "   "]) {
+      const fetchImpl = vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: "rate_limited" }), {
+            status: 429,
+            headers: { "Retry-After": badHeader },
+          }),
+      ) as unknown as typeof fetch;
+
+      await expect(
+        sendUserPushTest({
+          mode: "public",
+          lang: "en",
+          transport,
+          fetchImpl,
+        }),
+      ).rejects.toSatisfy(
+        (err: unknown) =>
+          err instanceof UserPushTestError &&
+          err.code === "rateLimited" &&
+          err.retryAfterSeconds === 60,
+      );
+    }
+  });
 });

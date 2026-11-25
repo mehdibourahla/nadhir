@@ -319,9 +319,13 @@ function fcmMessagesFor(
     if (!info || !earthquakeId) return null;
     const quake = context.earthquakeById.get(earthquakeId);
     const paramMag = capParam(info, "magnitude");
+    const quakeMag =
+      quake && Number.isFinite(quake.magnitude) ? quake.magnitude : null;
     const magnitude =
-      quake?.magnitude ??
-      (paramMag !== null && Number.isFinite(Number(paramMag))
+      quakeMag ??
+      (paramMag !== null &&
+      paramMag.trim().length > 0 &&
+      Number.isFinite(Number(paramMag))
         ? Number(paramMag)
         : null);
     if (magnitude === null) return null;

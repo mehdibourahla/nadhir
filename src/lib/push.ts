@@ -1,5 +1,8 @@
 import { fcmTopic, type FcmLang } from "@/lib/fcm";
-import type { NotificationChannelId } from "@/lib/notification-channels";
+import {
+  isNotificationChannelId,
+  type NotificationChannelId,
+} from "@/lib/notification-channels";
 import { NATIVE, apiUrl } from "@/lib/platform";
 
 /* Public web-app config for the nadhir-dz Firebase project (not secrets). The
@@ -209,8 +212,10 @@ export type UserPushTestResult = {
 
 function parseRetryAfter(header: string | null): number | undefined {
   if (!header) return undefined;
-  const parsed = Number.parseInt(header.trim(), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+  const trimmed = header.trim();
+  if (!/^\d+$/.test(trimmed)) return undefined;
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 export async function sendUserPushTest(options: {
@@ -299,18 +304,36 @@ export async function sendUserPushTest(options: {
     throw new UserPushTestError("unavailable");
   }
 
-  const parsed = (await response.json()) as {
-    testId?: string;
-    channelId?: NotificationChannelId;
-    sentAt?: string;
-  };
-  if (!parsed?.testId) {
+  let parsed: unknown;
+  try {
+    parsed = await response.json();
+  } catch {
     throw new UserPushTestError("unavailable");
   }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new UserPushTestError("unavailable");
+  }
+  const record = parsed as Record<string, unknown>;
+  const testId =
+    typeof record["testId"] === "string" && record["testId"].trim().length > 0
+      ? record["testId"]
+      : null;
+  if (!testId) {
+    throw new UserPushTestError("unavailable");
+  }
+  const channelId: NotificationChannelId = isNotificationChannelId(
+    record["channelId"],
+  )
+    ? record["channelId"]
+    : "alerts_test";
+  const sentAt =
+    typeof record["sentAt"] === "string" && record["sentAt"].trim().length > 0
+      ? record["sentAt"]
+      : new Date().toISOString();
   return {
-    testId: parsed.testId,
-    channelId: parsed.channelId ?? "alerts_test",
-    sentAt: parsed.sentAt ?? new Date().toISOString(),
+    testId,
+    channelId,
+    sentAt,
   };
 }
 

@@ -149,7 +149,11 @@ function provenanceForBanner(row: BannerRow, hazard: string | null) {
   const entries = capEntries(row);
   const rawMag = capParam(entries, "magnitude");
   const parsedMag =
-    rawMag !== null && Number.isFinite(Number(rawMag)) ? Number(rawMag) : null;
+    rawMag !== null &&
+    rawMag.trim().length > 0 &&
+    Number.isFinite(Number(rawMag))
+      ? Number(rawMag)
+      : null;
   const areaLabel =
     row.kind === "onm"
       ? (row.onm_vigilance?.area_desc ?? null)

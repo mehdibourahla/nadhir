@@ -320,13 +320,66 @@ export function validateProvenanceInvariants(
 }
 
 const MAX_PROVENANCE_AREA_CHARS = 240;
+const MAX_PROVENANCE_AREA_BYTES = 512;
+const MAX_PROVENANCE_SOURCE_CHARS = 240;
+const MAX_PROVENANCE_SOURCE_BYTES = 512;
 const UNINTERPOLATED_TOKEN = /\{\{[^{}]+\}\}/;
+const utf8Encoder = new TextEncoder();
+
+function capUtf8CodePoints(
+  value: string,
+  maxChars: number,
+  maxBytes: number,
+): string {
+  if (value.length === 0) return "";
+  if (
+    value.length <= maxChars &&
+    utf8Encoder.encode(value).byteLength <= maxBytes
+  ) {
+    return value;
+  }
+  let chars = 0;
+  let bytes = 0;
+  let endIndex = 0;
+  for (const cp of value) {
+    const cpBytes = utf8Encoder.encode(cp).byteLength;
+    if (chars + 1 > maxChars || bytes + cpBytes > maxBytes) {
+      break;
+    }
+    chars += 1;
+    bytes += cpBytes;
+    endIndex += cp.length;
+  }
+  return value.slice(0, endIndex).trimEnd();
+}
 
 function capAreaForPayload(areaLabel: string | null): string {
   if (typeof areaLabel !== "string" || areaLabel.length === 0) return "";
-  const chars = Array.from(areaLabel);
-  if (chars.length <= MAX_PROVENANCE_AREA_CHARS) return areaLabel;
-  return chars.slice(0, MAX_PROVENANCE_AREA_CHARS).join("").trimEnd();
+  const normalized = normalizeAreaLabel(areaLabel);
+  if (!normalized) return "";
+  return capUtf8CodePoints(
+    normalized,
+    MAX_PROVENANCE_AREA_CHARS,
+    MAX_PROVENANCE_AREA_BYTES,
+  );
+}
+
+function capSourceForPayload(
+  sourceKey: string,
+  sourceAttribution: string,
+): string {
+  if (typeof sourceAttribution !== "string" || sourceAttribution.length === 0) {
+    return "";
+  }
+  if (sourceKey.trim().toLowerCase() === "onm") {
+    return sourceAttribution;
+  }
+  const normalized = normalizeAreaLabel(sourceAttribution) ?? sourceAttribution;
+  return capUtf8CodePoints(
+    normalized,
+    MAX_PROVENANCE_SOURCE_CHARS,
+    MAX_PROVENANCE_SOURCE_BYTES,
+  );
 }
 
 export function toProvenancePayload(
@@ -336,7 +389,10 @@ export function toProvenancePayload(
     provenance_trigger: data.triggerKind,
     provenance_area: capAreaForPayload(data.areaLabel),
     provenance_source_key: data.sourceKey,
-    provenance_source: data.sourceAttribution,
+    provenance_source: capSourceForPayload(
+      data.sourceKey,
+      data.sourceAttribution,
+    ),
     provenance_rule: data.ruleLabelKey,
     provenance_observed_at: data.observedAt,
   };
@@ -381,10 +437,12 @@ export function parseProvenancePayload(
     return null;
   }
 
+  const rawObservedAt = ownProp(record, "provenance_observed_at");
+  if (!isValidObservedAt(rawObservedAt)) return null;
+
   const rawArea = ownProp(record, "provenance_area");
   const rawSource = ownProp(record, "provenance_source");
   const rawRule = ownProp(record, "provenance_rule");
-  const rawObservedAt = ownProp(record, "provenance_observed_at");
   const rawAuthority = ownProp(record, "provenance_authority");
 
   return buildAlertProvenance({
@@ -394,7 +452,7 @@ export function parseProvenancePayload(
     sourceKey: rawSourceKey,
     sourceAttribution: typeof rawSource === "string" ? rawSource : null,
     ruleLabelKey: typeof rawRule === "string" ? rawRule : null,
-    observedAt: typeof rawObservedAt === "string" ? rawObservedAt : "",
+    observedAt: rawObservedAt as string,
     authorityStatus: typeof rawAuthority === "string" ? rawAuthority : null,
   });
 }

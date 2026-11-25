@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, expect, it, vi } from "vitest";
+import * as alertProvenance from "@/lib/alert-provenance";
 import { BroadcastBanner } from "./BroadcastBanner";
 
 const rows = vi.hoisted(() => ({ data: [] as unknown[] }));
@@ -187,4 +188,55 @@ it("renders trigger provenance and hazard-aware labels on live fire, ONM, offici
   expect(eqHtml).toContain("civilMap.earthquake");
   expect(eqHtml).toContain("provenance.whySeeing");
   expect(eqHtml).not.toContain("\u2014");
+});
+
+it("treats empty or whitespace CAP magnitude parameters as null rather than 0 on earthquake banners", () => {
+  const spy = vi.spyOn(alertProvenance, "provenanceForBroadcast");
+  try {
+    for (const emptyMag of ["", "   "]) {
+      spy.mockClear();
+      rows.data = [
+        {
+          ...fireRow("x", 1),
+          id: "eq-empty-mag",
+          kind: "earthquake",
+          severity: "Severe",
+          hazard: "earthquake",
+          source_key: "emsc",
+          cluster_id: null,
+          earthquake_id: "eq-empty",
+          fire_clusters: null,
+          cap_alerts: {
+            info: [
+              {
+                language: "fr-DZ",
+                headline: "EMSC : séisme ressenti près d'Azazga",
+                parameter: [
+                  { valueName: "magnitude", value: emptyMag },
+                  { valueName: "source_attribution", value: "EMSC" },
+                ],
+              },
+            ],
+          },
+        },
+      ];
+      const html = renderToStaticMarkup(<BroadcastBanner />);
+      expect(html, `mag=${JSON.stringify(emptyMag)}`).toContain(
+        "provenance.whySeeing",
+      );
+      expect(spy, `mag=${JSON.stringify(emptyMag)}`).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "earthquake",
+          magnitude: null,
+        }),
+      );
+      const returned = spy.mock.results[0]?.value as
+        alertProvenance.AlertProvenanceData | undefined;
+      expect(returned?.ruleLabelKey, `mag=${JSON.stringify(emptyMag)}`).toBe(
+        "provenance.rule.m4Quake",
+      );
+    }
+  } finally {
+    spy.mockRestore();
+  }
 });

@@ -91,7 +91,7 @@ export function OemBatteryGuide({
         type="button"
         tabIndex={0}
         aria-expanded={isOpen}
-        aria-controls={panelId}
+        aria-controls={isOpen ? panelId : undefined}
         onClick={() => setOpen(!isOpen)}
         className="flex min-h-11 min-w-11 w-full items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-start text-foreground transition-colors hover:bg-muted"
       >
@@ -161,7 +161,7 @@ export function OemBatteryGuide({
                   type="button"
                   role="tab"
                   aria-selected={selected}
-                  aria-controls={tabPanelId}
+                  aria-controls={selected ? tabPanelId : undefined}
                   tabIndex={selected ? 0 : -1}
                   onClick={() => setActiveOem(family)}
                   onKeyDown={(event) => handleTabKeyDown(event, index)}

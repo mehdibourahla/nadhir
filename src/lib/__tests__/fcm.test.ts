@@ -8,6 +8,7 @@ import {
   FCM_LANGS,
   fcmMessageForAlert,
   fcmMessageForSelfTest,
+  fcmMessagesForAuthority,
   fcmMessagesForEarthquake,
   fcmMessagesForFire,
   fcmMessagesForOfficial,
@@ -630,4 +631,219 @@ describe("fcmMessageForSelfTest (F11 + F12)", () => {
       ).toBeLessThan(4096);
     },
   );
+});
+
+describe("FCM 4,096-byte data budget, em-dash hygiene, and adversarial edge-case regressions", () => {
+  const encoder = new TextEncoder();
+  const hasLoneSurrogate = (value: string) => {
+    for (let i = 0; i < value.length; i += 1) {
+      const code = value.charCodeAt(i);
+      if (code >= 0xd800 && code <= 0xdbff) {
+        const next = value.charCodeAt(i + 1);
+        if (next >= 0xdc00 && next <= 0xdfff) i += 1;
+        else return true;
+      } else if (code >= 0xdc00 && code <= 0xdfff) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  it("keeps JSON UTF-8 data strictly under 4,096 bytes with zero em dashes and zero broken UTF-16 surrogates across all 7 builders", () => {
+    const hugeArabicArea = "الجزائر — تيزي وزو ".repeat(700);
+    const hugeEmojiArea = "🔥🚨 ".repeat(4000);
+    const hugeNonOnmAttr = "السلطة المحلية — الدفاع المدني ".repeat(500);
+    const hugeEmojiAttr = "🌊⚡ ".repeat(4000);
+
+    for (const [label, areaLabel, sourceAttribution] of [
+      ["arabic", hugeArabicArea, hugeNonOnmAttr],
+      ["emoji", hugeEmojiArea, hugeEmojiAttr],
+    ] as const) {
+      const messages = [
+        fcmMessageForAlert(
+          {
+            id: "a-budget",
+            user_id: "u-1",
+            kind: "official",
+            title: "t",
+            body: "b",
+            source_id: "s-1",
+            cluster_id: null,
+            source_table: "authority_warnings",
+            payload: { authority: sourceAttribution },
+            created_at: "2026-11-25T10:00:00Z",
+          },
+          "rcpt-1",
+        ),
+        ...fcmMessagesForFire({
+          broadcastId: "b-fire-budget",
+          severity: "Severe",
+          communeCodes: ["1601"],
+          shortId: "DZ7K4A",
+          info,
+          areaLabel,
+          sourceAttribution,
+          observedAt: "2026-11-25T10:00:00Z",
+        }),
+        ...fcmMessagesForOnm({
+          broadcastId: "b-onm-budget",
+          severity: "Extreme",
+          communeCodes: ["1601"],
+          title: "Rain Extreme",
+          headlineFr: "Pluies",
+          wilayaId: "w16",
+          event: "Rain",
+          areaLabel,
+          observedAt: "2026-11-25T10:00:00Z",
+        }),
+        ...fcmMessagesForAuthority({
+          broadcastId: "b-auth-budget",
+          severity: "Severe",
+          communeCodes: ["1601"],
+          source: sourceAttribution,
+          body: "Bulletin",
+          areaLabel,
+          observedAt: "2026-11-25T10:00:00Z",
+        }),
+        ...fcmMessagesForOfficial({
+          broadcastId: "b-off-budget",
+          severity: "Severe",
+          communeCodes: ["1601"],
+          info,
+          incidentId: "inc-budget",
+          hazard: "flood",
+          sourceKey: "dgpc_telegram",
+          sourceAttribution,
+          areaLabel,
+          observedAt: "2026-11-25T10:00:00Z",
+        }),
+        ...fcmMessagesForEarthquake({
+          broadcastId: "b-eq-budget",
+          severity: "Severe",
+          communeCodes: ["1601"],
+          earthquakeId: "eq-budget",
+          magnitude: 4.5,
+          info,
+          sourceKey: "emsc",
+          sourceAttribution,
+          areaLabel,
+          observedAt: "2026-11-25T10:00:00Z",
+        }),
+        fcmMessageForSelfTest({
+          token: "device-registration-token",
+          testId: "test-budget",
+          lang: "ar",
+          receipt: "sig-budget",
+          observedAt: "2026-11-25T10:00:00Z",
+        }),
+      ];
+
+      for (const msg of messages) {
+        const bytes = encoder.encode(JSON.stringify(msg.data)).byteLength;
+        expect(bytes, `${label}:${msg.data.kind}`).toBeLessThan(4096);
+        for (const [k, v] of Object.entries(msg.data)) {
+          expect(typeof v, `${label}:${msg.data.kind}:${k}`).toBe("string");
+          expect(hasLoneSurrogate(v), `${label}:${msg.data.kind}:${k}`).toBe(
+            false,
+          );
+          expect(v, `${label}:${msg.data.kind}:${k}`).not.toContain("\u2014");
+        }
+      }
+    }
+
+    // ONM attribution remains strictly unaltered verbatim
+    const [onm] = fcmMessagesForOnm({
+      broadcastId: "b-onm-verbatim",
+      severity: "Severe",
+      communeCodes: ["1601"],
+      title: "Rain Severe",
+      headlineFr: "Pluies",
+      wilayaId: "w16",
+      event: "Rain",
+      areaLabel: hugeArabicArea,
+      observedAt: "2026-11-25T10:00:00Z",
+    });
+    expect(onm!.data["provenance_source"]).toBe("ONM · Météo Algérie");
+  });
+
+  it("omits data.magnitude in fcmMessagesForEarthquake when magnitude is non-finite (NaN / Infinity)", () => {
+    for (const badMag of [
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+    ]) {
+      const [msg] = fcmMessagesForEarthquake({
+        broadcastId: "b-eq-nan",
+        severity: "Severe",
+        communeCodes: ["1601"],
+        earthquakeId: "eq-nan",
+        magnitude: badMag,
+        info,
+        observedAt: "2026-11-25T10:00:00Z",
+      });
+      expect("magnitude" in msg!.data, String(badMag)).toBe(false);
+    }
+  });
+
+  it("falls back to /alerts in fcmMessageForAlert when fire payload has null/blank/inherited short_id and encodes valid short_id", () => {
+    const base = {
+      id: "a-fire-sid",
+      user_id: "u-1",
+      kind: "fire",
+      title: "Fire",
+      body: "Body",
+      source_id: null,
+      cluster_id: "c-1",
+      created_at: "2026-11-25T10:00:00Z",
+    };
+
+    for (const badPayload of [
+      { short_id: null },
+      { short_id: "" },
+      { short_id: "   " },
+      { short_id: 12345 },
+      Object.create({ short_id: "DZ999" }),
+    ]) {
+      const msg = fcmMessageForAlert({ ...base, payload: badPayload }, "rcpt");
+      expect(msg.webpush.fcm_options.link).toBe("https://nadhir.app/alerts");
+      expect(msg.data.link).toBe("/alerts");
+    }
+
+    const encoded = fcmMessageForAlert(
+      { ...base, payload: { short_id: "DZ 7/A" } },
+      "rcpt",
+    );
+    expect(encoded.webpush.fcm_options.link).toBe(
+      "https://nadhir.app/fire/DZ%207%2FA",
+    );
+    expect(encoded.data.link).toBe("/fire/DZ%207%2FA");
+  });
+
+  it("falls back to alert.created_at when embedded provenance payload is missing provenance_observed_at", () => {
+    const msg = fcmMessageForAlert(
+      {
+        id: "a-partial-prov",
+        user_id: "u-1",
+        kind: "weather",
+        title: "ONM",
+        body: "Pluie",
+        source_id: "onm-1",
+        cluster_id: null,
+        severity: 4,
+        created_at: "2026-11-25T09:15:00Z",
+        payload: {
+          onm_severity: "Extreme",
+          provenance_trigger: "watch_zone",
+          provenance_source_key: "onm",
+          provenance_source: "ONM · Météo Algérie",
+          provenance_rule: "provenance.rule.onmExtreme",
+        },
+      },
+      "rcpt",
+    );
+    expect(msg.data["provenance_observed_at"]).toBe("2026-11-25T09:15:00Z");
+    const parsed = parseProvenancePayload(msg.data);
+    expect(parsed).not.toBeNull();
+    expect(validateProvenanceInvariants(parsed!)).toEqual([]);
+  });
 });

@@ -419,6 +419,29 @@ describe("toProvenancePayload and parseProvenancePayload", () => {
       provenance_observed_at: SAMPLE_ISO,
     });
     expect(parseProvenancePayload(inherited)).toBeNull();
+
+    // Missing, blank, or malformed provenance_observed_at returns null so callers can fall back cleanly
+    for (const badObservedAt of [
+      undefined,
+      "",
+      "   ",
+      "not-a-date",
+      "2026-02-31T00:00:00Z",
+    ]) {
+      const partial: Record<string, unknown> = {
+        provenance_trigger: "watch_zone",
+        provenance_source_key: "onm",
+        provenance_source: "ONM · Météo Algérie",
+        provenance_rule: "provenance.rule.onmExtreme",
+      };
+      if (badObservedAt !== undefined) {
+        partial["provenance_observed_at"] = badObservedAt;
+      }
+      expect(
+        parseProvenancePayload(partial),
+        `observedAt=${String(badObservedAt)}`,
+      ).toBeNull();
+    }
   });
 });
 
@@ -532,23 +555,82 @@ describe("provenance i18n keys across all 4 locales", () => {
 });
 
 describe("domain provenance builders, area cap and M2C localized digest helper", () => {
-  it("caps provenance_area at <= 240 characters without altering verbatim ONM attribution", () => {
+  it("caps provenance_area and non-ONM provenance_source safely without splitting UTF-16 surrogates or altering verbatim ONM attributions", () => {
+    const hasLoneSurrogate = (value: string) => {
+      for (let i = 0; i < value.length; i += 1) {
+        const code = value.charCodeAt(i);
+        if (code >= 0xd800 && code <= 0xdbff) {
+          const next = value.charCodeAt(i + 1);
+          if (next >= 0xdc00 && next <= 0xdfff) i += 1;
+          else return true;
+        } else if (code >= 0xdc00 && code <= 0xdfff) {
+          return true;
+        }
+      }
+      return false;
+    };
     const longArea = "Tizi Ouzou ".repeat(40);
-    const longOnmAttribution =
-      "ONM · Météo Algérie (BMS Pluie Exceptionnelle #2026-11-25-ALGER-TIZI-OUZOU)";
-    const built = provenanceForBroadcast({
-      kind: "onm",
-      severity: "Extreme",
-      areaLabel: longArea,
-      sourceAttribution: longOnmAttribution,
+    const longEmojiArea = "🔥".repeat(500);
+    const longNonOnmSource = "السلطة المحلية — ".repeat(400);
+    const longEmojiSource = "🚨".repeat(500);
+
+    for (const verbatimOnm of [
+      "ONM · Météo Algérie",
+      "Office National de la Météorologie",
+      "الديوان الوطني للأرصاد الجوية",
+      "ONM · Météo Algérie (BMS Pluie Exceptionnelle #2026-11-25-ALGER-TIZI-OUZOU)",
+    ]) {
+      const built = provenanceForBroadcast({
+        kind: "onm",
+        severity: "Extreme",
+        areaLabel: longArea,
+        sourceAttribution: verbatimOnm,
+        observedAt: SAMPLE_ISO,
+      });
+      const payload = toProvenancePayload(built);
+      expect(
+        Array.from(payload["provenance_area"]!).length,
+      ).toBeLessThanOrEqual(240);
+      expect(payload["provenance_source"]).toBe(verbatimOnm);
+      expect(validateProvenanceInvariants(built)).toEqual([]);
+    }
+
+    const nonOnmArabic = provenanceForBroadcast({
+      kind: "official",
+      hazard: "flood",
+      areaLabel: longEmojiArea,
+      sourceKey: "dgpc_telegram",
+      sourceAttribution: longNonOnmSource,
       observedAt: SAMPLE_ISO,
     });
-    const payload = toProvenancePayload(built);
-    expect(Array.from(payload["provenance_area"]!).length).toBeLessThanOrEqual(
-      240,
-    );
-    expect(payload["provenance_source"]).toBe(longOnmAttribution);
-    expect(validateProvenanceInvariants(built)).toEqual([]);
+    const payloadAr = toProvenancePayload(nonOnmArabic);
+    expect(
+      Array.from(payloadAr["provenance_area"]!).length,
+    ).toBeLessThanOrEqual(240);
+    expect(
+      new TextEncoder().encode(payloadAr["provenance_area"]!).byteLength,
+    ).toBeLessThanOrEqual(512);
+    expect(hasLoneSurrogate(payloadAr["provenance_area"]!)).toBe(false);
+    expect(
+      Array.from(payloadAr["provenance_source"]!).length,
+    ).toBeLessThanOrEqual(240);
+    expect(
+      new TextEncoder().encode(payloadAr["provenance_source"]!).byteLength,
+    ).toBeLessThanOrEqual(512);
+    expect(payloadAr["provenance_source"]).not.toContain("\u2014");
+    expect(hasLoneSurrogate(payloadAr["provenance_source"]!)).toBe(false);
+
+    const nonOnmEmoji = provenanceForBroadcast({
+      kind: "authority",
+      areaLabel: longEmojiArea,
+      sourceAttribution: longEmojiSource,
+      observedAt: SAMPLE_ISO,
+    });
+    const payloadEmoji = toProvenancePayload(nonOnmEmoji);
+    expect(
+      new TextEncoder().encode(payloadEmoji["provenance_source"]!).byteLength,
+    ).toBeLessThanOrEqual(512);
+    expect(hasLoneSurrogate(payloadEmoji["provenance_source"]!)).toBe(false);
   });
 
   it("builds valid provenance for all broadcast, watch-zone, and self-test variants", () => {

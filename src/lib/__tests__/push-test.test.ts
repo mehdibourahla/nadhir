@@ -45,6 +45,7 @@ import {
 } from "@/lib/alert-provenance";
 import { testPushReceipt } from "@/lib/push-receipt.server";
 import { handlePushTest, sha256Hex } from "@/lib/push-test.server";
+import { Route as PrivatePushTestRoute } from "@/routes/api/private/push-test";
 
 const DEVICE_TOKEN = "device-registration-token";
 const testId = "0c000000-0000-4000-8000-000000000001";
@@ -260,4 +261,25 @@ describe("POST /api/private/push-test (authenticated user self-test)", () => {
     expect(response.status).toBe(502);
     expect(await response.text()).not.toContain("sensitive-token-leak");
   });
+
+  it.each(["GET", "PUT", "DELETE"])(
+    "returns 405 JSON with Allow: POST, OPTIONS and Cache-Control: private, no-store on %s",
+    async (method) => {
+      const handlers = PrivatePushTestRoute.options.server
+        ?.handlers as unknown as {
+        ANY: (input: { request: Request }) => Promise<Response> | Response;
+      };
+      const response = await handlers.ANY({
+        request: new Request("https://nadhir.app/api/private/push-test", {
+          method,
+        }),
+      });
+      expect(response.status).toBe(405);
+      expect(response.headers.get("Allow")).toBe("POST, OPTIONS");
+      expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+      await expect(response.json()).resolves.toEqual({
+        error: "method not allowed",
+      });
+    },
+  );
 });

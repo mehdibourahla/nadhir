@@ -4,7 +4,10 @@ import { useTranslation } from "react-i18next";
 
 import { AlertProvenance } from "@/components/nadhir/AlertProvenance";
 import { isLocale } from "@/i18n";
-import { provenanceForSelfTest } from "@/lib/alert-provenance";
+import {
+  isValidObservedAt,
+  provenanceForSelfTest,
+} from "@/lib/alert-provenance";
 import type { FcmLang } from "@/lib/fcm";
 import { algiersTime } from "@/lib/nadhir";
 import { NATIVE } from "@/lib/platform";
@@ -63,16 +66,21 @@ export function UserPushTest({
   );
   const [retryAfter, setRetryAfter] = useState<number>(initialRetryAfter ?? 60);
   const [permission, setPermission] = useState<PushPermission | null>(null);
+  const [supported, setSupported] = useState<boolean>(true);
   const onTimeoutRef = useRef(onTimeout);
-  onTimeoutRef.current = onTimeout;
 
-  const supported = pushSupported();
   const configured = pushConfigured();
   const resolvedLang: FcmLang =
     lang ?? (isLocale(i18n.language) ? i18n.language : "ar");
 
   useEffect(() => {
-    if (!supported || !configured) return;
+    onTimeoutRef.current = onTimeout;
+  }, [onTimeout]);
+
+  useEffect(() => {
+    const isSupported = pushSupported();
+    setSupported(isSupported);
+    if (!isSupported || !configured) return;
     let active = true;
     void notificationPermission()
       .then((perm) => {
@@ -82,15 +90,30 @@ export function UserPushTest({
     return () => {
       active = false;
     };
-  }, [supported, configured]);
+  }, [configured]);
 
   useEffect(() => {
     if (state !== "waiting") return;
     let cancelled = false;
+    let remaining = Math.max(1, Math.floor(timeoutSeconds));
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    let countdown: ReturnType<typeof setInterval> | null = null;
+
+    const stopTimers = () => {
+      if (countdown) {
+        clearInterval(countdown);
+        countdown = null;
+      }
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    };
 
     const markReceived = (timestamp: string) => {
       if (cancelled) return;
       cancelled = true;
+      stopTimers();
       setReceivedAt(timestamp);
       setState("received");
     };
@@ -101,21 +124,20 @@ export function UserPushTest({
       }
     });
 
-    const countdown = setInterval(() => {
-      setSecondsLeft((prev) => {
-        if (prev <= 1) {
-          if (!cancelled) {
-            cancelled = true;
-            setState("timeout");
-            onTimeoutRef.current?.();
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
+    countdown = setInterval(() => {
+      if (cancelled) return;
+      remaining -= 1;
+      if (remaining <= 0) {
+        cancelled = true;
+        stopTimers();
+        setSecondsLeft(0);
+        setState("timeout");
+        onTimeoutRef.current?.();
+        return;
+      }
+      setSecondsLeft(remaining);
     }, 1000);
 
-    let pollTimer: ReturnType<typeof setInterval> | null = null;
     if (mode === "authenticated" && testId) {
       pollTimer = setInterval(() => {
         void pushTestArrival(testId)
@@ -129,10 +151,9 @@ export function UserPushTest({
     return () => {
       cancelled = true;
       unsubscribe();
-      clearInterval(countdown);
-      if (pollTimer) clearInterval(pollTimer);
+      stopTimers();
     };
-  }, [state, testId, mode]);
+  }, [state, testId, mode, timeoutSeconds]);
 
   const handleSend = async () => {
     setState("sending");
@@ -172,12 +193,14 @@ export function UserPushTest({
       ? t("pushTest.errors.rateLimited", { seconds: retryAfter })
       : t(`pushTest.errors.${errorCode}`);
 
-  const receivedTimeLabel = receivedAt
-    ? algiersTime(receivedAt)
+  const validReceivedAt =
+    receivedAt && isValidObservedAt(receivedAt) ? receivedAt : null;
+  const receivedTimeLabel = validReceivedAt
+    ? algiersTime(validReceivedAt)
     : t("common.notRecorded");
 
   const selfTestProvenance = provenanceForSelfTest(
-    receivedAt ?? new Date().toISOString(),
+    validReceivedAt ?? new Date().toISOString(),
   );
 
   const blockedReason =

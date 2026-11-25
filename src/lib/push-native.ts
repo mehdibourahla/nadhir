@@ -99,10 +99,10 @@ type NativePushOptions = {
 let current: NativePushOptions | null = null;
 let listening: Promise<void> | null = null;
 
-function notificationId(key: string) {
+export function notificationId(key: string): number {
   let hash = 0;
   for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) | 0;
-  return Math.abs(hash);
+  return hash & 0x7fffffff;
 }
 
 function handleTestPushData(data: unknown) {

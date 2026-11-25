@@ -761,3 +761,77 @@ it("enforces combined daily commune cap across relays (M5+ exempt) and respects 
     }),
   );
 });
+
+it("does not parse empty or whitespace CAP magnitude as 0 when earthquakes row is missing", async () => {
+  for (const emptyMag of ["", "   "]) {
+    fcmSend.mockClear();
+    fcmEnabled.value = true;
+    const job = {
+      id: "b-eq-empty-mag",
+      lease_token: "lease-empty-mag",
+      kind: "earthquake",
+      phase: "initial",
+      severity: "Severe",
+      commune_codes: ["1501"],
+      push_codes: ["1501"],
+      cluster_id: null,
+      cap_alert_id: "cap-eq-empty",
+      onm_vigilance_id: null,
+      authority_warning_id: null,
+      official_incident_id: null,
+      earthquake_id: "eq-missing",
+    };
+    let fcmClaimed = false;
+    rpc.mockImplementation(
+      async (name: string, args: { _channel?: string }) => {
+        if (name === "claim_broadcast_delivery") {
+          if (args._channel === "fcm" && !fcmClaimed) {
+            fcmClaimed = true;
+            return { data: [{ job }], error: null };
+          }
+          return { data: [], error: null };
+        }
+        return { data: true, error: null };
+      },
+    );
+    const tableData: Record<string, unknown> = {
+      broadcast_settings: { enabled: true },
+      cap_alerts: [
+        {
+          id: "cap-eq-empty",
+          info: [
+            {
+              language: "fr-DZ",
+              headline: "EMSC : séisme",
+              description: "Séisme",
+              parameter: [
+                { valueName: "source_key", value: "emsc" },
+                { valueName: "magnitude", value: emptyMag },
+                { valueName: "earthquake_id", value: "eq-missing" },
+              ],
+            },
+          ],
+        },
+      ],
+      earthquakes: [],
+      telegram_channels: [],
+      broadcast_delivery_receipts: [],
+    };
+    from.mockImplementation((table: string) => {
+      const q: Record<string, unknown> = {};
+      for (const method of ["select", "eq", "in", "order", "range", "upsert"])
+        q[method] = () => q;
+      q["single"] = async () => ({ data: tableData[table], error: null });
+      q["then"] = (resolve: (v: unknown) => unknown) =>
+        Promise.resolve({ data: tableData[table] ?? [], error: null }).then(
+          resolve,
+        );
+      return q;
+    });
+
+    await expect(deliverBroadcasts()).rejects.toThrow(
+      "fcm delivery context missing",
+    );
+    expect(fcmSend).not.toHaveBeenCalled();
+  }
+});
