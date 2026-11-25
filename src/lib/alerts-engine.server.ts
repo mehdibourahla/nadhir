@@ -288,7 +288,7 @@ async function loadHazardContext(
     supabaseAdmin
       .from("official_incidents")
       .select(
-        "id, kind, commune_id, wilaya_id, place_text, status, last_reported_at, unlisted_at",
+        "id, kind, commune_id, wilaya_id, place_text, status, last_reported_at, unlisted_at, latest_mention:incident_mentions!official_incidents_latest_mention_fkey(source:text_sources(key, label))",
       )
       .is("unlisted_at", null),
     supabaseAdmin
@@ -385,9 +385,23 @@ async function loadHazardContext(
             ]
           : [],
     ),
-    official: (official.data ?? []).filter(
-      (i) => officialPhase(i, now.getTime()) === "live",
-    ),
+    official: (official.data ?? [])
+      .filter((i) => officialPhase(i, now.getTime()) === "live")
+      .map((i) => {
+        const mention = i.latest_mention as unknown as {
+          source?: { key?: string | null; label?: string | null } | null;
+        } | null;
+        return {
+          id: i.id,
+          kind: i.kind,
+          commune_id: i.commune_id,
+          wilaya_id: i.wilaya_id,
+          place_text: i.place_text,
+          last_reported_at: i.last_reported_at,
+          source_key: mention?.source?.key ?? null,
+          source_label: mention?.source?.label ?? null,
+        };
+      }),
     authority: authority.data ?? [],
     road: road.data ?? [],
     earthquakes: (earthquakes ?? []).map((q) => ({

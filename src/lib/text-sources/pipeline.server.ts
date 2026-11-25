@@ -14,9 +14,16 @@ import {
 } from "./extract-llm.server";
 import {
   defaultSituationReader,
+  DGPC_SOURCE,
   readSituation,
+  TARIKI_SOURCE,
   type Situation,
 } from "./dgpc-situation.server";
+import {
+  extractFacebookPageSlug,
+  facebookPageFetch,
+  fetchFacebookPagePosts,
+} from "./facebook-page";
 import {
   FIRE_KINDS,
   isFireKind,
@@ -34,13 +41,15 @@ import {
   resolveWilaya,
   type CommuneCandidate,
 } from "./normalize";
+import { TARIKI_SOURCE_KEY, tarikiPostsFromFacebookPage } from "./tariki";
 import { fetchNewTelegramPosts, type TelegramPost } from "./telegram-public";
 
 export type TextSource = {
   id: string;
   key: string;
-  kind: "telegram_public";
+  kind: "telegram_public" | "facebook";
   url: string;
+  label?: string;
   authority_tier: AuthorityTier;
   language: string;
   wilaya_id: string | null;
@@ -446,6 +455,9 @@ export async function runTextSourceWith(
   const inserts: MentionInsert[] = [];
   const retriedOk: string[] = [];
   const bulletins: { asOf: string; areaIds: Set<string> }[] = [];
+  const canConfirmFires =
+    source.template === "dgpc_bulletin" && source.key !== TARIKI_SOURCE_KEY;
+
   for (const doc of documents) {
     const parsed =
       source.template === "dgpc_bulletin"
@@ -457,8 +469,12 @@ export async function runTextSourceWith(
       continue;
     }
     const asOf = parsed?.asOf ?? doc.published_at;
-    // the regex router knows only fire formats; the model reads everything else
-    if (parsed && parsed.kind !== "bulletin" && parsed.kind !== "incident") {
+    // the regex router knows only fire formats; non-bulletin sources (e.g. Tariki) and
+    // non-fire DGPC posts always go to the situation reader, never the wildfire extractor
+    if (
+      !canConfirmFires ||
+      (parsed && parsed.kind !== "bulletin" && parsed.kind !== "incident")
+    ) {
       let situation: Situation;
       try {
         situation = await deps.readSituation(doc.body);
@@ -470,6 +486,11 @@ export async function runTextSourceWith(
         continue;
       }
       run.rejectedSpans += situation.rejected;
+      if (situation.disposition === "fire" && !canConfirmFires) {
+        run.skippedPosts += 1;
+        retriedOk.push(doc.id);
+        continue;
+      }
       if (situation.disposition !== "fire") {
         const unresolved: string[] = [];
         for (const item of situation.items) {
@@ -681,15 +702,17 @@ export async function runTextSourceWith(
   const rows = inserts.length ? await deps.store.insertMentions(inserts) : [];
   run.mentions = rows.filter((row) => row.inserted).length;
   run.resolved = rows.length;
-  run.clustersConfirmed = await deps.store.confirmClusters(
-    rows
-      .filter((r) => r.commune_id !== null && isFireKind(r.kind))
-      .map((r) => ({
-        communeId: r.commune_id!,
-        asOf: r.as_of,
-        mentionId: r.id,
-      })),
-  );
+  run.clustersConfirmed = canConfirmFires
+    ? await deps.store.confirmClusters(
+        rows
+          .filter((r) => r.commune_id !== null && isFireKind(r.kind))
+          .map((r) => ({
+            communeId: r.commune_id!,
+            asOf: r.as_of,
+            mentionId: r.id,
+          })),
+      )
+    : 0;
   const merged = await mergeMentions(rows, source, deps.store);
   run.incidentsCreated = merged.created;
   run.incidentsUpdated = merged.updated;
@@ -719,7 +742,7 @@ function must<T>(
   return result.data;
 }
 
-function createSupabaseStore(key: string): TextSourceStore {
+export function createTextSourceSupabaseStore(key: string): TextSourceStore {
   async function write<T>(operation: string, payload: unknown): Promise<T> {
     const context = getSourceArchiveContext();
     const { data, error } = await supabaseAdmin.rpc("write_text_source", {
@@ -736,7 +759,7 @@ function createSupabaseStore(key: string): TextSourceStore {
       const { data, error } = await supabaseAdmin
         .from("text_sources")
         .select(
-          "id, key, kind, url, authority_tier, language, wilaya_id, template",
+          "id, key, kind, url, label, authority_tier, language, wilaya_id, template",
         )
         .eq("key", key)
         .eq("enabled", true)
@@ -890,10 +913,22 @@ function createSupabaseStore(key: string): TextSourceStore {
 }
 
 export function runTextSource(key: string): Promise<TextSourceRun> {
+  const situationSource =
+    key === TARIKI_SOURCE_KEY ? TARIKI_SOURCE : DGPC_SOURCE;
   return runTextSourceWith(key, {
-    store: createSupabaseStore(key),
-    fetchPosts: (source, known) =>
-      fetchNewTelegramPosts(source.url, known, (input, init) =>
+    store: createTextSourceSupabaseStore(key),
+    fetchPosts: async (source, known) => {
+      if (source.kind === "facebook") {
+        const slug = extractFacebookPageSlug(source.url);
+        const rawPosts = await fetchFacebookPagePosts(slug, (input, init) =>
+          archivedFetch(source.key, "page_posts", input, init, {
+            fetchImpl: facebookPageFetch(),
+            requestParams: { page: slug },
+          }),
+        );
+        return tarikiPostsFromFacebookPage(rawPosts, slug, known).posts;
+      }
+      return fetchNewTelegramPosts(source.url, known, (input, init) =>
         archivedFetch(
           source.key,
           "public_preview",
@@ -905,8 +940,10 @@ export function runTextSource(key: string): Promise<TextSourceRun> {
             },
           },
         ),
-      ),
+      );
+    },
     extractLlm: extractMentionsWithLlm,
-    readSituation: (text) => readSituation(text, defaultSituationReader()),
+    readSituation: (text) =>
+      readSituation(text, defaultSituationReader(), situationSource),
   });
 }

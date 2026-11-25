@@ -72,18 +72,39 @@ function provenanceForSituation(
   if (item.source === "official") {
     const isMedia = item.data?.authority_tier === "media";
     const kind = item.data?.kind ?? "vegetation";
-    const ruleLabelKey = isMedia
-      ? kind === "road"
-        ? "provenance.rule.roadDanger"
-        : "provenance.rule.civilUpdate"
-      : isFireKind(kind)
-        ? "provenance.rule.dgpcFire"
-        : "provenance.rule.dgpcNonFire";
+    const rawSourceKey = item.data?.latest_mention?.source?.key?.trim() || "";
+    const rawSourceLabel =
+      item.data?.latest_mention?.source?.label?.trim() || "";
+    const isTariki =
+      rawSourceKey === "tariki_facebook" ||
+      rawSourceLabel.toLowerCase().includes("tariki");
+    const sourceKey =
+      rawSourceKey ||
+      (isTariki
+        ? "tariki_facebook"
+        : isMedia
+          ? "ita_facebook"
+          : "dgpc_telegram");
+    const sourceAttribution =
+      rawSourceLabel ||
+      (isTariki
+        ? "Gendarmerie Nationale (Tariki)"
+        : isMedia
+          ? "Info Trafic Algérie"
+          : "DGPC");
+    const ruleLabelKey =
+      isTariki || isMedia
+        ? kind === "road"
+          ? "provenance.rule.roadDanger"
+          : "provenance.rule.civilUpdate"
+        : isFireKind(kind)
+          ? "provenance.rule.dgpcFire"
+          : "provenance.rule.dgpcNonFire";
     return buildAlertProvenance({
       triggerKind: "national_feed",
       areaLabel,
-      sourceKey: isMedia ? "ita_facebook" : "dgpc_telegram",
-      sourceAttribution: isMedia ? "Info Trafic Algérie" : "DGPC",
+      sourceKey,
+      sourceAttribution,
       ruleLabelKey,
       observedAt: item.data?.as_of ?? item.data?.last_reported_at ?? item.at,
       authorityStatus: isMedia ? "observed" : "official",

@@ -1,0 +1,9 @@
+{
+  "valid_time": "2026-11-24T13:00:00Z",
+  "published_time": "2026-11-24T13:18:00Z",
+  "window_minutes": 30,
+  "unit": "inches/day",
+  "cells": [
+    { "lat": 36.75, "lon": 3.05, "value": 4.2 }
+  ]
+}

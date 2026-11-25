@@ -33,13 +33,13 @@ const ONM_FIELDS =
   "id, cap_id, title, event, severity, urgency, certainty, onset, expires, sent, area_desc, cap_url, wilaya_id, headline_fr, superseded_at, msg_type, cap_references, superseded_by, cancelled_at";
 
 const OFFICIAL_INCIDENT_FIELDS =
-  "id, wilaya_id, commune_id, kind, status, precision, authority_tier, place_text, first_reported_at, last_reported_at, as_of, updated_at, unlisted_at, mention_count, evidence, commune:admin_units!official_incidents_commune_id_fkey(name_ar, name_fr, name_en, name_kab, lat, lon), wilaya:admin_units!official_incidents_wilaya_id_fkey(name_ar, name_fr, name_en, name_kab, lat, lon), latest_mention:incident_mentions!official_incidents_latest_mention_fkey(document:source_documents(url, published_at), source:text_sources(label))";
+  "id, wilaya_id, commune_id, kind, status, precision, authority_tier, place_text, first_reported_at, last_reported_at, as_of, updated_at, unlisted_at, mention_count, evidence, commune:admin_units!official_incidents_commune_id_fkey(name_ar, name_fr, name_en, name_kab, lat, lon), wilaya:admin_units!official_incidents_wilaya_id_fkey(name_ar, name_fr, name_en, name_kab, lat, lon), latest_mention:incident_mentions!official_incidents_latest_mention_fkey(document:source_documents(url, published_at), source:text_sources(key, label))";
 
 const FIRE_CLUSTER_FIELDS =
   "id, short_id, state, first_detected_at, last_detected_at, lat, lon, detection_count, sources, max_frp_mw, confidence, est_area_ha, fci_growth, wind_speed_kmh, wind_dir_deg, spread_bearing_deg, wind_gust_kmh, vpd_kpa, soil_moisture_m3m3, commune_id, wilaya_id, nearest_settlement_id, nearest_settlement_km, confirmed_at, resolved_at, confirmed_mention_id";
 
 const EARTHQUAKE_FIELDS =
-  "id, occurred_at, lat, lon, depth_km, magnitude, magnitude_type, region, network, commune_id, offshore";
+  "id, occurred_at, lat, lon, depth_km, magnitude, magnitude_type, region, network, commune_id, offshore, craag_bulletin_id, craag_magnitude, craag_magnitude_type, craag_depth_km, craag_place, craag_observed_at, craag_source_url, craag_matched_at, craag_attribution";
 
 const AIRPORT_WEATHER_FIELDS =
   "station, name, lat, lon, observed_at, temp_c, wind_kt, gust_kt, visibility_m, weather, raw";

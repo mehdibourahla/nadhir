@@ -93,7 +93,9 @@ export function OfficialIncidentDetail({ incident, locale, now }: Props) {
         <IncidentShareSheet incident={incident} />
       ) : null}
       <p className="text-xs text-muted-foreground">
-        {t(fire ? "official.disclaimer" : "official.disclaimerHazard")}
+        {fire
+          ? t("official.disclaimer")
+          : t("officialSource.disclaimerWithSource", { source })}
       </p>
     </div>
   );

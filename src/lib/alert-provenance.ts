@@ -720,15 +720,31 @@ export function provenanceForWatchZoneAlert(
   }
 
   if (kind === "official") {
+    const sourceKey = input.sourceKey?.trim() || "dgpc_telegram";
+    const lookupKey = sourceKey.toLowerCase();
+    const isDgpc = lookupKey === "dgpc_telegram";
+    const resolvedAttribution =
+      input.sourceAttribution?.trim() ||
+      (Object.hasOwn(KNOWN_SOURCE_ATTRIBUTIONS, lookupKey)
+        ? KNOWN_SOURCE_ATTRIBUTIONS[lookupKey]!
+        : isDgpc
+          ? "DGPC"
+          : sourceKey);
+    const hazard = input.hazard?.trim().toLowerCase() ?? "";
+    const ruleLabelKey: ProvenanceRuleKey = isDgpc
+      ? isNonFireOfficialHazard(input.hazard)
+        ? "provenance.rule.dgpcNonFire"
+        : "provenance.rule.dgpcFire"
+      : hazard === "road"
+        ? "provenance.rule.roadDanger"
+        : "provenance.rule.civilUpdate";
     return buildAlertProvenance({
       triggerKind: "watch_zone",
       areaLabel: input.areaLabel,
       radiusKm: input.radiusKm,
-      sourceKey: input.sourceKey?.trim() || "dgpc_telegram",
-      sourceAttribution: input.sourceAttribution ?? "DGPC",
-      ruleLabelKey: isNonFireOfficialHazard(input.hazard)
-        ? "provenance.rule.dgpcNonFire"
-        : "provenance.rule.dgpcFire",
+      sourceKey,
+      sourceAttribution: resolvedAttribution,
+      ruleLabelKey,
       observedAt: input.observedAt,
       authorityStatus: "official",
     });

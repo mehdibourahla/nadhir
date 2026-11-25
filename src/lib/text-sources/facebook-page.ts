@@ -88,14 +88,58 @@ export function extractFacebookPage(html: string): FacebookPageExtract {
 const ATTEMPTS = 3;
 const EMPTY = { page_id: null, stories: [] };
 
-function isLoginWall(response: Response) {
+const LOGIN_WALL_HTML_PATTERN =
+  /id=["']login_form["']|action=["'][^"']*\/login\/|\/login\/\?next=|\/checkpoint\/|you must log in to continue|log into facebook/i;
+
+export function isLoginWallHtml(html: string): boolean {
+  return LOGIN_WALL_HTML_PATTERN.test(html);
+}
+
+export function extractFacebookPageSlug(urlOrSlug: string): string {
+  const trimmed = urlOrSlug.trim();
+  if (!trimmed) {
+    throw new Error("Facebook page schema invalid: empty page URL or slug");
+  }
+  if (!trimmed.includes("://") && !trimmed.includes("/")) {
+    return trimmed;
+  }
+  try {
+    const parsed = new URL(
+      trimmed.includes("://") ? trimmed : `https://www.facebook.com/${trimmed}`,
+    );
+    const segments = parsed.pathname
+      .split("/")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const slug = segments[0];
+    if (!slug) {
+      throw new Error(
+        `Facebook page schema invalid: cannot extract page slug from "${urlOrSlug}"`,
+      );
+    }
+    return slug;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("schema invalid")) {
+      throw error;
+    }
+    throw new Error(
+      `Facebook page schema invalid: invalid Facebook page URL "${urlOrSlug}"`,
+      { cause: error },
+    );
+  }
+}
+
+function isLoginWall(response: Response): boolean {
   const location = response.headers.get("location");
-  return (
-    response.status >= 300 &&
-    response.status < 400 &&
-    location !== null &&
-    new URL(location, "https://www.facebook.com").pathname.startsWith("/login")
-  );
+  if (response.status < 300 || response.status >= 400 || location === null) {
+    return false;
+  }
+  try {
+    const pathname = new URL(location, "https://www.facebook.com").pathname;
+    return pathname.startsWith("/login") || pathname.startsWith("/checkpoint");
+  } catch {
+    return false;
+  }
 }
 
 export function facebookPageFetch(
@@ -114,7 +158,19 @@ export function facebookPageFetch(
       if (!isLoginWall(response)) {
         if (!response.ok)
           return Response.json(EMPTY, { status: response.status });
-        return Response.json(extractFacebookPage(await response.text()));
+        const html = await response.text();
+        const extracted = extractFacebookPage(html);
+        if (
+          !extracted.page_id &&
+          extracted.stories.length === 0 &&
+          isLoginWallHtml(html)
+        ) {
+          return Response.json(
+            { ...EMPTY, wall_reason: "html_login_wall" },
+            { status: LOGIN_WALL },
+          );
+        }
+        return Response.json(extracted);
       }
       await response.body?.cancel();
       if (attempt === ATTEMPTS)
@@ -135,8 +191,19 @@ export async function fetchFacebookPagePosts(
   const response = await fetchImpl(`https://www.facebook.com/${page}`, {
     signal: AbortSignal.timeout(20_000),
   });
-  if (response.status === LOGIN_WALL)
+  if (response.status === LOGIN_WALL) {
+    let wallReason: string | null = null;
+    try {
+      const body = (await response.json()) as { wall_reason?: unknown };
+      if (typeof body?.wall_reason === "string") wallReason = body.wall_reason;
+    } catch {
+      wallReason = null;
+    }
+    if (wallReason === "html_login_wall") {
+      throw new Error("Facebook upstream login wall (HTTP 200)");
+    }
     throw new Error("Facebook login wall (HTTP 302)");
+  }
   if (!response.ok) throw new Error(`Facebook page HTTP ${response.status}`);
   const { page_id, stories } = ExtractSchema.parse(await response.json());
   if (!page_id || !stories.length)

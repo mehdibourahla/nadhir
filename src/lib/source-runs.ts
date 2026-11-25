@@ -44,13 +44,6 @@ export type SourceRunReport = {
 export function publicReasonForError(error: string): PublicSourceReason {
   const message = error.toLowerCase();
 
-  if (
-    message.includes("missing") ||
-    message.includes("not configured") ||
-    message.includes("credential")
-  )
-    return "credentials_missing";
-
   // a parse failure is usually an error page from a flaky upstream, not a schema
   // change; calling it permanent retires the job with retries still budgeted
   if (
@@ -59,6 +52,13 @@ export function publicReasonForError(error: string): PublicSourceReason {
     message.includes("malformed")
   )
     return "schema_invalid";
+
+  if (
+    message.includes("missing") ||
+    message.includes("not configured") ||
+    message.includes("credential")
+  )
+    return "credentials_missing";
 
   if (
     message.includes("http") ||

@@ -9,10 +9,17 @@ type Props = { quake: Earthquake; place: string; locale: Locale; now: number };
 export function QuakeDetail({ quake, place, locale, now }: Props) {
   const { t } = useTranslation();
   const magnitude = quake.magnitude.toFixed(1);
+  const hasCraag = Boolean(quake.craag_bulletin_id);
+  const isStandaloneCraag = quake.id.startsWith("craag:");
+  const safeCraagUrl =
+    quake.craag_source_url && /^https?:\/\//i.test(quake.craag_source_url)
+      ? quake.craag_source_url
+      : null;
+
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs font-medium text-muted-foreground">
-        {t("quake.eyebrow")}
+        {isStandaloneCraag ? t("quakeOfficial.eyebrow") : t("quake.eyebrow")}
       </p>
       <h2 className="text-lg font-semibold">
         {t("quake.title", { mag: magnitude })}
@@ -42,7 +49,50 @@ export function QuakeDetail({ quake, place, locale, now }: Props) {
         ) : null}
         <dt className="text-muted-foreground">{t("quake.network")}</dt>
         <dd>{t("quake.recordedBy", { network: quake.network ?? "EMSC" })}</dd>
+        {hasCraag ? (
+          <>
+            <dt className="text-muted-foreground">
+              {t("quakeOfficial.attributionLabel")}
+            </dt>
+            <dd>
+              {quake.craag_attribution ??
+                "CRAAG (Centre de Recherche en Astronomie, Astrophysique et Geophysique)"}
+            </dd>
+            {quake.craag_magnitude !== null &&
+            quake.craag_magnitude !== undefined ? (
+              <>
+                <dt className="text-muted-foreground">
+                  {t("quakeOfficial.magnitudeLabel")}
+                </dt>
+                <dd className="tabular-nums" dir="ltr">
+                  {Number(quake.craag_magnitude).toFixed(1)}
+                  {quake.craag_magnitude_type
+                    ? ` ${quake.craag_magnitude_type}`
+                    : ""}
+                </dd>
+              </>
+            ) : null}
+            {quake.craag_place ? (
+              <>
+                <dt className="text-muted-foreground">
+                  {t("quakeOfficial.placeLabel")}
+                </dt>
+                <dd dir="auto">{quake.craag_place}</dd>
+              </>
+            ) : null}
+          </>
+        ) : null}
       </dl>
+      {safeCraagUrl ? (
+        <a
+          href={safeCraagUrl}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="inline-flex min-h-11 items-center text-sm font-medium text-primary underline underline-offset-2"
+        >
+          {t("quakeOfficial.viewBulletin")}
+        </a>
+      ) : null}
       <section aria-labelledby="quake-guidance" className="card p-3 text-sm">
         <h3 id="quake-guidance" className="mb-2 font-medium">
           {t("quake.guidanceTitle")}
@@ -56,7 +106,11 @@ export function QuakeDetail({ quake, place, locale, now }: Props) {
           ) : null}
         </ul>
       </section>
-      <p className="text-xs text-muted-foreground">{t("quake.note")}</p>
+      <p className="text-xs text-muted-foreground">
+        {isStandaloneCraag
+          ? t("quakeOfficial.standaloneNote")
+          : t("quake.note")}
+      </p>
     </div>
   );
 }

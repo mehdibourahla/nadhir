@@ -3,6 +3,7 @@ import { en, type Translation } from "@/i18n/locales/en";
 import { fr } from "@/i18n/locales/fr";
 import { kab } from "@/i18n/locales/kab";
 import {
+  KNOWN_SOURCE_ATTRIBUTIONS,
   provenanceForWatchZoneAlert,
   toProvenancePayload,
 } from "@/lib/alert-provenance";
@@ -62,6 +63,8 @@ export type HazardContext = {
     wilaya_id: string | null;
     place_text: string | null;
     last_reported_at: string;
+    source_key?: string | null;
+    source_label?: string | null;
   }[];
   authority: {
     id: string;
@@ -331,27 +334,65 @@ export function hazardAlerts(
     if (zone.notify_official) {
       for (const incident of context.official) {
         if (!officialConcernsZone(area, incident)) continue;
+        const customSourceLabel = incident.source_label?.trim() || null;
+        const customSourceKey = incident.source_key?.trim() || null;
+        const isDefaultDgpc =
+          customSourceKey === "dgpc_telegram" ||
+          (!customSourceKey && !customSourceLabel);
+        const canonicalCustomSource =
+          customSourceKey &&
+          Object.hasOwn(
+            KNOWN_SOURCE_ATTRIBUTIONS,
+            customSourceKey.toLowerCase(),
+          )
+            ? KNOWN_SOURCE_ATTRIBUTIONS[customSourceKey.toLowerCase()]!
+            : null;
+        const displaySource = isDefaultDgpc
+          ? null
+          : (customSourceLabel ?? canonicalCustomSource);
+        const hazardText =
+          hazardNames[OFFICIAL_HAZARD_NAME[incident.kind] ?? "fire"];
+        const placeText = incident.place_text ?? zone.name;
+        const title = isDefaultDgpc
+          ? fill(copy.officialTitle, { zone: zone.name })
+          : locale === "ar"
+            ? `بلاغ ${displaySource ?? "مصدر رسمي"} بخصوص ${zone.name}`
+            : locale === "en"
+              ? `${displaySource ?? "Official"} report for ${zone.name}`
+              : `Signalement ${displaySource ?? "officiel"} pour ${zone.name}`;
+        const body = isDefaultDgpc
+          ? fill(copy.officialBody, {
+              place: placeText,
+              hazard: hazardText,
+            })
+          : locale === "ar"
+            ? `بلاغ ${displaySource ?? "مصدر رسمي"}، ${placeText}: ${hazardText}.`
+            : locale === "en"
+              ? `${displaySource ?? "Official"} report, ${placeText}: ${hazardText}.`
+              : `Signalement ${displaySource ?? "officiel"}, ${placeText} : ${hazardText}.`;
         add(
           {
             kind: "official",
             severity: 4,
             dedupe_key: `official:${incident.id}`,
-            title: fill(copy.officialTitle, { zone: zone.name }),
-            body: fill(copy.officialBody, {
-              place: incident.place_text ?? zone.name,
-              hazard:
-                hazardNames[OFFICIAL_HAZARD_NAME[incident.kind] ?? "fire"],
-            }),
+            title,
+            body,
             source_table: "official_incidents",
             source_id: incident.id,
             payload: {
               hazard: incident.kind,
+              ...(customSourceKey ? { source_key: customSourceKey } : {}),
+              ...(customSourceLabel ? { source_label: customSourceLabel } : {}),
               expires_at: later(incident.last_reported_at, 72),
               map_event: `official:${incident.id}`,
               ...toProvenancePayload(
                 provenanceForWatchZoneAlert({
                   kind: "official",
                   sourceTable: "official_incidents",
+                  sourceKey: customSourceKey ?? undefined,
+                  sourceAttribution: isDefaultDgpc
+                    ? undefined
+                    : (displaySource ?? undefined),
                   severity: 4,
                   hazard: incident.kind,
                   areaLabel: zone.name,

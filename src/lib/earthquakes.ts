@@ -14,6 +14,15 @@ export type Earthquake = {
   network: string | null;
   commune_id: string | null;
   offshore: boolean;
+  craag_bulletin_id?: string | null;
+  craag_magnitude?: number | null;
+  craag_magnitude_type?: string | null;
+  craag_depth_km?: number | null;
+  craag_place?: string | null;
+  craag_observed_at?: string | null;
+  craag_source_url?: string | null;
+  craag_matched_at?: string | null;
+  craag_attribution?: string | null;
 };
 
 export const QUAKE_WINDOW_HOURS = 72;
@@ -27,7 +36,7 @@ export const earthquakesQuery = queryOptions({
     const { data, error } = await supabase
       .from("earthquakes")
       .select(
-        "id, occurred_at, lat, lon, depth_km, magnitude, magnitude_type, region, network, commune_id, offshore",
+        "id, occurred_at, lat, lon, depth_km, magnitude, magnitude_type, region, network, commune_id, offshore, craag_bulletin_id, craag_magnitude, craag_magnitude_type, craag_depth_km, craag_place, craag_observed_at, craag_source_url, craag_matched_at, craag_attribution",
       )
       .gt(
         "occurred_at",
@@ -39,6 +48,10 @@ export const earthquakesQuery = queryOptions({
     return (data ?? []).map((q) => ({
       ...q,
       magnitude: Number(q.magnitude),
+      craag_magnitude:
+        q.craag_magnitude === null || q.craag_magnitude === undefined
+          ? null
+          : Number(q.craag_magnitude),
     })) as Earthquake[];
   },
 });

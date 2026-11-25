@@ -1805,6 +1805,15 @@ export type Database = {
       earthquakes: {
         Row: {
           commune_id: string | null;
+          craag_attribution: string | null;
+          craag_bulletin_id: string | null;
+          craag_depth_km: number | null;
+          craag_magnitude: number | null;
+          craag_magnitude_type: string | null;
+          craag_matched_at: string | null;
+          craag_observed_at: string | null;
+          craag_place: string | null;
+          craag_source_url: string | null;
           depth_km: number | null;
           fetched_at: string;
           id: string;
@@ -1820,6 +1829,15 @@ export type Database = {
         };
         Insert: {
           commune_id?: string | null;
+          craag_attribution?: string | null;
+          craag_bulletin_id?: string | null;
+          craag_depth_km?: number | null;
+          craag_magnitude?: number | null;
+          craag_magnitude_type?: string | null;
+          craag_matched_at?: string | null;
+          craag_observed_at?: string | null;
+          craag_place?: string | null;
+          craag_source_url?: string | null;
           depth_km?: number | null;
           fetched_at?: string;
           id: string;
@@ -1835,6 +1853,15 @@ export type Database = {
         };
         Update: {
           commune_id?: string | null;
+          craag_attribution?: string | null;
+          craag_bulletin_id?: string | null;
+          craag_depth_km?: number | null;
+          craag_magnitude?: number | null;
+          craag_magnitude_type?: string | null;
+          craag_matched_at?: string | null;
+          craag_observed_at?: string | null;
+          craag_place?: string | null;
+          craag_source_url?: string | null;
           depth_km?: number | null;
           fetched_at?: string;
           id?: string;
@@ -2782,6 +2809,87 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      rainfall_observations: {
+        Row: {
+          accum_mm_30m: number;
+          attribution: string;
+          commune_code: string | null;
+          commune_id: string | null;
+          grid_cell_key: string;
+          id: string;
+          ingested_at: string;
+          is_model: boolean;
+          lat: number;
+          lon: number;
+          observation_kind: string;
+          published_time: string;
+          quality_state: string;
+          rate_mm_h: number;
+          snapshot_id: string | null;
+          source_key: string;
+          valid_time: string;
+          wilaya_code: string | null;
+          window_minutes: number;
+        };
+        Insert: {
+          accum_mm_30m: number;
+          attribution: string;
+          commune_code?: string | null;
+          commune_id?: string | null;
+          grid_cell_key: string;
+          id?: string;
+          ingested_at?: string;
+          is_model?: boolean;
+          lat: number;
+          lon: number;
+          observation_kind?: string;
+          published_time: string;
+          quality_state?: string;
+          rate_mm_h: number;
+          snapshot_id?: string | null;
+          source_key: string;
+          valid_time: string;
+          wilaya_code?: string | null;
+          window_minutes?: number;
+        };
+        Update: {
+          accum_mm_30m?: number;
+          attribution?: string;
+          commune_code?: string | null;
+          commune_id?: string | null;
+          grid_cell_key?: string;
+          id?: string;
+          ingested_at?: string;
+          is_model?: boolean;
+          lat?: number;
+          lon?: number;
+          observation_kind?: string;
+          published_time?: string;
+          quality_state?: string;
+          rate_mm_h?: number;
+          snapshot_id?: string | null;
+          source_key?: string;
+          valid_time?: string;
+          wilaya_code?: string | null;
+          window_minutes?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "rainfall_observations_commune_id_fkey";
+            columns: ["commune_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "rainfall_observations_source_key_fkey";
+            columns: ["source_key"];
+            isOneToOne: false;
+            referencedRelation: "source_contracts";
+            referencedColumns: ["key"];
+          },
+        ];
       };
       report_witnesses: {
         Row: {
@@ -4143,6 +4251,24 @@ export type Database = {
           roles: Database["public"]["Enums"]["app_role"][];
           zone_count: number;
         }[];
+      };
+      apply_craag_earthquake_attribution: {
+        Args: {
+          _attribution?: string;
+          _bulletin_id: string;
+          _commune_id?: string | null;
+          _depth_km?: number | null;
+          _lat?: number | null;
+          _lon?: number | null;
+          _magnitude?: number | null;
+          _magnitude_type?: string | null;
+          _matched_earthquake_id?: string | null;
+          _observed_at?: string | null;
+          _offshore?: boolean;
+          _place?: string | null;
+          _source_url?: string | null;
+        };
+        Returns: Json;
       };
       apply_onm_cap_chain: {
         Args: { _cap_ids: string[] };
