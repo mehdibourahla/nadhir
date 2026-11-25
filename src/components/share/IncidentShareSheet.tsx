@@ -130,7 +130,7 @@ export function IncidentShareSheet({
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="outline">
+        <Button variant="outline" className="min-h-11">
           <Share2 aria-hidden />
           {t("shareCard.open")}
         </Button>

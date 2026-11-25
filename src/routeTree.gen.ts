@@ -63,6 +63,7 @@ import { Route as ApiPublicContributeIdeaRouteImport } from './routes/api/public
 import { Route as ApiPublicContributeMyTranslationsRouteImport } from './routes/api/public/contribute/my-translations'
 import { Route as ApiPublicContributeTranslationRouteImport } from './routes/api/public/contribute/translation'
 import { Route as ApiPublicContributeVoteRouteImport } from './routes/api/public/contribute/vote'
+import { Route as ApiPublicShareSplatRouteImport } from './routes/api/public/share/$'
 import { Route as ApiPublicV1IndexRouteImport } from './routes/api/public/v1/index'
 import { Route as ApiPublicV1CivilRouteImport } from './routes/api/public/v1/civil'
 import { Route as ApiPublicV1FiresRouteImport } from './routes/api/public/v1/fires'
@@ -355,6 +356,11 @@ const ApiPublicContributeVoteRoute = ApiPublicContributeVoteRouteImport.update({
   path: '/api/public/contribute/vote',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicShareSplatRoute = ApiPublicShareSplatRouteImport.update({
+  id: '/api/public/share/$',
+  path: '/api/public/share/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicV1IndexRoute = ApiPublicV1IndexRouteImport.update({
   id: '/api/public/v1/',
   path: '/api/public/v1/',
@@ -466,6 +472,7 @@ export interface FileRoutesByFullPath {
   '/api/public/contribute/my-translations': typeof ApiPublicContributeMyTranslationsRoute
   '/api/public/contribute/translation': typeof ApiPublicContributeTranslationRoute
   '/api/public/contribute/vote': typeof ApiPublicContributeVoteRoute
+  '/api/public/share/$': typeof ApiPublicShareSplatRoute
   '/api/public/v1/civil': typeof ApiPublicV1CivilRoute
   '/api/public/v1/fires': typeof ApiPublicV1FiresRoute
   '/api/public/v1/push-test': typeof ApiPublicV1PushTestRoute
@@ -530,6 +537,7 @@ export interface FileRoutesByTo {
   '/api/public/contribute/my-translations': typeof ApiPublicContributeMyTranslationsRoute
   '/api/public/contribute/translation': typeof ApiPublicContributeTranslationRoute
   '/api/public/contribute/vote': typeof ApiPublicContributeVoteRoute
+  '/api/public/share/$': typeof ApiPublicShareSplatRoute
   '/api/public/v1/civil': typeof ApiPublicV1CivilRoute
   '/api/public/v1/fires': typeof ApiPublicV1FiresRoute
   '/api/public/v1/push-test': typeof ApiPublicV1PushTestRoute
@@ -598,6 +606,7 @@ export interface FileRoutesById {
   '/api/public/contribute/my-translations': typeof ApiPublicContributeMyTranslationsRoute
   '/api/public/contribute/translation': typeof ApiPublicContributeTranslationRoute
   '/api/public/contribute/vote': typeof ApiPublicContributeVoteRoute
+  '/api/public/share/$': typeof ApiPublicShareSplatRoute
   '/api/public/v1/civil': typeof ApiPublicV1CivilRoute
   '/api/public/v1/fires': typeof ApiPublicV1FiresRoute
   '/api/public/v1/push-test': typeof ApiPublicV1PushTestRoute
@@ -666,6 +675,7 @@ export interface FileRouteTypes {
     | '/api/public/contribute/my-translations'
     | '/api/public/contribute/translation'
     | '/api/public/contribute/vote'
+    | '/api/public/share/$'
     | '/api/public/v1/civil'
     | '/api/public/v1/fires'
     | '/api/public/v1/push-test'
@@ -730,6 +740,7 @@ export interface FileRouteTypes {
     | '/api/public/contribute/my-translations'
     | '/api/public/contribute/translation'
     | '/api/public/contribute/vote'
+    | '/api/public/share/$'
     | '/api/public/v1/civil'
     | '/api/public/v1/fires'
     | '/api/public/v1/push-test'
@@ -797,6 +808,7 @@ export interface FileRouteTypes {
     | '/api/public/contribute/my-translations'
     | '/api/public/contribute/translation'
     | '/api/public/contribute/vote'
+    | '/api/public/share/$'
     | '/api/public/v1/civil'
     | '/api/public/v1/fires'
     | '/api/public/v1/push-test'
@@ -841,6 +853,7 @@ export interface RootRouteChildren {
   ApiPublicContributeMyTranslationsRoute: typeof ApiPublicContributeMyTranslationsRoute
   ApiPublicContributeTranslationRoute: typeof ApiPublicContributeTranslationRoute
   ApiPublicContributeVoteRoute: typeof ApiPublicContributeVoteRoute
+  ApiPublicShareSplatRoute: typeof ApiPublicShareSplatRoute
   ApiPublicV1CivilRoute: typeof ApiPublicV1CivilRoute
   ApiPublicV1FiresRoute: typeof ApiPublicV1FiresRoute
   ApiPublicV1PushTestRoute: typeof ApiPublicV1PushTestRoute
@@ -1234,6 +1247,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicContributeVoteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/share/$': {
+      id: '/api/public/share/$'
+      path: '/api/public/share/$'
+      fullPath: '/api/public/share/$'
+      preLoaderRoute: typeof ApiPublicShareSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/v1/': {
       id: '/api/public/v1/'
       path: '/api/public/v1'
@@ -1425,6 +1445,7 @@ const rootRouteChildren: RootRouteChildren = {
     ApiPublicContributeMyTranslationsRoute,
   ApiPublicContributeTranslationRoute: ApiPublicContributeTranslationRoute,
   ApiPublicContributeVoteRoute: ApiPublicContributeVoteRoute,
+  ApiPublicShareSplatRoute: ApiPublicShareSplatRoute,
   ApiPublicV1CivilRoute: ApiPublicV1CivilRoute,
   ApiPublicV1FiresRoute: ApiPublicV1FiresRoute,
   ApiPublicV1PushTestRoute: ApiPublicV1PushTestRoute,

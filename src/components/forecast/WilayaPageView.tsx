@@ -21,12 +21,14 @@ import { useTranslation } from "react-i18next";
 import { AlertProvenance } from "@/components/nadhir/AlertProvenance";
 import { RiskChip } from "@/components/nadhir/RiskChip";
 import { riskInk, riskTint } from "@/components/nadhir/risk-visuals";
+import { UniversalShareSheet } from "@/components/share/UniversalShareSheet";
 import type { AnyLocale } from "@/i18n";
 import { provenanceForBroadcast } from "@/lib/alert-provenance";
 import { algiersTime, relativeTime, unitName } from "@/lib/nadhir";
 import type { WilayaSnapshot } from "@/lib/wilaya-data";
 import {
   WILAYA_REGISTRY,
+  wilayaCanonicalUrl,
   wilayaName,
   type WilayaSlugEntry,
 } from "@/lib/wilaya-slugs";
@@ -229,6 +231,13 @@ export function WilayaPageView({
             <TriangleAlert aria-hidden className="size-4 shrink-0" />
             <span>{t("track3.wilaya.openEmergency")}</span>
           </Link>
+          <UniversalShareSheet
+            kind="wilaya"
+            id={snapshot.wilaya.slug}
+            lang={locale}
+            placeLabel={localizedName}
+            shareUrl={wilayaCanonicalUrl(snapshot.wilaya.slug, locale)}
+          />
         </div>
       </header>
 

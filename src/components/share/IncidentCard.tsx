@@ -10,13 +10,15 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import type { Locale } from "@/i18n/locales-list";
+import type { AnyLocale } from "@/i18n/locales-list";
 import { wilayaCommuneGeomsQuery, type OfficialIncident } from "@/lib/nadhir";
 import {
   SHARE_FORMATS,
+  UNIVERSAL_SHARE_FORMATS,
   incidentCardModel,
   outlinePaths,
   type ShareFormat,
+  type UniversalShareFormat,
 } from "@/lib/share-card";
 import { shareTranslator } from "@/lib/share-translator";
 import { isFireKind } from "@/lib/text-sources/merge";
@@ -44,7 +46,11 @@ const CLAMP = {
   overflow: "hidden",
 } as const;
 
-type Props = { incident: OfficialIncident; format: ShareFormat; lang: Locale };
+type Props = {
+  incident: OfficialIncident;
+  format: ShareFormat | UniversalShareFormat;
+  lang: AnyLocale;
+};
 
 export function IncidentCard({ incident, format, lang }: Props) {
   const t = shareTranslator(lang);
@@ -69,7 +75,10 @@ export function IncidentCard({ incident, format, lang }: Props) {
     !wilayaOnly &&
     !geoms.data.has(incident.commune_id!);
   const ready = fonts && (!needsMap || geoms.isSuccess) && !communeMissing;
-  const size = SHARE_FORMATS[format];
+  const size =
+    format in SHARE_FORMATS
+      ? SHARE_FORMATS[format as ShareFormat]
+      : UNIVERSAL_SHARE_FORMATS[format as UniversalShareFormat];
   const rtl = lang === "ar";
 
   const map = (box: number) => {
@@ -217,14 +226,14 @@ export function IncidentCard({ incident, format, lang }: Props) {
           </div>
           {brand}
         </div>
-      ) : format === "og" ? (
+      ) : format === "og" || format === "whatsapp" || format === "facebook" ? (
         <div
           style={{
-            fontSize: 26,
-            padding: 56,
+            fontSize: format === "whatsapp" ? 20 : 26,
+            padding: format === "whatsapp" ? 36 : 56,
             height: "100%",
             display: "flex",
-            gap: 40,
+            gap: format === "whatsapp" ? 24 : 40,
             alignItems: "center",
           }}
         >
@@ -232,7 +241,7 @@ export function IncidentCard({ incident, format, lang }: Props) {
             {text}
             <div style={{ marginTop: "1em" }}>{brand}</div>
           </div>
-          {map(480)}
+          {map(format === "whatsapp" ? 300 : 480)}
         </div>
       ) : (
         <div
