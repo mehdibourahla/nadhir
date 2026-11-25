@@ -8,6 +8,7 @@ import { OfflineAreaMap } from "@/components/survival/OfflineAreaMap";
 import { useSurvival } from "@/components/survival/survival-context";
 import { bearingBetween, bearingLabel, haversineKm } from "@/lib/nadhir";
 import { type OpenArea } from "@/lib/open-areas";
+import { openAreaCriteriaForHazard } from "@/lib/survival";
 
 export const Route = createFileRoute("/survival/areas")({
   component: OpenAreasPage,
@@ -17,7 +18,7 @@ const LIST_MAX = 12;
 
 function OpenAreasPage() {
   const { t, i18n } = useTranslation();
-  const { position, pack } = useSurvival();
+  const { position, pack, hazard } = useSurvival();
 
   const areas = pack?.openAreas;
   const origin = useMemo(
@@ -39,13 +40,14 @@ function OpenAreasPage() {
   }, [areas, origin]);
 
   const arabic = i18n.language === "ar";
+  const criteria = openAreaCriteriaForHazard(hazard);
 
   return (
     <>
       <div className="flex items-center gap-2">
         <Link
           to="/survival"
-          className="rounded-md p-1.5 hover:bg-muted"
+          className="flex size-11 shrink-0 items-center justify-center rounded-md hover:bg-muted"
           aria-label={t("common.back")}
         >
           <ChevronLeft aria-hidden className="size-5 rtl:rotate-180" />
@@ -101,17 +103,22 @@ function OpenAreasPage() {
         </ul>
       )}
 
-      <section className="card mt-auto flex flex-col gap-2.5 p-4">
-        <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-muted-foreground">
-          <ShieldCheck aria-hidden className="size-3.5" />
-          {t("survival.areasCriteria").toUpperCase()}
+      <section className="card mt-auto flex flex-col gap-2.5 p-4 text-start">
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <ShieldCheck aria-hidden className="size-4 shrink-0" />
+          <span>{t(criteria.titleKey)}</span>
         </span>
-        <ul className="flex flex-col gap-1.5 text-[13.5px] leading-relaxed">
-          <li>· {t("survival.areasCriteria1")}</li>
-          <li>· {t("survival.areasCriteria2")}</li>
-          <li>· {t("survival.areasCriteria3")}</li>
-          <li>· {t("survival.areasCriteria4")}</li>
-        </ul>
+        {criteria.warningNoteKey ? (
+          <p className="text-[13.5px] leading-relaxed text-foreground">
+            {t(criteria.warningNoteKey)}
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-1.5 text-[13.5px] leading-relaxed">
+            {criteria.items.map((key) => (
+              <li key={key}>· {t(key)}</li>
+            ))}
+          </ul>
+        )}
         <p className="border-t border-border pt-2.5 text-xs text-muted-foreground">
           {t("survival.areasRefugeNote")}
         </p>

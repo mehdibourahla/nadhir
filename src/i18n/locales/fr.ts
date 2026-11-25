@@ -89,7 +89,7 @@ export const fr: Translation = {
     loading: "Chargement",
     error: "Une erreur est survenue",
     retry: "Réessayer",
-    none: "—",
+    none: "Aucun",
     km: "km",
     ha: "ha",
     mw: "MW",
@@ -124,7 +124,7 @@ export const fr: Translation = {
     positionUnknown: "Position indisponible",
     smokeUnavailable:
       "Les données locales sur la qualité de l’air sont indisponibles ici. La position de votre appareil n’est pas envoyée à un fournisseur de qualité de l’air.",
-    mode: "Survie face aux incendies",
+    mode: "Mode survie",
     online: "En ligne",
     offline: "Hors ligne",
     pill: "Près d’un incendie ?",
@@ -137,7 +137,7 @@ export const fr: Translation = {
     enterSaving:
       "Position trouvée. Préparez un dossier hors ligne depuis vos zones avec une connexion.",
     enterReady: "Position trouvée · pack hors ligne enregistré.",
-    enterYes: "Oui — activer le mode survie",
+    enterYes: "Oui, activer le mode survie",
     enterCancel: "Annuler",
     enterFootnote:
       "L'activation ne coûte rien et n'envoie rien. Vous pouvez quitter à tout moment.",
@@ -162,7 +162,7 @@ export const fr: Translation = {
     prepareNoInstruction:
       "Aucune instruction officielle pour votre zone pour l'instant. Ce sont des consignes générales, rédigées et approuvées à l'avance.",
     knows: "Ce que Nadhir sait",
-    lastKnown: "Dernier état connu — peut être dépassé",
+    lastKnown: "Dernier état connu · peut être dépassé",
     fireObserved: "Feu observé à {{km}} km, direction {{bearing}}",
     seenAgo: "vu {{time}}",
     closer: "plus proche qu'au passage précédent",
@@ -182,7 +182,7 @@ export const fr: Translation = {
       severe: "sévère",
     },
     smokeGuidance: {
-      low: "Peu de fumée mesurée. Le modèle est horaire — si vous voyez ou sentez de la fumée, fiez-vous à cela d'abord.",
+      low: "Peu de fumée mesurée. Le modèle est horaire : si vous voyez ou sentez de la fumée, fiez-vous à cela d'abord.",
       elevated:
         "Gardez les fenêtres fermées. Limitez le temps dehors si vous êtes asthmatique ou cardiaque.",
       high: "Restez à l'intérieur, fenêtres fermées. Si vous devez sortir, portez un masque FFP2 ou N95 ; un tissu ne filtre pas la fumée. Ne roulez pas vers la fumée.",
@@ -190,7 +190,7 @@ export const fr: Translation = {
         "Fumée dangereuse. Restez à l'intérieur, calfeutrez portes et fenêtres avec un linge humide. Ne sortez qu'avec un masque FFP2 ou N95. Appelez le 14 si vous respirez mal.",
     },
     noFreshData:
-      "Aucune observation récente près de vous. Cela signifie que Nadhir n'a rien vu — pas qu'il n'y a rien.",
+      "Aucune observation récente près de vous. Cela signifie que Nadhir n'a rien vu, pas qu'il n'y a rien.",
     noPosition:
       "Position inconnue. Autorisez la localisation pour alimenter les faits et la carte SOS.",
     sinceCheck:
@@ -198,18 +198,18 @@ export const fr: Translation = {
     sos: "SOS",
     sosCall: "Appeler la Protection Civile 14",
     sosFree: "appel gratuit · seul canal surveillé aujourd'hui",
-    sosPosition: "Votre position — lisez-la à l'opérateur",
+    sosPosition: "Votre position : lisez-la à l'opérateur",
     sosCommune: "Commune",
     sosNearest: "Lieu le plus proche",
     sosNearestValue: "{{km}} km de {{place}}",
     sosCoords: "Coordonnées",
     sosQueueNote:
-      "Si l'appel échoue, votre SOS n'est enregistré que sur ce téléphone. Aucun service de secours ne le reçoit ni ne le surveille pour l'instant — continuez d'appeler le 14.",
+      "Si l'appel échoue, votre SOS n'est enregistré que sur ce téléphone. Aucun service de secours ne le reçoit ni ne le surveille pour l'instant. Continuez d'appeler le 14.",
     sosQueued:
-      "SOS enregistré {{time}} — non envoyé, aucun récepteur surveillé n'existe encore.",
+      "SOS enregistré {{time}} : non envoyé, aucun récepteur surveillé n'existe encore.",
     checkinTitle: "Donner des nouvelles",
     checkinIntro:
-      "Dites à votre famille où vous êtes, depuis votre propre téléphone. Aucune application requise — le message arrive par SMS ou WhatsApp.",
+      "Dites à votre famille où vous êtes, depuis votre propre téléphone. Aucune application requise : le message arrive par SMS ou WhatsApp.",
     checkinOk: "Signaler que je vais bien",
     checkinOkSub: "envoie votre état et votre position maintenant",
     checkinAssist: "Signaler que j'ai besoin d'aide",
@@ -218,21 +218,21 @@ export const fr: Translation = {
     checkinPreview: "Aperçu du message",
     checkin: {
       msgOk:
-        "Je vais bien. Près de {{place}}, {{time}}. Coordonnées : {{coords}}. Envoyé depuis Nadhir.",
+        "Signalé sain et sauf à {{time}} près de {{place}}. Coordonnées : {{coords}}. Envoyé via Nadhir.",
       msgAssist:
         "J'ai besoin d'aide. Près de {{place}}, {{time}}. Coordonnées : {{coords}}. Appelez la Protection Civile au 14 pour moi. Envoyé depuis Nadhir.",
     },
     checkinSend: "Envoyer par SMS / WhatsApp",
     checkinNote:
-      "Un pointage indique seulement que ce bouton a été touché à ce moment — rien de plus.",
+      "Un pointage indique seulement que ce bouton a été touché à ce moment, rien de plus.",
     areasTitle: "Espaces ouverts autour de vous",
     areasIntro:
-      "Données cartographiques uniquement — non vérifiées. Nadhir ne connaît pas leur état actuel. Jugez avec les critères ci-dessous ; les autorités peuvent désigner des refuges officiels.",
-    areasUnverified: "donnée cartographique — non vérifiée",
+      "Données cartographiques uniquement, non vérifiées. Nadhir ne connaît pas leur état actuel. Jugez avec les critères ci-dessous ; les autorités peuvent désigner des refuges officiels.",
+    areasUnverified: "donnée cartographique · non vérifiée",
     areasCriteria: "Ce qui rend un espace ouvert plus sûr",
     areasCriteria1: "Loin des arbres, des broussailles et de tout ce qui brûle",
     areasCriteria2: "Sol goudronné ou nu, le plus grand possible",
-    areasCriteria3: "En contrebas — le feu monte vite les pentes",
+    areasCriteria3: "En contrebas : le feu monte vite les pentes",
     areasCriteria4: "Accessible sans traverser la fumée",
     areasRefugeNote:
       "Consignes pré-approuvées · si les autorités désignent un refuge, il apparaît ici en premier",
@@ -247,14 +247,14 @@ export const fr: Translation = {
       beach: "plage",
     },
     offlineBanner:
-      "Pas de réseau. Données enregistrées — dernière vérification {{time}}. La situation peut avoir changé.",
+      "Pas de réseau. Données enregistrées, dernière vérification {{time}}. La situation peut avoir changé.",
     packSaved:
-      "Pack hors ligne enregistré {{time}} — position, espaces ouverts, consignes, numéros",
+      "Pack hors ligne enregistré {{time}} : position, espaces ouverts, consignes, numéros",
     report: "Signaler",
     reportFire: "Feu ici",
     reportRoadBlocked: "Route coupée",
     reportPersonTrapped: "Personne bloquée",
-    zoneElsewhere: "Vous semblez être ailleurs — alertes seulement.",
+    zoneElsewhere: "Vous semblez être ailleurs : alertes seulement.",
     zoneView: "Voir le feu",
     zoneImHere: "Je suis sur place",
     dir: {
@@ -726,11 +726,11 @@ export const fr: Translation = {
     processingBacklog:
       "Traitement : {{pending}} en attente · {{quarantined}} à examiner",
     degradedCount:
-      "{{count}} sources de données affectées — la capacité actuelle peut être réduite.",
+      "{{count}} sources de données affectées : la capacité actuelle peut être réduite.",
     degradedCount_one:
-      "{{count}} source de données affectée — la capacité actuelle peut être réduite.",
+      "{{count}} source de données affectée : la capacité actuelle peut être réduite.",
     degradedCount_other:
-      "{{count}} sources de données affectées — la capacité actuelle peut être réduite.",
+      "{{count}} sources de données affectées : la capacité actuelle peut être réduite.",
     metaTitle: "État des sources de données · Nadhir",
     metaDescription:
       "État des sources satellitaires, météo, d’avertissements officiels et géographiques utilisées par Nadhir.",
@@ -810,7 +810,7 @@ export const fr: Translation = {
     kindEarthquake: "Séisme",
     stateCurrentNotice: "Avis en cours",
     stateNoticeOver:
-      "Période de l'avis terminée — ce n'est pas une fin d'alerte",
+      "Période de l'avis terminée. Ce n'est pas une fin d'alerte.",
     openMap: "Voir sur la carte",
     defaultPointZones:
       "Au moins une de vos zones est encore sur le point par défaut près de Tizi Ouzou : ses alertes décrivent cette zone-là, pas votre lieu.",
@@ -855,7 +855,7 @@ export const fr: Translation = {
     checkEmail: "Vérifiez votre boîte mail pour confirmer votre adresse.",
     errorInvalidCredentials: "Cet e-mail ou ce mot de passe est incorrect.",
     errorEmailNotConfirmed:
-      "Confirmez d'abord votre adresse e-mail — vérifiez votre boîte mail.",
+      "Confirmez d'abord votre adresse e-mail. Vérifiez votre boîte mail.",
     errorUserExists: "Un compte existe déjà pour cet e-mail. Connectez-vous.",
     errorWeakPassword:
       "Choisissez un mot de passe plus long, au moins 8 caractères.",
@@ -1189,7 +1189,7 @@ export const fr: Translation = {
       "Toutes les communes ont désormais des données d’occupation du sol. Ce manque est comblé.",
     metaTitle: "Contribuer à Nadhir",
     metaDescription:
-      "Ce qui manque à Nadhir aujourd’hui, et comment aider — vérifier des lieux, relire le kabyle, enregistrer les consignes, ouvrir des portes institutionnelles, et le code.",
+      "Ce qui manque à Nadhir aujourd’hui, et comment aider : vérifier des lieux, relire le kabyle, enregistrer les consignes, ouvrir des portes institutionnelles, et le code.",
     eyebrow: "Contribuer",
     title: "Nadhir a besoin de bien plus que de code.",
     lede: "Contribuez à l’information sur les risques locaux en Algérie. Vérifications de terrain, révision linguistique, validation scientifique et coordination officielle restent essentielles aux côtés du code.",
@@ -1200,7 +1200,7 @@ export const fr: Translation = {
       "Ces lieux cartographiés nécessitent une vérification sur place.",
     statPlacesSubSome: "{{done}} vérifiés par quelqu’un sur le terrain.",
     statFuel: "Communes avec données de combustible",
-    statFuelSub: "Il en manque {{missing}} — et ce chiffre bouge.",
+    statFuelSub: "Il en manque {{missing}}, et ce chiffre bouge.",
     statAlerts: "Accusés de livraison",
     statAlertsSub:
       "Envois réussis enregistrés ; ce n’est pas le nombre de personnes ayant lu une alerte.",
@@ -1228,7 +1228,7 @@ export const fr: Translation = {
     audioTitle: "Enregistrer les consignes",
     audioDeficit: "0 langue sur 4 enregistrée",
     audioBody:
-      "Les consignes permanentes existent en texte. Qui ne sait pas lire n’a rien. Il faut une voix humaine — la synthèse vocale est exclue ici.",
+      "Les consignes permanentes existent en texte. Qui ne sait pas lire n’a rien. Il faut une voix humaine ; la synthèse vocale est exclue ici.",
     audioAsks: "une pièce silencieuse et une demi-heure",
     audioCta: "Enregistrer une piste",
     institutionalTitle: "Ouvrir une porte institutionnelle",
@@ -1259,7 +1259,7 @@ export const fr: Translation = {
     testingTitle: "Le casser sur un téléphone bon marché",
     testingDeficit: "jamais testé sur le terrain",
     testingBody:
-      "Le mode survie doit fonctionner hors ligne, sur un vieil appareil, là où il n’y a pas de réseau. Cela n’a jamais été testé dans une commune rurale — seulement dans un navigateur sur une connexion rapide.",
+      "Le mode survie doit fonctionner hors ligne, sur un vieil appareil, là où il n’y a pas de réseau. Cela n’a jamais été testé dans une commune rurale, seulement dans un navigateur sur une connexion rapide.",
     testingAsks: "un téléphone qui n’est pas neuf, et une mauvaise réception",
     testingCta: "Quoi tester",
     codeTitle: "Si vous écrivez du code",
@@ -1272,7 +1272,7 @@ export const fr: Translation = {
       "Installez, copiez le fichier d’environnement d’exemple, démarrez le serveur de développement. Les valeurs versionnées sont publiques par conception : rien n’est bloqué derrière un secret à demander.",
     codeStep2: "Prendre quelque chose de réel",
     codeStep2Body:
-      "Les tickets étiquetés good first issue, ou n’importe quoi dans GAPS.md — qui liste ce qui est cassé, chaque affirmation accompagnée de la requête qui la prouve.",
+      "Les tickets étiquetés good first issue, ou n’importe quoi dans GAPS.md, qui liste ce qui est cassé avec chaque affirmation accompagnée de la requête qui la prouve.",
     codeStep3: "Ouvrir une pull request",
     codeStep3Body:
       "L’intégration continue lance les types, les tests et le lint sans aucun secret : un fork obtient exactement les mêmes validations qu’un mainteneur.",
@@ -1282,7 +1282,7 @@ export const fr: Translation = {
     boardEyebrow: "Le tableau",
     boardTitle: "Ce que les gens ont proposé",
     boardLede:
-      "Une personne lit chaque proposition avant qu’elle n’apparaisse ici. Le vote est un signal approximatif, pas un scrutin — il n’est lié à aucun compte.",
+      "Une personne lit chaque proposition avant qu’elle n’apparaisse ici. Le vote est un signal approximatif, pas un scrutin, et il n’est lié à aucun compte.",
     boardSorted: "Trié par votes",
     boardEmptyTitle: "Rien de publié pour l’instant",
     boardEmptyBody:
@@ -1294,7 +1294,7 @@ export const fr: Translation = {
       "Les votes sont associés à votre navigateur, pas à un compte : le total montre un intérêt, pas un nombre de personnes.",
     boxTitle: "Cette liste est incomplète",
     boxBody:
-      "Elle le restera toujours. Gestion de projet, recherche, quelque chose auquel personne ici n’a pensé — si vous pouvez aider d’une manière absente de cette page, écrivez-le.",
+      "Elle le restera toujours. Gestion de projet, recherche, quelque chose auquel personne ici n’a pensé : si vous pouvez aider d’une manière absente de cette page, écrivez-le.",
     fieldLane: "Voie la plus proche",
     fieldMessage: "Que feriez-vous ?",
     fieldMessagePlaceholder:
@@ -1309,19 +1309,19 @@ export const fr: Translation = {
     submitting: "Envoi…",
     inboxNotice:
       "Personne ne lit cette boîte en temps réel. Une personne examine ce qui arrive et publie ce qui est utile. Comptez en jours, pas en minutes.",
-    errTooShort: "Quelques mots de plus — de quoi permettre d’agir.",
+    errTooShort: "Quelques mots de plus, de quoi permettre d’agir.",
     errRateLimited:
       "Cela fait plusieurs notes en peu de temps. Réessayez plus tard.",
     errFailed: "L’envoi a échoué. Rien n’a été enregistré, réessayez.",
     sentTitle: "Enregistré.",
     sentBody:
-      "Votre note est dans la file. Personne ne lit cette boîte en temps réel — une personne examine ce qui arrive et publie ce qui est utile au tableau. Comptez en jours, pas en minutes.",
+      "Votre note est dans la file. Personne ne lit cette boîte en temps réel : une personne examine ce qui arrive et publie ce qui est utile au tableau. Comptez en jours, pas en minutes.",
     sentNoContact:
-      "Sans coordonnées, vous n’aurez pas de réponse directe — surveillez le tableau, c’est là qu’apparaissent les notes publiées.",
+      "Sans coordonnées, vous n’aurez pas de réponse directe. Surveillez le tableau, c’est là qu’apparaissent les notes publiées.",
     sentAnother: "Écrire une autre note",
     rulesTitle: "Avant de changer ce qu’on dit à une personne",
     rulesBody:
-      "Nadhir énonce des informations en son nom propre et ne relaie des consignes que d’une autorité. Chaque fait affiché porte son âge. Il n’y a pas d’itinéraire d’évacuation, et « en sécurité » est banni comme libellé d’état partout dans l’interface. Ce ne sont pas des préférences de style — c’est la raison pour laquelle ce projet peut inspirer confiance.",
+      "Nadhir énonce des informations en son nom propre et ne relaie des consignes que d’une autorité. Chaque fait affiché porte son âge. Il n’y a pas d’itinéraire d’évacuation, et « en sécurité » est banni comme libellé d’état partout dans l’interface. Ce ne sont pas des préférences de style : c’est la raison pour laquelle ce projet peut inspirer confiance.",
     linkGlossary: "Le glossaire",
     linkAdr2: "ADR-0002 · informer les autorités",
     linkAdr3: "ADR-0003 · pas d’itinéraire",
@@ -1377,9 +1377,9 @@ export const fr: Translation = {
     namePlaceholder: "Votre nom (facultatif)",
     errRateLimited: "Beaucoup d’envois en peu de temps. Réessayez plus tard.",
     errFailed:
-      "L’envoi a échoué. Rien n’est perdu — vos modifications sont toujours là.",
-    group_common: "Mots partagés — boutons, chargement, erreurs",
-    group_survival: "Mode survie — affiché à une personne en danger",
+      "L’envoi a échoué. Rien n’est perdu : vos modifications sont toujours là.",
+    group_common: "Mots partagés : boutons, chargement, erreurs",
+    group_survival: "Mode survie : affiché à une personne en danger",
     group_nav: "Navigation et en-tête",
     group_emergency: "Numéros d’urgence",
     group_map: "Carte en direct",
@@ -1452,7 +1452,7 @@ export const fr: Translation = {
     manage: "Gérer mes webhooks",
     licence: "Licence et attribution",
     licenceBody:
-      "Les données sont publiées sous CC-BY 4.0. Créditez « Nadhir — NASA FIRMS, Open-Meteo ». Nadhir n'est pas une source officielle.",
+      "Les données sont publiées sous CC-BY 4.0. Créditez « Nadhir · NASA FIRMS, Open-Meteo ». Nadhir n'est pas une source officielle.",
   },
   legal: {
     terms: "Conditions d'utilisation",
@@ -1580,11 +1580,11 @@ export const fr: Translation = {
     bell: "Alertes de votre zone",
     inviteTitle: "Alertes pour les lieux que vous suivez",
     inviteBody:
-      "Choisissez vos communes pour les alertes incendie disponibles et les avertissements météo officiels — gratuit, sans compte, désactivable à tout moment.",
+      "Choisissez vos communes pour les alertes incendie disponibles et les avertissements météo officiels. Gratuit, sans compte, désactivable à tout moment.",
     inviteCta: "Activer les alertes de ma zone",
     inviteLater: "Plus tard",
     inviteOnce:
-      "Affiché une seule fois — la cloche en haut reste toujours disponible.",
+      "Affiché une seule fois. La cloche en haut reste toujours disponible.",
     sheetTitle: "Alertes de votre zone",
     sheetBody:
       "Alertes incendie et avertissements météo officiels pour vos communes. Aucun compte ni e-mail requis. La réception dépend des sources, de votre connexion et des réglages de l’appareil.",

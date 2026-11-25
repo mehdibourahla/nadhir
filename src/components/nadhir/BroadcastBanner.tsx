@@ -4,18 +4,22 @@ import {
   Activity,
   CloudLightning,
   Flame,
+  Info,
   Megaphone,
+  OctagonAlert,
   Route as Road,
   TriangleAlert,
+  Waves,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { AlertProvenance } from "@/components/nadhir/AlertProvenance";
+import { riskInk, riskTint } from "@/components/nadhir/risk-visuals";
 import { type AnyLocale } from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { provenanceForBroadcast } from "@/lib/alert-provenance";
 import { firePhase } from "@/lib/incident-lifecycle";
-import { relativeTime } from "@/lib/nadhir";
+import { algiersTime, relativeTime } from "@/lib/nadhir";
 import { readSubscription } from "@/lib/push";
 
 type CapInfoEntry = {
@@ -115,11 +119,14 @@ function bannerMeta(row: BannerRow, hazard: string | null) {
   }
   if (row.kind === "official") {
     const normalized = hazard?.trim().toLowerCase() ?? "";
-    if (
-      normalized === "flood" ||
-      normalized === "flooding" ||
-      normalized === "storm"
-    ) {
+    if (normalized === "flood" || normalized === "flooding") {
+      return {
+        Icon: Waves,
+        labelKey: "civilMap.sourceOfficial",
+        rawLabel: null,
+      };
+    }
+    if (normalized === "storm") {
       return {
         Icon: CloudLightning,
         labelKey: "civilMap.sourceOfficial",
@@ -185,6 +192,32 @@ function provenanceForBanner(row: BannerRow, hazard: string | null) {
   });
 }
 
+function severityBadge(severity: string) {
+  const normalized = severity.trim().toLowerCase();
+  if (normalized === "extreme") {
+    return {
+      Icon: OctagonAlert,
+      tint: "var(--emergency-surface)",
+      ink: "var(--emergency-ink)",
+      key: "cap.severity.Extreme",
+    };
+  }
+  if (normalized === "severe") {
+    return {
+      Icon: TriangleAlert,
+      tint: riskTint(3),
+      ink: riskInk(3),
+      key: "cap.severity.Severe",
+    };
+  }
+  return {
+    Icon: Info,
+    tint: riskTint(2),
+    ink: riskInk(2),
+    key: "cap.severity.Moderate",
+  };
+}
+
 export function BroadcastBanner() {
   const { t, i18n } = useTranslation();
   const subscription = readSubscription();
@@ -231,10 +264,14 @@ export function BroadcastBanner() {
         const hazard = row.hazard ?? capParam(entries, "hazard_kind");
         const { Icon, labelKey, rawLabel } = bannerMeta(row, hazard);
         const provenance = provenanceForBanner(row, hazard);
+        const sev = severityBadge(row.severity);
+        const SevIcon = sev.Icon;
+        const observedIso = provenance.observedAt || row.created_at;
+        const observedClock = algiersTime(observedIso);
         return (
           <div
             key={row.id}
-            className="rounded-xl border p-3"
+            className="rounded-xl border p-3 text-start"
             style={
               emergency
                 ? {
@@ -247,19 +284,45 @@ export function BroadcastBanner() {
                   }
             }
           >
-            <p className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <Icon aria-hidden className="size-3.5" />
-              {rawLabel ?? t(labelKey)}
-              <span className="ms-auto">
-                {relativeTime(row.created_at, locale, now)}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-current/20 px-2 py-0.5 font-semibold"
+                style={{ backgroundColor: sev.tint, color: sev.ink }}
+              >
+                <SevIcon aria-hidden className="size-3.5 shrink-0" />
+                <span>{t(sev.key, { defaultValue: row.severity })}</span>
               </span>
+              <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                <Icon aria-hidden className="size-3.5 shrink-0" />
+                <span>{rawLabel ?? t(labelKey)}</span>
+              </span>
+              <time
+                dateTime={observedIso}
+                className="ms-auto tabular-nums text-muted-foreground"
+              >
+                {observedClock ? `${observedClock} · ` : ""}
+                {relativeTime(observedIso, locale, now)}
+              </time>
+            </div>
+            <p dir="auto" className="mt-1.5 text-sm font-semibold leading-snug">
+              {headline}
             </p>
-            <p className="mt-1 text-sm font-semibold">{headline}</p>
+            <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+              <span dir="auto" className="font-medium text-foreground">
+                {provenance.sourceAttribution}
+              </span>
+              {provenance.areaLabel ? (
+                <>
+                  <span aria-hidden>·</span>
+                  <span dir="auto">{provenance.areaLabel}</span>
+                </>
+              ) : null}
+            </p>
             {fire ? (
               <Link
                 to="/fire/$id"
                 params={{ id: row.fire_clusters!.short_id }}
-                className="mt-1.5 inline-block text-xs font-medium underline underline-offset-2"
+                className="mt-1 inline-flex min-h-11 items-center gap-1.5 text-sm font-medium underline underline-offset-2"
               >
                 {t("push.bannerOpen")}
               </Link>

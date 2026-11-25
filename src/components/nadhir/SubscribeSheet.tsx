@@ -171,7 +171,7 @@ export function SubscribeSheet({ open, onClose, initialCommuneCode }: Props) {
           type="button"
           aria-label={t("common.delete")}
           onClick={() => setCodes(codes.filter((c) => c !== code))}
-          className="rounded-full p-1 text-muted-foreground hover:bg-muted"
+          className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
         >
           <X aria-hidden className="size-4" />
         </button>
@@ -250,7 +250,7 @@ export function SubscribeSheet({ open, onClose, initialCommuneCode }: Props) {
                 ) : null}
 
                 <section>
-                  <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <h3 className="mb-2 text-xs font-semibold text-muted-foreground">
                     {t("push.yourCommunes")}
                   </h3>
                   <ul className="space-y-1.5">{codes.map(communeRow)}</ul>
@@ -329,7 +329,7 @@ export function SubscribeSheet({ open, onClose, initialCommuneCode }: Props) {
                 ) : null}
 
                 <section>
-                  <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <h3 className="mb-2 text-xs font-semibold text-muted-foreground">
                     {t("push.lang")}
                   </h3>
                   <div className="flex gap-1" role="group">
@@ -361,7 +361,7 @@ export function SubscribeSheet({ open, onClose, initialCommuneCode }: Props) {
                 </section>
 
                 <section>
-                  <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <h3 className="mb-2 text-xs font-semibold text-muted-foreground">
                     {t("push.whatTitle")}
                   </h3>
                   <ul className="space-y-1 text-sm">

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildSituations,
+  countSituationsByHazard,
   filterSituations,
   roadHints,
   situationSummary,
@@ -275,7 +276,7 @@ describe("civil situations", () => {
     ).toEqual(["civil:p", "civil:fading"]);
     expect(items.find((i) => i.id === "civil:p")).toMatchObject({
       source: "civil",
-      category: "weather",
+      category: "flood",
       areaId: "w1",
       wilayaId: "w1",
       lat: wilaya.lat,
@@ -573,7 +574,7 @@ describe("civil situations", () => {
       ],
     });
     expect(
-      filterSituations(items, { ...filters, category: "weather" }, units).map(
+      filterSituations(items, { ...filters, category: "flood" }, units).map(
         (x) => x.id,
       ),
     ).toEqual(["report:flood"]);
@@ -587,6 +588,41 @@ describe("civil situations", () => {
         (x) => x.id,
       ),
     ).toEqual(["report:road"]);
+  });
+
+  it("matches ONM rain/flood bulletins under both weather and flood filters and counts hazards accurately", () => {
+    const items = build({
+      official: [official({ id: "off-flood", kind: "flood" })],
+      warnings: [
+        warning({
+          id: "onm-rain",
+          event: "Rain",
+          title: "Pluies torrentielles",
+          headline_fr: "Pluies et inondations sur Alger",
+        }),
+        warning({
+          id: "onm-wind",
+          event: "Wind",
+          title: "Vents violents",
+          headline_fr: "Rafales sur le littoral",
+        }),
+      ],
+    });
+    expect(
+      filterSituations(items, { ...filters, category: "flood" }, units).map(
+        (x) => x.id,
+      ),
+    ).toEqual(["official:off-flood", "weather:onm-rain"]);
+    expect(
+      filterSituations(items, { ...filters, category: "weather" }, units).map(
+        (x) => x.id,
+      ),
+    ).toEqual(["weather:onm-rain", "weather:onm-wind"]);
+    const counts = countSituationsByHazard(items);
+    expect(counts.all).toBe(3);
+    expect(counts.flood).toBe(2);
+    expect(counts.weather).toBe(2);
+    expect(counts.fire).toBe(0);
   });
   it("includes wilaya-wide warnings and incidents in a commune without pulling other communes", () => {
     const items = build({

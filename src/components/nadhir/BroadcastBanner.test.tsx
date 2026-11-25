@@ -158,6 +158,10 @@ it("renders trigger provenance and hazard-aware labels on live fire, ONM, offici
   expect(html).toContain("Intervention inondation Bab El Oued");
   expect(html).toContain("civilMap.sourceOfficial");
   expect(html).toContain("provenance.whySeeing");
+  expect(html).toContain("ONM · Météo Algérie");
+  expect(html).toContain("cap.severity.Extreme");
+  expect(html).toContain("Tizi Ouzou");
+  expect(html).toContain("<time");
   expect(html).not.toContain("\u2014");
 
   rows.data = [

@@ -125,4 +125,19 @@ describe("AlertCard provenance rendering (SSR)", () => {
       expect(html, locale).not.toContain("\u2014");
     }
   });
+
+  it("preserves full contrast on read cards (no opacity-70), shows severity name, Algiers clock time, dir=auto title, and >=44px action targets", () => {
+    const readAlert: Alert = {
+      ...enrichedAlert,
+      id: "alert-read-1",
+      read_at: "2026-11-25T11:45:00Z",
+    };
+    const html = renderCard("ar", readAlert);
+    expect(html).not.toContain("opacity-70");
+    expect(html).toContain('dir="auto"');
+    expect(html).toContain("12:35"); // 11:35Z in Africa/Algiers (UTC+1)
+    expect(html).toContain("min-h-11");
+    expect(html).toContain("ONM · Météo Algérie");
+    expect(html).not.toContain("\u2014");
+  });
 });

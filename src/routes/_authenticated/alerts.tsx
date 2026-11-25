@@ -20,6 +20,7 @@ import {
 import { groupAlerts, groupPhase } from "@/lib/alert-groups";
 import { isDefaultPoint, zonesQuery } from "@/lib/account";
 import { AlertCard } from "@/components/nadhir/AlertCard";
+import { ErrorState } from "@/components/nadhir/states";
 import { titledMeta } from "@/lib/page-meta";
 import { pageRows } from "@/lib/paging";
 import { LoadMore } from "@/components/LoadMore";
@@ -90,7 +91,7 @@ function AlertsPage() {
           type="button"
           onClick={() => checkMutation.mutate()}
           disabled={checkMutation.isPending}
-          className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
+          className="inline-flex min-h-11 items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
         >
           {checkMutation.isPending
             ? t("alerts.checking")
@@ -100,7 +101,7 @@ function AlertsPage() {
           type="button"
           onClick={() => allReadMutation.mutate()}
           disabled={!unread}
-          className="rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-50"
+          className="inline-flex min-h-11 items-center rounded-md border border-border px-4 py-2 text-sm disabled:opacity-50"
         >
           {t("alerts.markAllRead")}
         </button>
@@ -119,7 +120,10 @@ function AlertsPage() {
           }}
         >
           <p>{t("alerts.defaultPointZones")}</p>
-          <Link to="/zones" className="mt-1 inline-block font-medium underline">
+          <Link
+            to="/zones"
+            className="mt-1 inline-flex min-h-11 items-center font-medium underline underline-offset-2"
+          >
             {t("alerts.fixZones")}
           </Link>
         </div>
@@ -129,12 +133,18 @@ function AlertsPage() {
         <p className="mt-8 text-sm text-muted-foreground">
           {t("common.loading")}
         </p>
+      ) : alerts.isError ? (
+        <ErrorState
+          body={t("track3.ui.alertsLoadError")}
+          onRetry={() => void alerts.refetch()}
+          className="mt-6"
+        />
       ) : rows.length === 0 ? (
         <div className="mt-8 rounded-lg border border-dashed border-border p-6 text-center">
           <p className="text-sm text-muted-foreground">{t("alerts.empty")}</p>
           <Link
             to="/zones"
-            className="mt-2 inline-block text-sm font-medium text-primary"
+            className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-primary underline-offset-2 hover:underline"
           >
             {t("alerts.manageZones")}
           </Link>

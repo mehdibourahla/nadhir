@@ -128,7 +128,7 @@ export function AlertProvenance({
           type="button"
           tabIndex={0}
           aria-expanded={open}
-          aria-controls={panelId}
+          aria-controls={open ? panelId : undefined}
           onClick={() => setOpen((prev) => !prev)}
           onKeyDown={handleKeyDown}
           className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-start text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"

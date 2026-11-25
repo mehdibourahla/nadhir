@@ -1,15 +1,10 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2, ChevronLeft, Share2, TriangleAlert } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useSurvival } from "@/components/survival/survival-context";
-import { haversineKm } from "@/lib/nadhir";
-import {
-  checkInMessage,
-  formatCoords,
-  type PositionCard,
-} from "@/lib/survival";
+import { checkInMessage } from "@/lib/survival";
 import { NATIVE } from "@/lib/platform";
 
 export const Route = createFileRoute("/survival/checkin")({
@@ -18,20 +13,8 @@ export const Route = createFileRoute("/survival/checkin")({
 
 function CheckInPage() {
   const { t } = useTranslation();
-  const { position, pack } = useSurvival();
+  const { positionCardData: card } = useSurvival();
   const [kind, setKind] = useState<"ok" | "assist">("ok");
-
-  const card = useMemo<PositionCard | null>(() => {
-    if (!position) return null;
-    const nearby =
-      pack && haversineKm(position.lat, position.lon, pack.lat, pack.lon) < 2;
-    return {
-      commune: nearby ? pack.commune : null,
-      wilaya: nearby ? pack.wilaya : null,
-      nearest: null,
-      coords: formatCoords(position.lat, position.lon),
-    };
-  }, [position, pack]);
 
   // Built at render AND at send time, so a page left open never sends a stale timestamp.
   const composeMessage = () => {
@@ -74,7 +57,7 @@ function CheckInPage() {
       <div className="flex items-center gap-2">
         <Link
           to="/survival"
-          className="rounded-md p-1.5 hover:bg-muted"
+          className="flex size-11 shrink-0 items-center justify-center rounded-md hover:bg-muted"
           aria-label={t("common.back")}
         >
           <ChevronLeft aria-hidden className="size-5 rtl:rotate-180" />
@@ -90,7 +73,7 @@ function CheckInPage() {
         type="button"
         onClick={() => setKind("ok")}
         aria-pressed={kind === "ok"}
-        className="flex items-center gap-3 rounded-xl border p-4 text-start"
+        className="flex min-h-14 items-center gap-3 rounded-xl border p-4 text-start"
         style={
           kind === "ok"
             ? {
@@ -126,7 +109,7 @@ function CheckInPage() {
         type="button"
         onClick={() => setKind("assist")}
         aria-pressed={kind === "assist"}
-        className="flex items-center gap-3 rounded-xl border p-4 text-start"
+        className="flex min-h-14 items-center gap-3 rounded-xl border p-4 text-start"
         style={
           kind === "assist"
             ? {
@@ -164,12 +147,25 @@ function CheckInPage() {
       </button>
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-[11px] font-bold tracking-wider text-muted-foreground">
-          {t("survival.checkinPreview").toUpperCase()}
+        <h2 className="text-xs font-semibold text-muted-foreground">
+          {t("survival.checkinPreview")}
         </h2>
-        <p className="rounded-lg bg-muted px-3.5 py-3 text-sm leading-relaxed">
+        <p
+          dir="auto"
+          className="rounded-lg bg-muted px-3.5 py-3 text-sm leading-relaxed"
+        >
           {message}
         </p>
+        {card?.coords ? (
+          <p className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+            <span className="text-muted-foreground">
+              {t("survival.sosCoords")}
+            </span>
+            <span dir="ltr" className="tabular font-semibold">
+              {card.coords}
+            </span>
+          </p>
+        ) : null}
       </section>
 
       <div className="mt-auto flex flex-col gap-2.5">

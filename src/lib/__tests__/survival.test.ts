@@ -1,13 +1,27 @@
 import { describe, expect, it } from "vitest";
 
+import i18n from "@/i18n";
 import {
+  EMERGENCY_HAZARDS,
   SURVIVAL_AUTO_KM,
   checkInMessage,
   entryStatusKey,
+  isOffshoreTsunamiEligible,
   nearestThreat,
+  openAreaCriteriaForHazard,
+  parseEmergencyHazard,
   positionCard,
+  selectEmergencyThreat,
+  standingGuidanceForHazard,
 } from "@/lib/survival";
-import type { AdminUnit, FireCluster, Settlement } from "@/lib/nadhir";
+import type { Earthquake } from "@/lib/earthquakes";
+import type {
+  AdminUnit,
+  FireCluster,
+  OfficialIncident,
+  OnmVigilance,
+  Settlement,
+} from "@/lib/nadhir";
 
 const cluster = (over: Partial<FireCluster>): FireCluster => ({
   id: "c1",
@@ -256,3 +270,211 @@ it.each(["ok", "assist"] as const)(
     expect(message).not.toContain("36.5210");
   },
 );
+
+describe("hazard-agnostic standing guidance & tsunami gating", () => {
+  it("parses valid hazard kinds and defaults unknown inputs to general", () => {
+    expect(EMERGENCY_HAZARDS).toEqual([
+      "general",
+      "fire",
+      "flood",
+      "earthquake",
+      "storm",
+    ]);
+    expect(parseEmergencyHazard("flood")).toBe("flood");
+    expect(parseEmergencyHazard("EARTHQUAKE")).toBe("earthquake");
+    expect(parseEmergencyHazard("unknown")).toBe("general");
+    expect(parseEmergencyHazard(null)).toBe("general");
+  });
+
+  it("gates coastal tsunami guidance strictly on offshore M5.0+ earthquakes", () => {
+    expect(isOffshoreTsunamiEligible({ offshore: true, magnitude: 5.0 })).toBe(
+      true,
+    );
+    expect(isOffshoreTsunamiEligible({ offshore: true, magnitude: 5.8 })).toBe(
+      true,
+    );
+    expect(isOffshoreTsunamiEligible({ offshore: true, magnitude: 4.9 })).toBe(
+      false,
+    );
+    expect(isOffshoreTsunamiEligible({ offshore: false, magnitude: 6.4 })).toBe(
+      false,
+    );
+    expect(isOffshoreTsunamiEligible(null)).toBe(false);
+
+    expect(
+      standingGuidanceForHazard("earthquake", { offshoreM5Plus: true })
+        .coastalTsunamiKey,
+    ).toBe("track3.emergency.guidance.earthquake.coastalTsunami");
+    expect(
+      standingGuidanceForHazard("earthquake", { offshoreM5Plus: false })
+        .coastalTsunamiKey,
+    ).toBeNull();
+    expect(
+      standingGuidanceForHazard("flood", { offshoreM5Plus: true })
+        .coastalTsunamiKey,
+    ).toBeNull();
+  });
+
+  it("strictly isolates fire/smoke wording from flood, earthquake, storm and general guidance across all 4 locales", () => {
+    const fireOnlyWords =
+      /\b(smoke|wildfire|1070|fumée|incendie)\b|دخان|حرائق|dexxan/i;
+    for (const locale of ["en", "fr", "ar", "kab"] as const) {
+      const t = i18n.getFixedT(locale);
+      for (const hazard of [
+        "general",
+        "flood",
+        "earthquake",
+        "storm",
+      ] as const) {
+        const spec = standingGuidanceForHazard(hazard, {
+          offshoreM5Plus: hazard === "earthquake",
+        });
+        const allText = [
+          t(spec.titleKey),
+          ...spec.items.map((k) => t(k)),
+          t(spec.noInstructionKey),
+          ...(spec.coastalTsunamiKey ? [t(spec.coastalTsunamiKey)] : []),
+        ].join(" ");
+        expect(allText, `${locale}/${hazard}`).not.toMatch(fireOnlyWords);
+        expect(allText, `${locale}/${hazard}`).not.toContain("\u2014");
+      }
+    }
+  });
+
+  it("never presents fire low-ground criteria for flood or storm open areas", () => {
+    const floodCriteria = openAreaCriteriaForHazard("flood");
+    expect(floodCriteria.items).toEqual([]);
+    expect(floodCriteria.warningNoteKey).toBe(
+      "track3.emergency.openAreaCriteria.floodNote",
+    );
+    expect(floodCriteria.items).not.toContain("survival.areasCriteria3");
+
+    const stormCriteria = openAreaCriteriaForHazard("storm");
+    expect(stormCriteria.items).toEqual([]);
+    expect(stormCriteria.warningNoteKey).toBe(
+      "track3.emergency.openAreaCriteria.stormNote",
+    );
+
+    const quakeCriteria = openAreaCriteriaForHazard("earthquake");
+    expect(quakeCriteria.items).toHaveLength(3);
+    expect(quakeCriteria.warningNoteKey).toBeNull();
+
+    const fireCriteria = openAreaCriteriaForHazard("fire");
+    expect(fireCriteria.items).toContain("survival.areasCriteria3");
+  });
+});
+
+describe("selectEmergencyThreat (multi-hazard on-device evaluation)", () => {
+  const now = Date.parse("2026-11-25T12:00:00Z");
+
+  it("detects ongoing DGPC flood incidents nearby", () => {
+    const floodIncident = {
+      id: "inc-flood",
+      wilaya_id: "w1",
+      commune_id: "u1",
+      kind: "flood",
+      status: "ongoing",
+      precision: "commune",
+      authority_tier: "national",
+      place_text: null,
+      first_reported_at: "2026-11-25T10:00:00Z",
+      last_reported_at: "2026-11-25T11:30:00Z",
+      as_of: "2026-11-25T11:30:00Z",
+      updated_at: "2026-11-25T11:30:00Z",
+      unlisted_at: null,
+      mention_count: 1,
+      evidence: "DGPC",
+      commune: {
+        name_ar: commune.name_ar,
+        name_fr: commune.name_fr,
+        name_en: commune.name_en,
+        name_kab: commune.name_kab,
+        lat: commune.lat,
+        lon: commune.lon,
+      },
+      wilaya: {
+        name_ar: wilaya.name_ar,
+        name_fr: wilaya.name_fr,
+        name_en: wilaya.name_en,
+        name_kab: wilaya.name_kab,
+        lat: wilaya.lat,
+        lon: wilaya.lon,
+      },
+      latest_mention: null,
+    } as OfficialIncident;
+
+    const threat = selectEmergencyThreat(36.521, 4.052, {
+      official: [floodIncident],
+      units: [wilaya, commune],
+      now,
+    });
+    expect(threat?.hazard).toBe("flood");
+    expect(threat?.offshoreM5Plus).toBeUndefined();
+  });
+
+  it("detects offshore M5+ earthquake with offshoreM5Plus=true and inland M6 with offshoreM5Plus=false", () => {
+    const offshoreQuake: Earthquake = {
+      id: "eq-off",
+      magnitude: 5.3,
+      magnitude_type: "Mw",
+      depth_km: 12,
+      lat: 36.8,
+      lon: 4.1,
+      occurred_at: "2026-11-25T11:20:00Z",
+      network: "EMSC",
+      region: "NORTHERN ALGERIA COAST",
+      commune_id: null,
+      offshore: true,
+    };
+    const offshoreThreat = selectEmergencyThreat(36.521, 4.052, {
+      earthquakes: [offshoreQuake],
+      units: [wilaya, commune],
+      now,
+    });
+    expect(offshoreThreat?.hazard).toBe("earthquake");
+    expect(offshoreThreat?.offshoreM5Plus).toBe(true);
+
+    const inlandThreat = selectEmergencyThreat(36.521, 4.052, {
+      earthquakes: [
+        { ...offshoreQuake, id: "eq-inland", magnitude: 6.1, offshore: false },
+      ],
+      units: [wilaya, commune],
+      now,
+    });
+    expect(inlandThreat?.hazard).toBe("earthquake");
+    expect(inlandThreat?.offshoreM5Plus).toBe(false);
+  });
+
+  it("detects active non-cancelled ONM Severe/Extreme rain or storm warnings for the user's wilaya and ignores cancelled warnings", () => {
+    const rainWarning = {
+      id: "onm-1",
+      wilaya_id: "w1",
+      event: "Rain",
+      title: "Pluies torrentielles",
+      headline_fr: "Pluies intenses sur Tizi Ouzou",
+      severity: "Extreme",
+      sent: "2026-11-25T10:00:00Z",
+      expires: "2026-11-25T20:00:00Z",
+      area_desc: "Tizi Ouzou",
+      cancelled_at: null,
+      superseded_by: null,
+      msg_type: "Alert",
+    } as unknown as OnmVigilance;
+
+    const activeThreat = selectEmergencyThreat(36.521, 4.052, {
+      warnings: [rainWarning],
+      units: [wilaya, commune],
+      now,
+    });
+    expect(activeThreat?.hazard).toBe("flood");
+
+    const cancelledThreat = selectEmergencyThreat(36.521, 4.052, {
+      warnings: [
+        { ...rainWarning, msg_type: "Cancel" } as unknown as OnmVigilance,
+      ],
+      units: [wilaya, commune],
+      now,
+    });
+    expect(cancelledThreat).toBeNull();
+  });
+});

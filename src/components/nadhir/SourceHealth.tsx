@@ -6,13 +6,41 @@ import { relativeTime } from "@/lib/nadhir";
 import type { SourceHealth as SourceHealthModel } from "@/lib/source-health";
 
 const STATUS = {
-  healthy: { color: "var(--risk-1)", Icon: CircleCheck },
-  delayed: { color: "var(--risk-3)", Icon: CircleAlert },
-  degraded: { color: "var(--risk-3)", Icon: CircleAlert },
-  stale: { color: "var(--risk-4)", Icon: CircleX },
-  unavailable: { color: "var(--risk-5)", Icon: CircleX },
-  backfilling: { color: "var(--risk-2)", Icon: CircleAlert },
-  paused: { color: "var(--muted-foreground)", Icon: CircleAlert },
+  healthy: {
+    ink: "var(--risk-ink-1)",
+    tint: "var(--risk-tint-1)",
+    Icon: CircleCheck,
+  },
+  delayed: {
+    ink: "var(--risk-ink-3)",
+    tint: "var(--risk-tint-3)",
+    Icon: CircleAlert,
+  },
+  degraded: {
+    ink: "var(--risk-ink-3)",
+    tint: "var(--risk-tint-3)",
+    Icon: CircleAlert,
+  },
+  stale: {
+    ink: "var(--risk-ink-4)",
+    tint: "var(--risk-tint-4)",
+    Icon: CircleX,
+  },
+  unavailable: {
+    ink: "var(--risk-ink-5)",
+    tint: "var(--risk-tint-5)",
+    Icon: CircleX,
+  },
+  backfilling: {
+    ink: "var(--risk-ink-2)",
+    tint: "var(--risk-tint-2)",
+    Icon: CircleAlert,
+  },
+  paused: {
+    ink: "var(--muted-foreground)",
+    tint: "var(--muted)",
+    Icon: CircleAlert,
+  },
 } as const;
 
 export function SourceHealth({
@@ -32,11 +60,14 @@ export function SourceHealth({
         <Icon
           aria-hidden
           className="size-4 shrink-0"
-          style={{ color: status.color }}
+          style={{ color: status.ink }}
         />
         {source.label}
       </span>
-      <span className="text-sm" style={{ color: status.color }}>
+      <span
+        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+        style={{ backgroundColor: status.tint, color: status.ink }}
+      >
         {source.processing_only
           ? t("status.processingDegraded")
           : t(`status.state.${source.state}`)}

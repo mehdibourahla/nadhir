@@ -13,7 +13,7 @@ import {
   type Confidence,
   type FireLevel,
 } from "./fire-confidence";
-import type { HazardCategory } from "./civil-map-search";
+import { HAZARD_CATEGORIES, type HazardCategory } from "./civil-map-search";
 import type { HazardReport } from "./open-areas";
 import {
   isSandstorm,
@@ -127,7 +127,7 @@ export function buildSituations({
     items.push({
       id: `civil:${data.id}`,
       source: "civil",
-      category: data.hazard === "flood" ? "weather" : data.hazard,
+      category: data.hazard,
       at: data.updated_at,
       ...coordinates(area),
       areaId: data.area_id,
@@ -354,6 +354,38 @@ function distanceKm(aLat: number, aLon: number, bLat: number, bLon: number) {
   return 12742 * Math.asin(Math.sqrt(Math.min(1, arc)));
 }
 
+const ONM_FLOOD_RE =
+  /\b(rain|flood|pluie|pluies|inondation|crue|averse|averses)\b|أمطار|فيضان|سيول/i;
+
+export function matchesHazardCategory(
+  item: Situation,
+  category: HazardCategory,
+): boolean {
+  if (category === "all") return true;
+  if (item.category === category) return true;
+  if (category === "flood" && item.source === "onm") {
+    const text = `${item.data.event ?? ""} ${item.data.title ?? ""} ${item.data.headline_fr ?? ""}`;
+    return ONM_FLOOD_RE.test(text);
+  }
+  return false;
+}
+
+export function countSituationsByHazard(
+  items: Situation[],
+): Record<HazardCategory, number> {
+  const counts = Object.fromEntries(
+    HAZARD_CATEGORIES.map((category) => [category, 0]),
+  ) as Record<HazardCategory, number>;
+  for (const item of items) {
+    for (const category of HAZARD_CATEGORIES) {
+      if (matchesHazardCategory(item, category)) {
+        counts[category] += 1;
+      }
+    }
+  }
+  return counts;
+}
+
 export function filterSituations(
   items: Situation[],
   filters: SituationFilters,
@@ -370,7 +402,7 @@ export function filterSituations(
         );
   return items.filter((item) => {
     if (
-      (filters.category !== "all" && item.category !== filters.category) ||
+      !matchesHazardCategory(item, filters.category) ||
       (!filters.showEnded &&
         !isVisibleByDefault(item.phase) &&
         !(item.phase === "fading" && area)) ||
@@ -448,21 +480,22 @@ export function findPlaces(
     .slice(0, 12);
 }
 
-const OFFICIAL_CATEGORY: Partial<Record<string, "weather" | "road" | "other">> =
-  {
-    flood: "weather",
-    storm: "weather",
-    road: "road",
-    structure: "other",
-    other: "other",
-  };
+const OFFICIAL_CATEGORY: Partial<
+  Record<string, "weather" | "flood" | "road" | "other">
+> = {
+  flood: "flood",
+  storm: "weather",
+  road: "road",
+  structure: "other",
+  other: "other",
+};
 
 const REPORT_CATEGORY: Record<
   string,
-  "fire" | "weather" | "road" | "earthquake" | "other"
+  "fire" | "weather" | "flood" | "road" | "earthquake" | "other"
 > = {
   fire: "fire",
-  flooding: "weather",
+  flooding: "flood",
   storm_damage: "weather",
   sandstorm: "weather",
   road_blocked: "road",

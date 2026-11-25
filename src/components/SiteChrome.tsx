@@ -153,7 +153,7 @@ function ThemeToggle() {
       }}
       aria-label={label}
       title={label}
-      className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      className="flex size-11 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
     >
       <Icon aria-hidden className="size-4" />
     </button>
@@ -170,7 +170,7 @@ function SubscribeBell() {
         onClick={() => setOpen(true)}
         aria-label={t("push.bell")}
         title={t("push.bell")}
-        className="rounded-full border border-dashed border-[var(--accent)] p-1.5 text-[var(--accent)] transition-colors hover:bg-[var(--accent-tint)]"
+        className="flex size-11 shrink-0 items-center justify-center rounded-full border border-dashed border-[var(--accent)] text-[var(--accent)] transition-colors hover:bg-[var(--accent-tint)]"
       >
         <Bell aria-hidden className="size-4" />
       </button>
@@ -197,7 +197,7 @@ function MobileNav({ hasPanelAccess }: { hasPanelAccess: boolean }) {
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger
         aria-label={t("nav.menu")}
-        className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:hidden"
+        className="flex size-11 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:hidden"
       >
         <Menu aria-hidden className="size-5" />
       </SheetTrigger>
@@ -207,7 +207,20 @@ function MobileNav({ hasPanelAccess }: { hasPanelAccess: boolean }) {
             {t("nav.menu")}
           </SheetTitle>
         </SheetHeader>
-        <nav className="flex flex-col p-2" aria-label={t("nav.menu")}>
+        <nav className="flex flex-col gap-0.5 p-2" aria-label={t("nav.menu")}>
+          <Link
+            to="/survival"
+            onClick={() => setOpen(false)}
+            className="mb-1 flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold"
+            style={{
+              backgroundColor: "var(--emergency-surface)",
+              borderColor: "var(--emergency)",
+              color: "var(--emergency-ink)",
+            }}
+          >
+            <TriangleAlert aria-hidden className="size-4 shrink-0" />
+            <span>{t("track3.emergency.openSheet")}</span>
+          </Link>
           {[
             ...PRIMARY_NAV,
             ...ACCOUNT_NAV,
@@ -218,7 +231,7 @@ function MobileNav({ hasPanelAccess }: { hasPanelAccess: boolean }) {
               to={item.to}
               activeOptions={{ exact: item.to === "/" }}
               onClick={() => setOpen(false)}
-              className="rounded-md px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground [&.active]:bg-muted [&.active]:font-medium [&.active]:text-foreground"
+              className="flex min-h-11 items-center rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground [&.active]:bg-muted [&.active]:font-medium [&.active]:text-foreground"
             >
               {t(item.key)}
             </Link>
@@ -256,9 +269,9 @@ export function SiteHeader() {
     userId !== null && !roles.isError && canReachPanel(roles.data ?? []);
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-surface/95 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-2 px-3 sm:gap-4 sm:px-4">
+      <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-1 px-1.5 sm:gap-3 sm:px-4">
         <MobileNav hasPanelAccess={hasPanelAccess} />
-        <Link to="/" className="flex min-w-0 items-center gap-2">
+        <Link to="/" className="flex min-w-0 items-center gap-1.5 sm:gap-2">
           <BrandMark className="h-7 w-7 shrink-0 rounded-[7px]" />
           {/* below 360px the wordmark plus the controls no longer fit; the logo carries it */}
           <span className="truncate font-display text-lg font-semibold max-[359px]:hidden">
@@ -287,7 +300,22 @@ export function SiteHeader() {
           )}
         </nav>
 
-        <div className="ms-auto flex items-center gap-1 sm:gap-2">
+        <div className="ms-auto flex shrink-0 items-center gap-0.5 sm:gap-2">
+          <Link
+            to="/survival"
+            aria-label={t("track3.emergency.headerChipLabel")}
+            className="hidden min-h-11 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold sm:inline-flex"
+            style={{
+              backgroundColor: "var(--emergency-surface)",
+              borderColor: "var(--emergency)",
+              color: "var(--emergency-ink)",
+            }}
+          >
+            <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
+            <span dir="ltr" className="tabular-nums font-bold">
+              {t("track3.emergency.headerChip")}
+            </span>
+          </Link>
           <LanguageSwitcher />
           <SubscribeBell />
           <ThemeToggle />
@@ -310,17 +338,23 @@ export function BottomTabs() {
           key={to}
           to={to}
           activeOptions={{ exact: to === "/" }}
-          className="flex flex-col items-center gap-0.5 py-2 text-[11px] text-muted-foreground [&.active]:text-[var(--accent)]"
+          className="flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-1.5 text-[11px] text-muted-foreground [&.active]:text-[var(--accent)]"
         >
-          <Icon aria-hidden className="size-5" />
-          {t(key)}
+          <Icon aria-hidden className="size-5 shrink-0" />
+          <span className="max-w-full truncate">{t(key)}</span>
         </Link>
       ))}
     </nav>
   );
 }
 
-export function EmergencyNumbers({ compact = false }: { compact?: boolean }) {
+export function EmergencyNumbers({
+  compact = false,
+  showSheetLink = true,
+}: {
+  compact?: boolean;
+  showSheetLink?: boolean;
+}) {
   const { t } = useTranslation();
   const numbers = [
     { label: t("emergency.civil"), number: "14" },
@@ -333,23 +367,36 @@ export function EmergencyNumbers({ compact = false }: { compact?: boolean }) {
       className={cn("rounded-xl px-4 py-3", compact ? "text-xs" : "text-sm")}
       style={{ backgroundColor: "var(--emergency-surface)" }}
     >
-      <h2
-        className="flex items-center gap-2 font-medium"
-        style={{ color: "var(--emergency-ink)", fontFamily: "inherit" }}
-      >
-        <TriangleAlert aria-hidden className="size-4" />
-        {t("emergency.title")}
-      </h2>
-      <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2
+          className="flex items-center gap-2 font-medium"
+          style={{ color: "var(--emergency-ink)", fontFamily: "inherit" }}
+        >
+          <TriangleAlert aria-hidden className="size-4 shrink-0" />
+          {t("emergency.title")}
+        </h2>
+        {showSheetLink ? (
+          <Link
+            to="/survival"
+            className="inline-flex min-h-11 items-center rounded-md px-2 text-xs font-semibold underline underline-offset-2"
+            style={{ color: "var(--emergency-ink)" }}
+          >
+            {t("track3.emergency.openSheet")}
+          </Link>
+        ) : null}
+      </div>
+      <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
         {numbers.map((n) => (
-          <li key={n.number} className="flex items-center gap-1.5">
-            <span className="text-muted-foreground">{n.label}</span>
+          <li key={n.number} className="flex items-center">
             <a
               href={`tel:${n.number}`}
-              className="tabular font-semibold underline underline-offset-2"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 font-medium underline-offset-2 hover:underline"
               style={{ color: "var(--emergency-ink)" }}
             >
-              {n.number}
+              <span>{n.label}</span>
+              <span dir="ltr" className="tabular-nums font-bold underline">
+                {n.number}
+              </span>
             </a>
           </li>
         ))}
@@ -391,25 +438,40 @@ export function SiteFooter() {
     <footer className="border-t border-border bg-surface">
       <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-x-5 gap-y-2 px-4 py-5 text-xs text-muted-foreground">
         <span>{t("common.appName")}</span>
-        <Link to="/about" className="hover:text-foreground">
+        <Link
+          to="/about"
+          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11"
+        >
           {t("nav.about")}
         </Link>
-        <Link to="/developers" className="hover:text-foreground">
+        <Link
+          to="/developers"
+          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11"
+        >
           {t("nav.developers")}
         </Link>
-        <Link to="/status" className="hover:text-foreground">
+        <Link
+          to="/status"
+          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11"
+        >
           {t("nav.status")}
         </Link>
         <Link
           to="/contribute"
-          className="font-semibold text-[var(--accent)] hover:opacity-80"
+          className="inline-flex items-center font-semibold text-[var(--accent)] hover:opacity-80 pointer-coarse:min-h-11"
         >
           {t("nav.contribute")}
         </Link>
-        <Link to="/terms" className="hover:text-foreground">
+        <Link
+          to="/terms"
+          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11"
+        >
           {t("legal.terms")}
         </Link>
-        <Link to="/privacy" className="hover:text-foreground">
+        <Link
+          to="/privacy"
+          className="inline-flex items-center hover:text-foreground pointer-coarse:min-h-11"
+        >
           {t("legal.privacy")}
         </Link>
         <span className="ms-auto">{t("about.attribution")}</span>

@@ -34,6 +34,7 @@ describe("civil map symbol contracts", () => {
     for (const [category, expected] of [
       ["road", "road"],
       ["weather", "weather"],
+      ["flood", "weather"],
       ["fire", "fire"],
       ["other", "observation"],
     ])

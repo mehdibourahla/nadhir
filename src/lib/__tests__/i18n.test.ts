@@ -102,11 +102,29 @@ describe("locale parity", () => {
   });
 
   const locales = { ar, fr, kab } as unknown as Record<string, Tree>;
+  const enTranslationEntries = new Map(flattenEntries(en as unknown as Tree));
   for (const [name, table] of Object.entries(locales)) {
-    it(`${name} has exactly the same keys as en`, () => {
+    it(`${name} has exactly the same keys and placeholders as en`, () => {
       const theirs = new Set(flatten(table));
       expect([...KEYS].filter((k) => !theirs.has(k))).toEqual([]);
       expect([...theirs].filter((k) => !KEYS.has(k))).toEqual([]);
+
+      const placeholderMismatches: string[] = [];
+      for (const [key, value] of flattenEntries(table)) {
+        const expected = placeholders(enTranslationEntries.get(key) ?? "");
+        const actual = placeholders(value);
+        // Arabic singular (*_one) idioms omit explicit {{count}} while keeping all other placeholders
+        const expectedEffective =
+          name === "ar" && key.endsWith("_one") && !actual.includes("count")
+            ? expected.filter((p) => p !== "count")
+            : expected;
+        if (JSON.stringify(actual) !== JSON.stringify(expectedEffective)) {
+          placeholderMismatches.push(
+            `${name}.${key}: got [${actual.join(",")}] expected [${expectedEffective.join(",")}]`,
+          );
+        }
+      }
+      expect(placeholderMismatches).toEqual([]);
     });
   }
 
@@ -171,8 +189,12 @@ describe("locale parity", () => {
     }
   });
 
-  it("enforces R-02 zero em dashes and non-empty strings across weather, track modules and admin", () => {
+  it("enforces R-02 zero em dashes and non-empty strings across all 4 locales, weather, track modules and admin", () => {
     const tables: Array<[string, Tree]> = [
+      ["translation.en", en as unknown as Tree],
+      ["translation.fr", fr as unknown as Tree],
+      ["translation.ar", ar as unknown as Tree],
+      ["translation.kab", kab as unknown as Tree],
       ["weather.en", weatherEn as unknown as Tree],
       ["weather.fr", weatherFr as unknown as Tree],
       ["weather.ar", weatherAr as unknown as Tree],

@@ -2,39 +2,73 @@ import { useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Flame } from "lucide-react";
-import { relativeTime, type FireCluster } from "@/lib/nadhir";
+import { Activity, CloudLightning, Flame, Waves } from "lucide-react";
+import {
+  relativeTime,
+  type AdminUnit,
+  type FireCluster,
+  type OfficialIncident,
+  type OnmVigilance,
+} from "@/lib/nadhir";
+import type { Earthquake } from "@/lib/earthquakes";
 import type { Locale } from "@/i18n";
 import {
   SURVIVAL_ACTIVE_KEY,
-  SURVIVAL_AUTO_KM,
   SURVIVAL_DISMISS_KEY,
-  nearestThreat,
+  selectEmergencyThreat,
+  type EmergencyThreat,
 } from "@/lib/survival";
+
+const THREAT_ICON = {
+  fire: Flame,
+  flood: Waves,
+  earthquake: Activity,
+  storm: CloudLightning,
+} as const;
 
 export function MapSurvivalPrompt({
   fires,
+  official = [],
+  warnings = [],
+  earthquakes = [],
+  units = [],
   now,
 }: {
   fires: FireCluster[];
+  official?: OfficialIncident[];
+  warnings?: OnmVigilance[];
+  earthquakes?: Earthquake[];
+  units?: AdminUnit[];
   now: number;
 }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language as Locale;
   const navigate = useNavigate();
   const returnFocus = useRef<HTMLElement | null>(null);
-  const [interstitial, setInterstitial] = useState<{
-    km: number;
-    seen: string;
-  } | null>(null);
+  const [interstitial, setInterstitial] = useState<EmergencyThreat | null>(
+    null,
+  );
 
   useEffect(() => {
-    const data = fires;
     const suppressed = () =>
       localStorage.getItem(SURVIVAL_ACTIVE_KEY) ||
       sessionStorage.getItem(SURVIVAL_DISMISS_KEY);
+    const hasPotentialThreat =
+      fires.some((fire) => fire.state === "active") ||
+      official.some(
+        (inc) => inc.status === "ongoing" && inc.authority_tier !== "media",
+      ) ||
+      warnings.some(
+        (w) =>
+          !w.cancelled_at &&
+          !w.superseded_by &&
+          w.msg_type !== "Cancel" &&
+          (w.severity === "Extreme" || w.severity === "Severe"),
+      ) ||
+      earthquakes.some((q) => q.magnitude >= 4.0);
+
     if (
-      !data.some((fire) => fire.state === "active") ||
+      !hasPotentialThreat ||
       typeof navigator === "undefined" ||
       !("permissions" in navigator) ||
       !("geolocation" in navigator) ||
@@ -60,23 +94,19 @@ export function MapSurvivalPrompt({
               setInterstitial(null);
               return;
             }
-            const threat = nearestThreat(
+            const threat = selectEmergencyThreat(
               pos.coords.latitude,
               pos.coords.longitude,
-              data,
+              {
+                fires,
+                official,
+                warnings,
+                earthquakes,
+                units,
+                now,
+              },
             );
-            if (
-              threat &&
-              threat.cluster.state === "active" &&
-              threat.km <= SURVIVAL_AUTO_KM
-            ) {
-              setInterstitial({
-                km: threat.km,
-                seen: threat.cluster.last_detected_at,
-              });
-            } else {
-              setInterstitial(null);
-            }
+            setInterstitial(threat);
           },
           () => {
             if (!cancelled) setInterstitial(null);
@@ -90,12 +120,16 @@ export function MapSurvivalPrompt({
     return () => {
       cancelled = true;
     };
-  }, [fires]);
+  }, [fires, official, warnings, earthquakes, units, now]);
 
   const dismiss = () => {
     sessionStorage.setItem(SURVIVAL_DISMISS_KEY, "1");
     setInterstitial(null);
   };
+
+  const ThreatIcon = interstitial ? THREAT_ICON[interstitial.hazard] : Flame;
+  const kmText = (interstitial?.km ?? 0).toFixed(1);
+  const magText = (interstitial?.magnitude ?? 4).toFixed(1);
 
   return (
     <Dialog.Root
@@ -131,20 +165,39 @@ export function MapSurvivalPrompt({
                 className="flex size-16 items-center justify-center rounded-full"
                 style={{ backgroundColor: "var(--emergency-surface)" }}
               >
-                <Flame
+                <ThreatIcon
                   aria-hidden
                   className="size-8"
-                  style={{ color: "var(--emergency)" }}
+                  style={{ color: "var(--emergency-ink)" }}
                 />
               </span>
               <Dialog.Title className="font-display text-3xl leading-tight">
-                {t("survival.interTitle")}
+                {t(interstitial.titleKey, {
+                  km: kmText,
+                  magnitude: magText,
+                })}
               </Dialog.Title>
               <Dialog.Description className="text-[15px] leading-relaxed">
-                {t("survival.interBody", { km: interstitial.km.toFixed(1) })}
+                {t(interstitial.bodyKey, {
+                  km: kmText,
+                  magnitude: magText,
+                })}
               </Dialog.Description>
+              {interstitial.offshoreM5Plus ? (
+                <p
+                  role="alert"
+                  className="rounded-xl border px-3.5 py-2.5 text-sm font-medium"
+                  style={{
+                    backgroundColor: "var(--emergency-surface)",
+                    borderColor: "var(--emergency)",
+                    color: "var(--emergency-ink)",
+                  }}
+                >
+                  {t("track3.emergency.prompt.offshoreQuakeNote")}
+                </p>
+              ) : null}
               <dl className="card flex flex-col gap-1.5 p-3 text-xs">
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <dt className="text-muted-foreground">
                     {t("survival.interBasedOn")}
                   </dt>
@@ -152,14 +205,25 @@ export function MapSurvivalPrompt({
                     {t("survival.interPosition")}
                   </dd>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <dt className="text-muted-foreground">
                     {t("survival.interObservation")}
                   </dt>
                   <dd className="font-semibold">
-                    {t("survival.interSatellite", {
-                      time: relativeTime(interstitial.seen, locale, now),
-                    })}
+                    {interstitial.hazard === "fire" &&
+                    interstitial.sourceKey === "survival.interSatellite"
+                      ? t("survival.interSatellite", {
+                          time: relativeTime(
+                            interstitial.observedAt,
+                            locale,
+                            now,
+                          ),
+                        })
+                      : `${t(interstitial.sourceKey)} · ${relativeTime(
+                          interstitial.observedAt,
+                          locale,
+                          now,
+                        )}`}
                   </dd>
                 </div>
               </dl>
@@ -172,7 +236,15 @@ export function MapSurvivalPrompt({
                     SURVIVAL_ACTIVE_KEY,
                     new Date().toISOString(),
                   );
-                  void navigate({ to: "/survival" });
+                  void navigate({
+                    to: "/survival",
+                    search: {
+                      hazard: interstitial.hazard,
+                      ...(interstitial.offshoreM5Plus
+                        ? { offshoreM5: true }
+                        : {}),
+                    },
+                  });
                 }}
                 className="flex h-14 items-center justify-center gap-2 rounded-xl text-base font-bold"
                 style={{
@@ -180,7 +252,7 @@ export function MapSurvivalPrompt({
                   color: "var(--surface)",
                 }}
               >
-                {t("survival.interEnter")}
+                {t("track3.emergency.prompt.openEmergencyTools")}
               </button>
               <button
                 type="button"

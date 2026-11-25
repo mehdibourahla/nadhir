@@ -92,7 +92,7 @@ export function AccountMenu({
               : location.href,
           ),
         }}
-        className="inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-md bg-primary px-2 py-2 text-xs font-medium text-primary-foreground sm:px-3 sm:text-sm"
+        className="inline-flex min-h-11 max-w-[82px] shrink-0 items-center truncate whitespace-nowrap rounded-md bg-primary px-2 py-2 text-xs font-medium text-primary-foreground sm:max-w-none sm:px-3 sm:text-sm"
       >
         {t("account.signIn")}
       </Link>

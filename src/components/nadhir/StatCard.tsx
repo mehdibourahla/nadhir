@@ -39,7 +39,7 @@ export function StatCard({
         </span>
         <span
           className="font-display tabular text-2xl leading-tight"
-          style={emergency ? { color: "var(--emergency)" } : undefined}
+          style={emergency ? { color: "var(--emergency-ink)" } : undefined}
         >
           {value}
         </span>

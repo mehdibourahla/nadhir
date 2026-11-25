@@ -239,4 +239,38 @@ describe("situation status wording", () => {
       expect(html, item.id).not.toContain("\u2014");
     }
   });
+
+  it("surfaces verbatim ONM attribution, severity badge, Algiers clock time, and dir=ltr coordinate fallback on SituationCard", () => {
+    const onmCard = card({
+      ...base,
+      id: "weather:onm-card",
+      category: "weather",
+      source: "onm",
+      phase: "live",
+      confidence: "official",
+      at: "2026-09-22T10:05:00Z",
+      data: {
+        id: "onm-card",
+        title: "Rain Extreme",
+        headline_fr: "Pluies torrentielles",
+        severity: "Extreme",
+        certainty: "Likely",
+        urgency: "Expected",
+        sent: "2026-09-22T10:05:00Z",
+        onset: null,
+        expires: "2026-09-23T10:00:00Z",
+        area_desc: "Alger",
+        cap_url: null,
+      } as unknown as OnmVigilance,
+    });
+    expect(onmCard).toContain("ONM · Météo Algérie");
+    expect(onmCard).toContain("11:05"); // 10:05Z in Africa/Algiers
+    expect(onmCard).toContain("cap.severity.Extreme");
+    expect(onmCard).not.toContain("\u2014");
+
+    // Coordinate fallback wraps lat/lon in dir="ltr"
+    const coordFallback = card(satellite("live", "probable"));
+    expect(coordFallback).toContain('dir="ltr"');
+    expect(coordFallback).toContain("36.700, 4.000");
+  });
 });

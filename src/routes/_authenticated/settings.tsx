@@ -231,7 +231,7 @@ function SettingsPage() {
           >
             {[1, 2, 3, 4, 5].map((l) => (
               <option key={l} value={l}>
-                {l} —{" "}
+                {l} ·{" "}
                 {t(
                   `risk.${["low", "moderate", "high", "very_high", "extreme"][l - 1]}`,
                 )}

@@ -312,4 +312,26 @@ describe("AlertProvenance component (SSR)", () => {
     expect(html).toContain("EMSC");
     expect(html).not.toContain("\u2014");
   });
+
+  it("omits aria-controls when collapsed and binds aria-controls to the panel id when expanded", () => {
+    const prov: AlertProvenanceData = {
+      triggerKind: "wilaya_warning",
+      areaLabel: "Alger",
+      sourceKey: "onm",
+      sourceAttribution: "ONM · Météo Algérie",
+      ruleLabelKey: "provenance.rule.onmSevere",
+      observedAt: OBSERVED_ISO,
+      authorityStatus: "official",
+    };
+
+    const collapsed = renderInLocale("en", prov, { defaultExpanded: false });
+    expect(collapsed).toContain('aria-expanded="false"');
+    expect(collapsed).not.toContain("aria-controls=");
+
+    const expanded = renderInLocale("en", prov, { defaultExpanded: true });
+    expect(expanded).toContain('aria-expanded="true"');
+    const controlsMatch = expanded.match(/aria-controls="([^"]+)"/);
+    expect(controlsMatch?.[1]).toBeTruthy();
+    expect(expanded).toContain(`id="${controlsMatch![1]}"`);
+  });
 });
