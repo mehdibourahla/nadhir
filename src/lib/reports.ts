@@ -1,6 +1,9 @@
 import { queryOptions, infiniteQueryOptions } from "@tanstack/react-query";
 
-import { stripImageMetadata } from "@/lib/image-metadata";
+import {
+  MAX_REPORT_PHOTO_BYTES,
+  stripImageMetadata,
+} from "@/lib/image-metadata";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppRole } from "./roles";
 import { firstPage, nextOffset, pageRange, pageRows } from "@/lib/paging";
@@ -304,7 +307,7 @@ const REPORT_PHOTO_BUCKET = "report-photos";
 const UUID_PART =
   "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 const REPORT_PHOTO_PATH = new RegExp(
-  `^(${UUID_PART})/(${UUID_PART})\\.(jpg|png)$`,
+  `^(${UUID_PART})/(${UUID_PART})\\.(jpg|png|webp)$`,
 );
 
 export function isCanonicalReportPhotoPath(
@@ -316,8 +319,12 @@ export function isCanonicalReportPhotoPath(
 }
 
 function validateReportPhoto(file: File) {
-  if (file.size > 8 * 1024 * 1024) throw new Error("too_large");
-  if (file.type !== "image/jpeg" && file.type !== "image/png")
+  if (file.size > MAX_REPORT_PHOTO_BYTES) throw new Error("too_large");
+  if (
+    file.type !== "image/jpeg" &&
+    file.type !== "image/png" &&
+    file.type !== "image/webp"
+  )
     throw new Error("unsupported_type");
 }
 
@@ -358,20 +365,64 @@ async function uploadReportPhotoForUser(
     new Uint8Array(await file.arrayBuffer()),
     file.type,
   );
-  const ext = file.type === "image/png" ? "png" : "jpg";
-  const path = `${userId}/${objectId}.${ext}`;
+  const ext =
+    file.type === "image/png"
+      ? "png"
+      : file.type === "image/webp"
+        ? "webp"
+        : "jpg";
+  const { data: sessionData, error: sessionError } =
+    await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+  if (sessionError || !accessToken) {
+    throw new ReportMutationError("reports.photoFailed");
+  }
+
+  const form = new FormData();
+  form.append(
+    "file",
+    new Blob([clean], { type: file.type }),
+    `${objectId}.${ext}`,
+  );
+  form.append("objectId", objectId);
+
+  let response: Response;
   try {
-    const { error } = await supabase.storage
-      .from(REPORT_PHOTO_BUCKET)
-      .upload(path, new Blob([clean], { type: file.type }), {
-        contentType: file.type,
-        upsert: true,
-      });
-    if (error) throw new Error();
+    response = await fetch(apiUrl("/api/private/report-photo"), {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: form,
+    });
   } catch {
     throw new ReportMutationError("reports.photoFailed");
   }
-  return path;
+
+  if (response.status === 413) {
+    throw new ReportMutationError("reports.photoTooLarge");
+  }
+  if (response.status === 415 || response.status === 400) {
+    throw new ReportMutationError("reports.photoBadType");
+  }
+  if (!response.ok) {
+    throw new ReportMutationError("reports.photoFailed");
+  }
+
+  let body: { path?: unknown } | null;
+  try {
+    body = (await response.json()) as { path?: unknown };
+  } catch {
+    throw new ReportMutationError("reports.photoFailed");
+  }
+
+  if (
+    typeof body?.path !== "string" ||
+    !isCanonicalReportPhotoPath(body.path, userId)
+  ) {
+    throw new ReportMutationError("reports.photoFailed");
+  }
+  return body.path;
 }
 
 export async function signedPhotoUrl(
@@ -402,17 +453,21 @@ export type PublishResult = {
   summary: string | null;
 };
 
-export async function publishReport(id: string): Promise<PublishResult> {
+export async function publishReport(
+  id: string,
+  turnstileToken?: string | null,
+): Promise<PublishResult> {
   const { data, error } = await supabase.auth.getSession();
   if (error || !data.session)
     throw new ReportMutationError("reports.submitFailed");
+  const payload = turnstileToken ? { id, turnstileToken } : { id };
   const res = await fetch(apiUrl("/api/private/report-publish"), {
     method: "POST",
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${data.session.access_token}`,
     },
-    body: JSON.stringify({ id }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`report publish failed (${res.status})`);
   return (await res.json()) as PublishResult;

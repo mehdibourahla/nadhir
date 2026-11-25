@@ -1051,7 +1051,7 @@ export const fr: Translation = {
     photoRemove: "Retirer la photo",
     photoFailed: "Échec de l’envoi. Réessayez.",
     photoTooLarge: "La photo dépasse 8 Mo.",
-    photoBadType: "Seules les photos JPEG ou PNG peuvent être jointes.",
+    photoBadType: "Seules les photos JPEG, PNG ou WebP peuvent être jointes.",
     photoUnavailable: "Photo indisponible.",
     photoAlt: "Photo jointe à un signalement citoyen d’incendie",
     submit: "Envoyer le signalement",

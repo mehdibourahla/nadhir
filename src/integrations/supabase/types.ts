@@ -1411,6 +1411,27 @@ export type Database = {
           },
         ];
       };
+      citizen_report_flags: {
+        Row: {
+          created_at: string;
+          reason: string;
+          report_id: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          reason: string;
+          report_id: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          reason?: string;
+          report_id?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       citizen_report_submissions: {
         Row: {
           created_at: string;
@@ -2768,6 +2789,48 @@ export type Database = {
         };
         Relationships: [];
       };
+      privacy_consents: {
+        Row: {
+          consent_type: string;
+          created_at: string;
+          granted_at: string | null;
+          id: string;
+          locale: string;
+          policy_version: string;
+          source_surface: string;
+          status: string;
+          updated_at: string;
+          user_id: string;
+          withdrawn_at: string | null;
+        };
+        Insert: {
+          consent_type: string;
+          created_at?: string;
+          granted_at?: string | null;
+          id?: string;
+          locale?: string;
+          policy_version: string;
+          source_surface?: string;
+          status: string;
+          updated_at?: string;
+          user_id: string;
+          withdrawn_at?: string | null;
+        };
+        Update: {
+          consent_type?: string;
+          created_at?: string;
+          granted_at?: string | null;
+          id?: string;
+          locale?: string;
+          policy_version?: string;
+          source_surface?: string;
+          status?: string;
+          updated_at?: string;
+          user_id?: string;
+          withdrawn_at?: string | null;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           alert_email: boolean;
@@ -4074,6 +4137,24 @@ export type Database = {
           device_hash?: string;
           updated_at?: string;
           user_id?: string;
+        };
+        Relationships: [];
+      };
+      user_report_blocks: {
+        Row: {
+          author: string;
+          blocker: string;
+          created_at: string;
+        };
+        Insert: {
+          author: string;
+          blocker: string;
+          created_at?: string;
+        };
+        Update: {
+          author?: string;
+          blocker?: string;
+          created_at?: string;
         };
         Relationships: [];
       };

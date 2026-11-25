@@ -18,6 +18,8 @@ import { useTranslation } from "react-i18next";
 
 import { LocationPicker, type PickerTarget } from "@/components/LocationPicker";
 import { ReportPhoto } from "@/components/ReportPhoto";
+import { TurnstileWidget } from "@/components/TurnstileWidget";
+import { isTurnstileSiteKeyConfigured } from "@/lib/turnstile";
 import { HazardTiles } from "@/components/report/HazardTiles";
 import { TILES } from "@/lib/report-tiles";
 import { LevelCard } from "@/components/report/LevelCard";
@@ -82,7 +84,10 @@ function ReportPage() {
   const [note, setNote] = useState("");
   const [photo, setPhoto] = useState<ReportPhotoDraft | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [result, setResult] = useState<PublishResult | null>(null);
+  const captchaRequired = isTurnstileSiteKeyConfigured();
 
   useEffect(() => () => photo?.dispose(), [photo]);
 
@@ -127,7 +132,7 @@ function ReportPage() {
         photo,
       );
       try {
-        return await publishReport(id);
+        return await publishReport(id, turnstileToken);
       } catch {
         // the report is saved; the next engine run classifies it
         return {
@@ -142,8 +147,14 @@ function ReportPage() {
       setStep("sent");
       setNote("");
       setPhoto(null);
+      setTurnstileToken(null);
+      setTurnstileResetKey((prev) => prev + 1);
       void qc.invalidateQueries({ queryKey: ["reports"] });
       void qc.invalidateQueries({ queryKey: ["hazard_reports"] });
+    },
+    onError: () => {
+      setTurnstileToken(null);
+      setTurnstileResetKey((prev) => prev + 1);
     },
   });
 
@@ -300,7 +311,7 @@ function ReportPage() {
               {t("reports.photo")}
               <input
                 type="file"
-                accept="image/jpeg,image/png"
+                accept="image/jpeg,image/png,image/webp"
                 capture="environment"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -326,6 +337,9 @@ function ReportPage() {
             <p className="text-xs text-muted-foreground">
               {t("reports.photoHint")}
             </p>
+            <p className="text-xs text-muted-foreground">
+              {t("photoUpload.exifNotice")}
+            </p>
             {photoError ? (
               <p role="alert" className="text-sm text-destructive">
                 {photoError}
@@ -348,6 +362,13 @@ function ReportPage() {
               </div>
             ) : null}
           </div>
+          <TurnstileWidget
+            action="report_publish"
+            resetKey={turnstileResetKey}
+            onVerify={(token) => setTurnstileToken(token)}
+            onExpire={() => setTurnstileToken(null)}
+            onError={() => setTurnstileToken(null)}
+          />
           {submit.isError ? (
             <p role="alert" className="text-sm text-destructive">
               {t(
@@ -360,7 +381,11 @@ function ReportPage() {
           <StickyAction>
             <Button
               className="h-12 w-full text-base"
-              disabled={submit.isPending || noteMissing}
+              disabled={
+                submit.isPending ||
+                noteMissing ||
+                (captchaRequired && !turnstileToken)
+              }
               onClick={() => submit.mutate()}
             >
               {submit.isPending

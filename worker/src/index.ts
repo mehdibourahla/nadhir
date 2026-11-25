@@ -32,6 +32,7 @@ const secrets = Array.from(
       process.env["TELEGRAM_BOT_TOKEN"] ?? "",
       process.env["WHATSAPP_ACCESS_TOKEN"] ?? "",
       process.env["RESEND_API_KEY"] ?? "",
+      process.env["TURNSTILE_SECRET_KEY"] ?? "",
     ].filter(Boolean),
   ),
 );

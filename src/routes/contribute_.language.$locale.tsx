@@ -32,6 +32,8 @@ import {
   type StringRow,
 } from "@/lib/translate";
 import { cn } from "@/lib/utils";
+import { TurnstileWidget } from "@/components/TurnstileWidget";
+import { isTurnstileSiteKeyConfigured } from "@/lib/turnstile";
 import { titledMeta } from "@/lib/page-meta";
 import { headTranslator } from "@/i18n";
 
@@ -295,6 +297,10 @@ function ReviewPage() {
   const reviewed = Object.keys(drafts).length;
   const tally = summarise(drafts, statuses);
 
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const captchaRequired = isTurnstileSiteKeyConfigured();
+
   const submit = useMutation({
     mutationFn: async () => {
       const payload = Object.entries(drafts)
@@ -318,6 +324,7 @@ function ReviewPage() {
           reviewerKey: readReviewerKey(),
           reviewerName: name || null,
           rows: payload,
+          ...(turnstileToken ? { turnstileToken } : {}),
         }),
       });
       const body = (await res.json()) as {
@@ -331,6 +338,8 @@ function ReviewPage() {
     onSuccess: (saved) => {
       setSent(saved);
       setError(null);
+      setTurnstileToken(null);
+      setTurnstileResetKey((prev) => prev + 1);
       // marked rather than deleted: the reviewer must still see what they sent
       setDrafts((prev) => {
         const next = markSent(prev, currentFor);
@@ -339,12 +348,17 @@ function ReviewPage() {
       });
       void loadStatuses();
     },
-    onError: (e: Error) =>
+    onError: (e: Error) => {
+      setTurnstileToken(null);
+      setTurnstileResetKey((prev) => prev + 1);
       setError(
         e.message === "rateLimited"
           ? t("translate.errRateLimited")
-          : t("translate.errFailed"),
-      ),
+          : e.message === "captcha"
+            ? t("turnstile.failed")
+            : t("translate.errFailed"),
+      );
+    },
   });
 
   const FILTERS: { key: Filter; label: string }[] = [
@@ -557,9 +571,11 @@ function ReviewPage() {
                 </button>
                 <button
                   type="button"
-                  disabled={submit.isPending}
+                  disabled={
+                    submit.isPending || (captchaRequired && !turnstileToken)
+                  }
                   onClick={() => submit.mutate()}
-                  className="order-2 ms-auto inline-flex h-9 shrink-0 items-center rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground disabled:opacity-60 sm:order-4"
+                  className="order-2 ms-auto inline-flex min-h-11 shrink-0 items-center rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground disabled:opacity-60 sm:order-4"
                 >
                   {submit.isPending
                     ? t("translate.sending")
@@ -568,6 +584,18 @@ function ReviewPage() {
               </>
             )}
           </div>
+          {pending > 0 && sent === 0 ? (
+            <div className="mx-auto max-w-[1100px] px-5 pb-2">
+              <TurnstileWidget
+                action="contribute_translation"
+                compact
+                resetKey={turnstileResetKey}
+                onVerify={(token) => setTurnstileToken(token)}
+                onExpire={() => setTurnstileToken(null)}
+                onError={() => setTurnstileToken(null)}
+              />
+            </div>
+          ) : null}
           {error ? (
             <p className="mx-auto max-w-[1100px] px-5 pb-3 text-[13px] text-[var(--emergency)]">
               {error}

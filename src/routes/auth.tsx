@@ -28,6 +28,8 @@ import {
   type AuthMode,
 } from "@/lib/auth-flow";
 import { PasswordField, authInputClass } from "@/components/auth/PasswordField";
+import { TurnstileWidget } from "@/components/TurnstileWidget";
+import { isTurnstileSiteKeyConfigured } from "@/lib/turnstile";
 import { titledMeta } from "@/lib/page-meta";
 import {
   appleSignInAvailable,
@@ -74,6 +76,12 @@ function AuthPage() {
   const [cooldown, setCooldown] = useState(0);
   const [recoveryReady, setRecoveryReady] = useState(false);
   const [complete, setComplete] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
+  const captchaRequired =
+    !NATIVE &&
+    isTurnstileSiteKeyConfigured() &&
+    (mode === "signup" || mode === "forgot" || mode === "verify");
   const modeRef = useRef(mode);
   const previousSearchMode = useRef(search.mode ?? "signin");
   const requestGeneration = useRef(0);
@@ -90,6 +98,8 @@ function AuthPage() {
     setComplete(false);
     setPassword("");
     setConfirmation("");
+    setCaptchaToken(null);
+    setCaptchaResetKey((prev) => prev + 1);
   }, [search.mode]);
   useEffect(() => {
     if (!cooldown) return;
@@ -179,6 +189,8 @@ function AuthPage() {
     setPassword("");
     setConfirmation("");
     setComplete(false);
+    setCaptchaToken(null);
+    setCaptchaResetKey((prev) => prev + 1);
     void navigate({
       to: "/auth",
       search: { mode: next, returnTo },
@@ -191,17 +203,24 @@ function AuthPage() {
   }
   async function sendEmail(kind: "signup" | "recovery") {
     const generation = requestGeneration.current;
+    const token = captchaToken?.trim() || undefined;
     const result =
       kind === "signup"
         ? await supabase.auth.resend({
             type: "signup",
             email: email.trim(),
-            options: { emailRedirectTo: redirectTo() },
+            options: {
+              emailRedirectTo: redirectTo(),
+              ...(token ? { captchaToken: token } : {}),
+            },
           })
         : await supabase.auth.resetPasswordForEmail(email.trim(), {
             redirectTo: redirectTo("reset"),
+            ...(token ? { captchaToken: token } : {}),
           });
     if (generation !== requestGeneration.current) return;
+    setCaptchaToken(null);
+    setCaptchaResetKey((prev) => prev + 1);
     if (result.error) throw result.error;
     setSent(kind);
     setCooldown(60);
@@ -247,9 +266,17 @@ function AuthPage() {
           return;
         }
         const { data, error: signupError } = await supabase.auth.signUp(
-          signupCredentials(email, password, name, redirectTo()),
+          signupCredentials(
+            email,
+            password,
+            name,
+            redirectTo(),
+            captchaToken ?? undefined,
+          ),
         );
         if (generation !== requestGeneration.current) return;
+        setCaptchaToken(null);
+        setCaptchaResetKey((prev) => prev + 1);
         if (signupError) throw signupError;
         setPassword("");
         setConfirmation("");
@@ -373,9 +400,20 @@ function AuthPage() {
             <p className="text-sm text-muted-foreground">
               {t("authKit.emailHint")}
             </p>
+            {!NATIVE && isTurnstileSiteKeyConfigured() && (
+              <TurnstileWidget
+                action={`auth_${sent}`}
+                resetKey={captchaResetKey}
+                onVerify={(token) => setCaptchaToken(token)}
+                onExpire={() => setCaptchaToken(null)}
+                onError={() => setCaptchaToken(null)}
+              />
+            )}
             <button
               className={primary}
-              disabled={busy || cooldown > 0}
+              disabled={
+                busy || cooldown > 0 || (captchaRequired && !captchaToken)
+              }
               onClick={() => {
                 const generation = requestGeneration.current;
                 setBusy(true);
@@ -400,6 +438,8 @@ function AuthPage() {
               disabled={busy}
               onClick={() => {
                 setSent(null);
+                setCaptchaToken(null);
+                setCaptchaResetKey((prev) => prev + 1);
                 setMode(sent === "signup" ? "verify" : "forgot");
               }}
             >
@@ -552,10 +592,23 @@ function AuthPage() {
                   </button>
                 </div>
               )}
+              {!NATIVE &&
+                (mode === "signup" ||
+                  mode === "forgot" ||
+                  mode === "verify") && (
+                  <TurnstileWidget
+                    action={`auth_${mode}`}
+                    resetKey={captchaResetKey}
+                    onVerify={(token) => setCaptchaToken(token)}
+                    onExpire={() => setCaptchaToken(null)}
+                    onError={() => setCaptchaToken(null)}
+                  />
+                )}
               <button
                 disabled={
                   busy ||
-                  ((mode === "forgot" || mode === "verify") && cooldown > 0)
+                  ((mode === "forgot" || mode === "verify") && cooldown > 0) ||
+                  (captchaRequired && !captchaToken)
                 }
                 className={primary}
               >

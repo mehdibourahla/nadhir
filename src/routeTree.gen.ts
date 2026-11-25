@@ -52,7 +52,10 @@ import { Route as AuthenticatedAdminTranslationsRouteImport } from './routes/_au
 import { Route as ApiPrivateAccountRouteImport } from './routes/api/private/account'
 import { Route as ApiPrivateAlertCheckRouteImport } from './routes/api/private/alert-check'
 import { Route as ApiPrivateEnsembleRouteImport } from './routes/api/private/ensemble'
+import { Route as ApiPrivatePrivacyConsentRouteImport } from './routes/api/private/privacy-consent'
+import { Route as ApiPrivatePrivacyExportRouteImport } from './routes/api/private/privacy-export'
 import { Route as ApiPrivatePushTestRouteImport } from './routes/api/private/push-test'
+import { Route as ApiPrivateReportPhotoRouteImport } from './routes/api/private/report-photo'
 import { Route as ApiPrivateReportPublishRouteImport } from './routes/api/private/report-publish'
 import { Route as ApiPrivateUserPushRouteImport } from './routes/api/private/user-push'
 import { Route as ApiPublicPushReceiptRouteImport } from './routes/api/public/push-receipt'
@@ -297,9 +300,25 @@ const ApiPrivateEnsembleRoute = ApiPrivateEnsembleRouteImport.update({
   path: '/api/private/ensemble',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPrivatePrivacyConsentRoute =
+  ApiPrivatePrivacyConsentRouteImport.update({
+    id: '/api/private/privacy-consent',
+    path: '/api/private/privacy-consent',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPrivatePrivacyExportRoute = ApiPrivatePrivacyExportRouteImport.update({
+  id: '/api/private/privacy-export',
+  path: '/api/private/privacy-export',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPrivatePushTestRoute = ApiPrivatePushTestRouteImport.update({
   id: '/api/private/push-test',
   path: '/api/private/push-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPrivateReportPhotoRoute = ApiPrivateReportPhotoRouteImport.update({
+  id: '/api/private/report-photo',
+  path: '/api/private/report-photo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPrivateReportPublishRoute = ApiPrivateReportPublishRouteImport.update({
@@ -460,7 +479,10 @@ export interface FileRoutesByFullPath {
   '/api/private/account': typeof ApiPrivateAccountRoute
   '/api/private/alert-check': typeof ApiPrivateAlertCheckRoute
   '/api/private/ensemble': typeof ApiPrivateEnsembleRoute
+  '/api/private/privacy-consent': typeof ApiPrivatePrivacyConsentRoute
+  '/api/private/privacy-export': typeof ApiPrivatePrivacyExportRoute
   '/api/private/push-test': typeof ApiPrivatePushTestRoute
+  '/api/private/report-photo': typeof ApiPrivateReportPhotoRoute
   '/api/private/report-publish': typeof ApiPrivateReportPublishRoute
   '/api/private/user-push': typeof ApiPrivateUserPushRoute
   '/api/public/push-receipt': typeof ApiPublicPushReceiptRoute
@@ -525,7 +547,10 @@ export interface FileRoutesByTo {
   '/api/private/account': typeof ApiPrivateAccountRoute
   '/api/private/alert-check': typeof ApiPrivateAlertCheckRoute
   '/api/private/ensemble': typeof ApiPrivateEnsembleRoute
+  '/api/private/privacy-consent': typeof ApiPrivatePrivacyConsentRoute
+  '/api/private/privacy-export': typeof ApiPrivatePrivacyExportRoute
   '/api/private/push-test': typeof ApiPrivatePushTestRoute
+  '/api/private/report-photo': typeof ApiPrivateReportPhotoRoute
   '/api/private/report-publish': typeof ApiPrivateReportPublishRoute
   '/api/private/user-push': typeof ApiPrivateUserPushRoute
   '/api/public/push-receipt': typeof ApiPublicPushReceiptRoute
@@ -594,7 +619,10 @@ export interface FileRoutesById {
   '/api/private/account': typeof ApiPrivateAccountRoute
   '/api/private/alert-check': typeof ApiPrivateAlertCheckRoute
   '/api/private/ensemble': typeof ApiPrivateEnsembleRoute
+  '/api/private/privacy-consent': typeof ApiPrivatePrivacyConsentRoute
+  '/api/private/privacy-export': typeof ApiPrivatePrivacyExportRoute
   '/api/private/push-test': typeof ApiPrivatePushTestRoute
+  '/api/private/report-photo': typeof ApiPrivateReportPhotoRoute
   '/api/private/report-publish': typeof ApiPrivateReportPublishRoute
   '/api/private/user-push': typeof ApiPrivateUserPushRoute
   '/api/public/push-receipt': typeof ApiPublicPushReceiptRoute
@@ -663,7 +691,10 @@ export interface FileRouteTypes {
     | '/api/private/account'
     | '/api/private/alert-check'
     | '/api/private/ensemble'
+    | '/api/private/privacy-consent'
+    | '/api/private/privacy-export'
     | '/api/private/push-test'
+    | '/api/private/report-photo'
     | '/api/private/report-publish'
     | '/api/private/user-push'
     | '/api/public/push-receipt'
@@ -728,7 +759,10 @@ export interface FileRouteTypes {
     | '/api/private/account'
     | '/api/private/alert-check'
     | '/api/private/ensemble'
+    | '/api/private/privacy-consent'
+    | '/api/private/privacy-export'
     | '/api/private/push-test'
+    | '/api/private/report-photo'
     | '/api/private/report-publish'
     | '/api/private/user-push'
     | '/api/public/push-receipt'
@@ -796,7 +830,10 @@ export interface FileRouteTypes {
     | '/api/private/account'
     | '/api/private/alert-check'
     | '/api/private/ensemble'
+    | '/api/private/privacy-consent'
+    | '/api/private/privacy-export'
     | '/api/private/push-test'
+    | '/api/private/report-photo'
     | '/api/private/report-publish'
     | '/api/private/user-push'
     | '/api/public/push-receipt'
@@ -842,7 +879,10 @@ export interface RootRouteChildren {
   ApiPrivateAccountRoute: typeof ApiPrivateAccountRoute
   ApiPrivateAlertCheckRoute: typeof ApiPrivateAlertCheckRoute
   ApiPrivateEnsembleRoute: typeof ApiPrivateEnsembleRoute
+  ApiPrivatePrivacyConsentRoute: typeof ApiPrivatePrivacyConsentRoute
+  ApiPrivatePrivacyExportRoute: typeof ApiPrivatePrivacyExportRoute
   ApiPrivatePushTestRoute: typeof ApiPrivatePushTestRoute
+  ApiPrivateReportPhotoRoute: typeof ApiPrivateReportPhotoRoute
   ApiPrivateReportPublishRoute: typeof ApiPrivateReportPublishRoute
   ApiPrivateUserPushRoute: typeof ApiPrivateUserPushRoute
   ApiPublicPushReceiptRoute: typeof ApiPublicPushReceiptRoute
@@ -1170,11 +1210,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPrivateEnsembleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/private/privacy-consent': {
+      id: '/api/private/privacy-consent'
+      path: '/api/private/privacy-consent'
+      fullPath: '/api/private/privacy-consent'
+      preLoaderRoute: typeof ApiPrivatePrivacyConsentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/private/privacy-export': {
+      id: '/api/private/privacy-export'
+      path: '/api/private/privacy-export'
+      fullPath: '/api/private/privacy-export'
+      preLoaderRoute: typeof ApiPrivatePrivacyExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/private/push-test': {
       id: '/api/private/push-test'
       path: '/api/private/push-test'
       fullPath: '/api/private/push-test'
       preLoaderRoute: typeof ApiPrivatePushTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/private/report-photo': {
+      id: '/api/private/report-photo'
+      path: '/api/private/report-photo'
+      fullPath: '/api/private/report-photo'
+      preLoaderRoute: typeof ApiPrivateReportPhotoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/private/report-publish': {
@@ -1433,7 +1494,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPrivateAccountRoute: ApiPrivateAccountRoute,
   ApiPrivateAlertCheckRoute: ApiPrivateAlertCheckRoute,
   ApiPrivateEnsembleRoute: ApiPrivateEnsembleRoute,
+  ApiPrivatePrivacyConsentRoute: ApiPrivatePrivacyConsentRoute,
+  ApiPrivatePrivacyExportRoute: ApiPrivatePrivacyExportRoute,
   ApiPrivatePushTestRoute: ApiPrivatePushTestRoute,
+  ApiPrivateReportPhotoRoute: ApiPrivateReportPhotoRoute,
   ApiPrivateReportPublishRoute: ApiPrivateReportPublishRoute,
   ApiPrivateUserPushRoute: ApiPrivateUserPushRoute,
   ApiPublicPushReceiptRoute: ApiPublicPushReceiptRoute,

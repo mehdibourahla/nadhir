@@ -1034,7 +1034,7 @@ export const kab: Translation = {
     photoRemove: "Kkes tawlaft",
     photoFailed: "Asali ur yeddi ara. Ɛreḍ tikkelt-nniḍen.",
     photoTooLarge: "Tawlaft tugar 8 Mo.",
-    photoBadType: "Ala tiwlafin JPEG neɣ PNG i izemren ad ttwarnun.",
+    photoBadType: "Ala tiwlafin JPEG, PNG neɣ WebP i izemren ad ttwarnun.",
     photoUnavailable: "Tawlaft ulac-itt.",
     photoAlt: "Tawlaft n uneqqis n tmes sɣur aɣerman",
     submit: "Azen aneɣmis",

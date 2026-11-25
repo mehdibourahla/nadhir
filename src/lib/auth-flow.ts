@@ -6,11 +6,18 @@ export function signupCredentials(
   password: string,
   name: string,
   emailRedirectTo: string,
+  captchaToken?: string,
 ) {
+  const options: {
+    emailRedirectTo: string;
+    data: { full_name: string };
+    captchaToken?: string;
+  } = { emailRedirectTo, data: { full_name: name.trim() } };
+  if (captchaToken?.trim()) options.captchaToken = captchaToken.trim();
   return {
     email: email.trim(),
     password,
-    options: { emailRedirectTo, data: { full_name: name.trim() } },
+    options,
   };
 }
 export function authMode(value: unknown): AuthMode {

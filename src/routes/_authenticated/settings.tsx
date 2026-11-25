@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { AccountSecurity } from "@/components/AccountSecurity";
 import { OemBatteryGuide } from "@/components/nadhir/OemBatteryGuide";
+import { PrivacyControls } from "@/components/nadhir/PrivacyControls";
 import { UserPushTest } from "@/components/nadhir/UserPushTest";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -402,6 +403,7 @@ function SettingsPage() {
           <OemBatteryGuide open={guideOpen} onOpenChange={setGuideOpen} />
         </div>
       </section>
+      <PrivacyControls />
       <details className="panel mt-6 p-5">
         <summary className="cursor-pointer font-semibold text-destructive">
           {t("account.deleteAccount")}
