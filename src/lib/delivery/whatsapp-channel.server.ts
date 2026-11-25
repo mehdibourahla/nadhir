@@ -9,6 +9,7 @@ import {
   NON_FIRE_BROADCAST_KINDS,
   onmWarningIsCurrent,
 } from "@/lib/broadcast-rules";
+import { isFireKind } from "@/lib/text-sources/merge";
 
 function isAnyLocale(value: string): value is AnyLocale {
   return value === "ar" || value === "fr" || value === "en" || value === "kab";
@@ -27,6 +28,7 @@ const APPROVED_OFFICIAL_HAZARDS = new Set<string>([
   "fire",
   ...NON_FIRE_BROADCAST_KINDS,
 ]);
+const LEGACY_OFFICIAL_FIRE_HAZARDS = new Set(["wildfire", "forest"]);
 const MODEL_SOURCE_KEYS = new Set([
   "open_meteo",
   "openmeteo",
@@ -41,10 +43,26 @@ const BANNED_STATUS_PATTERNS = [
   /\bsafe\s+(?:zone|area|status|now)\b/gi,
   /\bstatus\s*:\s*safe\b/gi,
   /\bsafe\b/gi,
-  /\bsûre?\b/gi,
+  /\bs(?:û|u\u0302)re?\b/gi,
   /(?<![\p{L}\p{N}])آمنة?(?![\p{L}\p{N}])/gu,
   /\byeɣlel\b/gi,
 ];
+
+function normalizeOfficialHazard(raw: string): string {
+  const normalized = raw.trim().toLowerCase();
+  if (isFireKind(normalized) || LEGACY_OFFICIAL_FIRE_HAZARDS.has(normalized)) {
+    return "fire";
+  }
+  return normalized;
+}
+
+function looksLikeItaSourceKey(key: string | null | undefined): boolean {
+  if (!key) return false;
+  const normalized = key.trim().toLowerCase();
+  return (
+    normalized.startsWith("ita") || /(^|[_\-.])ita($|[_\-.])/i.test(normalized)
+  );
+}
 
 export interface WhatsAppChannelMessageInput {
   channelId: string;
@@ -256,15 +274,18 @@ function stripAsciiControlChars(value: string): string {
 }
 
 export function sanitizeCopyText(raw: string): string {
-  let cleaned = stripAsciiControlChars(raw).replace(/\u2014/g, " · ");
+  let cleaned = stripAsciiControlChars(raw)
+    .normalize("NFC")
+    .replace(/\u2014/g, " · ");
   for (const pattern of BANNED_STATUS_PATTERNS) {
     cleaned = cleaned.replace(pattern, "");
   }
   return cleaned
     .replace(/\s+/g, " ")
     .replace(/\s+([.,:;!?])/g, "$1")
-    .replace(/(?:^\s*·\s*)+|(?:\s*·\s*$)+/g, "")
     .replace(/\s*·(?:\s*·)+\s*/g, " · ")
+    .replace(/^\s*(?:·\s*)+/, "")
+    .replace(/(?:\s*·)+\s*$/, "")
     .trim();
 }
 
@@ -476,8 +497,7 @@ export function evaluateWhatsappBroadcastEligibility(
 
   // Hard exclusions (ADR-0002 & official-notification-policy.md)
   if (
-    rawSourceKey.startsWith("ita") ||
-    /(^|[_\-.])ita($|[_\-.])/i.test(rawSourceKey) ||
+    looksLikeItaSourceKey(rawSourceKey) ||
     authorityTier === "media" ||
     looksLikeItaAttribution(input.sourceAttribution)
   ) {
@@ -844,11 +864,25 @@ export function mapPendingBroadcastRowToCandidate(
   }
 
   if (kind === "official") {
-    const hazard =
+    const rawHazard =
       row.hazard ??
       row.incident_kind ??
       metaString(meta, "hazard_kind") ??
       "fire";
+    const hazard = normalizeOfficialHazard(rawHazard);
+    const incidentSourceKey =
+      row.incident_source_key && row.incident_source_key.trim().length > 0
+        ? row.incident_source_key.trim()
+        : null;
+    const broadcastSourceKey =
+      row.source_key && row.source_key.trim().length > 0
+        ? row.source_key.trim()
+        : null;
+    const sourceKey = looksLikeItaSourceKey(incidentSourceKey)
+      ? incidentSourceKey
+      : looksLikeItaSourceKey(broadcastSourceKey)
+        ? broadcastSourceKey
+        : (incidentSourceKey ?? broadcastSourceKey);
     const observedAt =
       row.incident_as_of ?? metaString(meta, "observed_at") ?? row.created_at;
     return {
@@ -857,7 +891,7 @@ export function mapPendingBroadcastRowToCandidate(
       phase: row.phase,
       severity: row.severity,
       hazard,
-      sourceKey: row.source_key ?? row.incident_source_key ?? null,
+      sourceKey,
       sourceAttribution:
         row.incident_source_label ??
         metaString(meta, "source_attribution") ??

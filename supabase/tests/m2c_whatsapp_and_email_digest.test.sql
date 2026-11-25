@@ -562,6 +562,129 @@ select is(
   'enqueue_whatsapp_broadcast fails closed for cleared initial official incident'
 );
 
+-- Head-of-line starvation regression: 20 older cleared official broadcasts + cancelled-phase
+-- + extinguished fire must NOT starve a newer active Extreme ONM broadcast in limit=20 window
+do $$
+declare
+  _i integer;
+  _inc_id uuid;
+  _b_id uuid;
+begin
+  for _i in 1..20 loop
+    _inc_id := ('c2c90000-0000-4000-8000-' || lpad(_i::text, 12, '0'))::uuid;
+    _b_id   := ('c2c91000-0000-4000-8000-' || lpad(_i::text, 12, '0'))::uuid;
+
+    insert into public.official_incidents (
+      id, wilaya_id, commune_id, kind, status, precision, authority_tier,
+      first_reported_at, last_reported_at, as_of, evidence, place_text
+    )
+    values (
+      _inc_id,
+      'c2c00000-0000-4000-8000-000000000001',
+      'c2c00000-0000-4000-8000-000000000002',
+      'flood', 'cleared', 'commune', 'national',
+      now() - interval '6 hours', now() - interval '5 hours', now() - interval '5 hours',
+      'Cleared intervention #' || _i,
+      'Commune M2C'
+    );
+
+    insert into public.broadcasts (
+      id, kind, phase, official_incident_id, severity, hazard, source_key,
+      commune_codes, push_codes, created_at
+    )
+    values (
+      _b_id, 'official', 'initial', _inc_id, 'Severe', 'flood', 'dgpc_telegram',
+      array['9701'], array['9701'], now() - interval '6 hours' + (_i || ' minutes')::interval
+    );
+  end loop;
+end;
+$$;
+
+-- Older cancelled-phase broadcast
+insert into public.broadcasts (
+  id, kind, phase, official_incident_id, severity, hazard, source_key,
+  commune_codes, push_codes, created_at
+)
+values (
+  'c2c92000-0000-4000-8000-000000000001',
+  'official', 'cancel', 'c2c90000-0000-4000-8000-000000000001',
+  'Severe', 'flood', 'dgpc_telegram',
+  array['9701'], array['9701'], now() - interval '5 hours'
+);
+
+-- Older extinguished fire cluster + broadcast
+insert into public.fire_clusters (
+  id, short_id, state, first_detected_at, last_detected_at, lat, lon, wilaya_id
+)
+values (
+  'c2c93000-0000-4000-8000-000000000001',
+  'm2c-ext-1',
+  'extinguished',
+  now() - interval '5 hours',
+  now() - interval '4 hours',
+  36.75, 3.05,
+  'c2c00000-0000-4000-8000-000000000001'
+);
+
+insert into public.broadcasts (
+  id, kind, phase, cluster_id, severity, hazard, source_key,
+  commune_codes, push_codes, created_at
+)
+values (
+  'c2c94000-0000-4000-8000-000000000001',
+  'fire', 'end', 'c2c93000-0000-4000-8000-000000000001',
+  'Severe', 'fire', 'firms',
+  array['9701'], array['9701'], now() - interval '4 hours'
+);
+
+-- Newer active Extreme ONM warning inserted AFTER the 22 ineligible broadcasts
+insert into public.onm_vigilance (
+  id, cap_id, title, event, severity, urgency, certainty,
+  onset, expires, sent, area_desc, wilaya_id
+)
+values (
+  'c2c95000-0000-4000-8000-000000000001',
+  'urn:oid:m2c.onm.starve.extreme',
+  'Rain Extreme warning for Wilaya M2C',
+  'Rain', 'Extreme', 'Immediate', 'Observed',
+  now() - interval '5 minutes', now() + interval '6 hours', now() - interval '2 minutes',
+  'Wilaya M2C', 'c2c00000-0000-4000-8000-000000000001'
+);
+
+insert into public.broadcasts (
+  id, kind, phase, onm_vigilance_id, severity, hazard, source_key,
+  commune_codes, push_codes, created_at
+)
+values (
+  'c2c96000-0000-4000-8000-000000000001',
+  'onm', 'initial', 'c2c95000-0000-4000-8000-000000000001',
+  'Extreme', 'rain', 'onm',
+  array['9701'], array['9701'], now() - interval '1 minute'
+);
+
+select ok(
+  exists (
+    select 1
+      from public.list_pending_whatsapp_broadcasts('channel-starve-test', 'ar', 20) r
+     where r.id = 'c2c96000-0000-4000-8000-000000000001'
+       and r.kind = 'onm'
+       and r.severity = 'Extreme'
+  ),
+  'list_pending_whatsapp_broadcasts returns newer Extreme ONM broadcast without 20-row starvation'
+);
+
+select is(
+  (select count(*)::int
+     from public.list_pending_whatsapp_broadcasts('channel-starve-test', 'ar', 20) r
+    where r.id::text like 'c2c91000-%'
+       or r.id in (
+         'c2c92000-0000-4000-8000-000000000001',
+         'c2c94000-0000-4000-8000-000000000001'
+       )),
+  0,
+  'list_pending_whatsapp_broadcasts excludes cleared official, cancelled-phase, and extinguished fire rows'
+);
+
 -- ============================================================================
 -- 3. Email Digest deliveries & suppressions: opt-in, confirmed email, dedup,
 --    atomic alerts.delivered_email=true, retry vs permanent fail, hard bounce

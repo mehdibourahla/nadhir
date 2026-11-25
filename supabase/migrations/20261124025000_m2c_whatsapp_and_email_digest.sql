@@ -436,14 +436,44 @@ begin
   left join public.cap_alerts ca on ca.id = b.cap_alert_id
   where b.created_at >= now() - interval '24 hours'
     and b.kind in ('onm', 'official', 'earthquake', 'fire')
+    and b.phase <> 'cancel'
+    and b.severity in ('Severe', 'Extreme')
+    and coalesce(b.source_key, '') !~* '(^|[_\-.])ita($|[_\-.])|^ita'
+    and replace(replace(lower(coalesce(b.source_key, '')), '-', '_'), ' ', '_')
+        not in ('open_meteo', 'openmeteo', 'openmeteo_weather', 'openmeteo_wind', 'local_fwi', 'effis')
     and (
       b.kind <> 'onm'
       or v.id is null
       or (
         v.cancelled_at is null
         and v.superseded_by is null
-        and v.msg_type <> 'Cancel'
+        and lower(coalesce(v.msg_type, '')) <> 'cancel'
         and (v.expires is null or v.expires > now())
+      )
+    )
+    and (
+      b.kind <> 'official'
+      or (
+        o.id is not null
+        and o.unlisted_at is null
+        and coalesce(lower(o.authority_tier), 'national') <> 'media'
+        and coalesce(lower(ts.key), '') !~* '(^|[_\-.])ita($|[_\-.])|^ita'
+        and coalesce(lower(ts.key), lower(b.source_key), '') = 'dgpc_telegram'
+        and (b.source_key is null or lower(b.source_key) = 'dgpc_telegram')
+        and (b.phase = 'end' or coalesce(lower(o.status), '') not in ('cleared', 'extinguished'))
+      )
+    )
+    and (
+      b.kind <> 'earthquake'
+      or (e.id is not null and e.magnitude >= 4.0)
+    )
+    and (
+      b.kind <> 'fire'
+      or (
+        fc.id is not null
+        and coalesce(fc.suspected_persistent_source, false) = false
+        and coalesce(lower(fc.state), '') not in ('false_positive', 'extinguished')
+        and (fc.confirmed_at is not null or lower(fc.state) = 'active')
       )
     )
     and not exists (

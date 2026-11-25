@@ -586,6 +586,13 @@ describe("formatWhatsappBroadcastMessage & invariants", () => {
       "Alert SecondLine",
     );
     expect(sanitizeCopyText("Safe Zone \u2014 Blida")).toBe("Blida");
+    expect(sanitizeCopyText("Safe Zone \u2014 \u2014 Blida")).toBe("Blida");
+    expect(sanitizeCopyText("· · · Blida · · ·")).toBe("Blida");
+    expect(sanitizeCopyText("· · ·")).toBe("");
+    // NFD decomposed "sûr" / "sûre" stripped while French preposition "sur" is preserved
+    expect(sanitizeCopyText("Zone su\u0302r Blida")).toBe("Zone Blida");
+    expect(sanitizeCopyText("Zone su\u0302re Blida")).toBe("Zone Blida");
+    expect(sanitizeCopyText("Alerte sur Blida")).toBe("Alerte sur Blida");
 
     const locales: AnyLocale[] = ["ar", "fr", "en", "kab"];
     for (const locale of locales) {
@@ -980,6 +987,109 @@ describe("deliverWhatsappChannelBroadcasts pipeline", () => {
     expect(
       evaluateWhatsappBroadcastEligibility(activeFireCandidate, NOW),
     ).toEqual({ eligible: true });
+
+    // Legacy official DGPC fire sub-kinds with hazard=null normalize to "fire" and pass eligibility
+    const baseOfficialRow: PendingWhatsAppBroadcastRow = {
+      ...rawFireRow,
+      id: "b-official-legacy-fire",
+      kind: "official",
+      phase: "initial",
+      severity: "Severe",
+      hazard: null,
+      source_key: "dgpc_telegram",
+      official_incident_id: "inc-legacy-1",
+      cluster_id: null,
+      incident_status: "ongoing",
+      incident_unlisted_at: null,
+      incident_kind: "vegetation",
+      incident_source_key: "dgpc_telegram",
+      incident_source_label: "DGPC",
+      incident_authority_tier: "national",
+      incident_evidence: "Incendie de forêt en cours à Blida",
+      incident_place_text: "Blida",
+      incident_as_of: "2026-11-25T09:00:00Z",
+      incident_area_label: "Blida",
+      fire_short_id: null,
+      fire_state: null,
+      fire_confirmed_at: null,
+      fire_detection_count: null,
+      fire_sources: null,
+      fire_suspected_persistent: null,
+      fire_last_detected_at: null,
+      fire_area_label: null,
+    };
+
+    for (const legacyKind of [
+      "vegetation",
+      "agricultural",
+      "urban",
+      "unknown",
+      "wildfire",
+      "forest",
+    ]) {
+      const candidate = mapPendingBroadcastRowToCandidate({
+        ...baseOfficialRow,
+        id: `b-official-${legacyKind}`,
+        incident_kind: legacyKind,
+      });
+      expect(candidate.hazard).toBe("fire");
+      expect(evaluateWhatsappBroadcastEligibility(candidate, NOW)).toEqual({
+        eligible: true,
+      });
+    }
+
+    // Unapproved official incident kind ("other") still fails closed
+    const otherOfficialCandidate = mapPendingBroadcastRowToCandidate({
+      ...baseOfficialRow,
+      id: "b-official-other",
+      incident_kind: "other",
+    });
+    expect(
+      evaluateWhatsappBroadcastEligibility(otherOfficialCandidate, NOW),
+    ).toEqual({ eligible: false, reason: "unapproved_official_hazard" });
+
+    // Authoritative incident_source_key precedence: ITA in either column is unconditionally rejected
+    const shadowedItaCandidate = mapPendingBroadcastRowToCandidate({
+      ...baseOfficialRow,
+      id: "b-official-ita-shadow",
+      hazard: "road",
+      incident_kind: "road",
+      source_key: "dgpc_telegram",
+      incident_source_key: "ita_facebook",
+      incident_authority_tier: "national",
+    });
+    expect(shadowedItaCandidate.sourceKey).toBe("ita_facebook");
+    expect(
+      evaluateWhatsappBroadcastEligibility(shadowedItaCandidate, NOW),
+    ).toEqual({ eligible: false, reason: "ita_media_excluded" });
+
+    const broadcastItaCandidate = mapPendingBroadcastRowToCandidate({
+      ...baseOfficialRow,
+      id: "b-official-ita-broadcast",
+      hazard: "road",
+      incident_kind: "road",
+      source_key: "ita_facebook",
+      incident_source_key: "dgpc_telegram",
+      incident_authority_tier: "national",
+    });
+    expect(broadcastItaCandidate.sourceKey).toBe("ita_facebook");
+    expect(
+      evaluateWhatsappBroadcastEligibility(broadcastItaCandidate, NOW),
+    ).toEqual({ eligible: false, reason: "ita_media_excluded" });
+
+    const nonDgpcAuthoritativeCandidate = mapPendingBroadcastRowToCandidate({
+      ...baseOfficialRow,
+      id: "b-official-non-dgpc",
+      hazard: "flood",
+      incident_kind: "flood",
+      source_key: "dgpc_telegram",
+      incident_source_key: "facebook_page",
+      incident_authority_tier: "national",
+    });
+    expect(nonDgpcAuthoritativeCandidate.sourceKey).toBe("facebook_page");
+    expect(
+      evaluateWhatsappBroadcastEligibility(nonDgpcAuthoritativeCandidate, NOW),
+    ).toEqual({ eligible: false, reason: "unapproved_official_source" });
 
     // End-to-end deliverWhatsappChannelBroadcasts pulling via store.loadPendingCandidates (no options.candidates)
     const { store } = makeInMemoryStore();
