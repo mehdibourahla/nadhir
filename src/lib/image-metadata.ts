@@ -3,7 +3,25 @@ export const MAX_REPORT_PHOTO_BYTES = 8 * 1024 * 1024;
 export type AllowedImageMimeType = "image/jpeg" | "image/png" | "image/webp";
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-const PNG_DROP = new Set(["eXIf", "tEXt", "iTXt", "zTXt", "tIME"]);
+const PNG_KEEP = new Set([
+  "IHDR",
+  "PLTE",
+  "IDAT",
+  "IEND",
+  "tRNS",
+  "cHRM",
+  "gAMA",
+  "iCCP",
+  "sBIT",
+  "sRGB",
+  "bKGD",
+  "hIST",
+  "pHYs",
+  "sPLT",
+  "acTL",
+  "fcTL",
+  "fdAT",
+]);
 const WEBP_KEEP = new Set([
   "VP8 ",
   "VP8L",
@@ -29,6 +47,21 @@ function assemble(
 }
 
 const ICC_MARKER = "ICC_PROFILE\0";
+const JFIF_MARKER = "JFIF\0";
+
+// APP0 can carry JFXX extensions, embedded thumbnails, or arbitrary metadata; keep
+// only a minimal 16-byte JFIF\0 header with Xthumbnail === 0 && Ythumbnail === 0.
+function isMinimalJfifApp0(
+  bytes: Uint8Array,
+  payloadAt: number,
+  length: number,
+): boolean {
+  if (length !== 16 || payloadAt + 14 > bytes.length) return false;
+  for (let k = 0; k < JFIF_MARKER.length; k += 1) {
+    if (bytes[payloadAt + k] !== JFIF_MARKER.charCodeAt(k)) return false;
+  }
+  return bytes[payloadAt + 12] === 0 && bytes[payloadAt + 13] === 0;
+}
 
 // APP2 carries ICC profiles but also MPF, whose embedded second image keeps its own
 // Exif and GPS, so the segment is kept on its payload identifier, not its marker.
@@ -92,12 +125,14 @@ function normalizeDeclaredMime(raw: string): string {
   return base === "image/jpg" ? "image/jpeg" : base;
 }
 
-/** Keeps JFIF (APP0) and a real ICC profile (APP2); every other APPn and COM carries
- *  Exif, XMP, IPTC or MPF, which is where the reporter's GPS and device identity live. */
+/** Keeps minimal JFIF (APP0, zero thumbnail) and a real ICC profile (APP2); every
+ *  other APPn (including JFXX/thumbnail APP0) and COM carries Exif, XMP, IPTC or MPF,
+ *  which is where the reporter's GPS and device identity live. */
 function stripJpeg(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
   const keep: [number, number][] = [[0, 2]];
   let i = 2;
   let foundEoi = false;
+  let foundSos = false;
 
   while (i < bytes.length) {
     if (bytes[i] !== 0xff) throw new Error("invalid_image");
@@ -128,6 +163,7 @@ function stripJpeg(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
     }
 
     if (marker === 0xda) {
+      foundSos = true;
       let j = i + 2 + length;
       let markerStart = -1;
       while (j < bytes.length) {
@@ -154,20 +190,18 @@ function stripJpeg(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
       continue;
     }
 
-    const isApp = marker >= 0xe1 && marker <= 0xef;
-    const drop =
-      marker === 0xfe ||
-      (isApp &&
-        !(
-          marker === 0xe2 &&
-          length - 2 >= ICC_MARKER.length &&
-          isIccProfile(bytes, i + 4)
-        ));
+    const isApp = marker >= 0xe0 && marker <= 0xef;
+    const keepApp =
+      (marker === 0xe0 && isMinimalJfifApp0(bytes, i + 4, length)) ||
+      (marker === 0xe2 &&
+        length - 2 >= ICC_MARKER.length &&
+        isIccProfile(bytes, i + 4));
+    const drop = marker === 0xfe || (isApp && !keepApp);
     if (!drop) keep.push([i, i + 2 + length]);
     i += 2 + length;
   }
 
-  if (!foundEoi) throw new Error("invalid_image");
+  if (!foundEoi || !foundSos) throw new Error("invalid_image");
   return assemble(bytes, keep);
 }
 
@@ -177,6 +211,7 @@ function stripPng(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
   let i = 8;
   let chunkIndex = 0;
   let foundIend = false;
+  let foundIdat = false;
 
   while (i < bytes.length) {
     if (i + 12 > bytes.length) throw new Error("invalid_image");
@@ -193,20 +228,23 @@ function stripPng(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
     if (chunkIndex === 0 && (type !== "IHDR" || length !== 13)) {
       throw new Error("invalid_image");
     }
+    if (type === "IDAT") {
+      foundIdat = true;
+    }
     if (type === "IEND") {
       if (length !== 0) throw new Error("invalid_image");
       keep.push([i, i + 12]);
       foundIend = true;
       break;
     }
-    if (!PNG_DROP.has(type)) {
+    if (PNG_KEEP.has(type)) {
       keep.push([i, i + 12 + length]);
     }
     i += 12 + length;
     chunkIndex += 1;
   }
 
-  if (!foundIend) throw new Error("invalid_image");
+  if (!foundIend || !foundIdat) throw new Error("invalid_image");
   return assemble(bytes, keep);
 }
 

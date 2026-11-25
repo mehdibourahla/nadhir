@@ -1,6 +1,7 @@
 import { haversineKm } from "@/lib/nadhir";
 
 import { EMSC_MIN_MAGNITUDE } from "./emsc";
+import { parseIsoTimestamp } from "./imerg";
 
 export const CRAAG_SOURCE_KEY = "craag_earthquakes" as const;
 export const CRAAG_DEFAULT_URL =
@@ -134,6 +135,26 @@ function resolveUrl(href: string | null, baseUrl: string): string | null {
   }
 }
 
+function buildValidatedCraagIso(
+  yearStr: string,
+  monthStr: string,
+  dayStr: string,
+  hourStr: string,
+  minuteStr: string,
+  secondStr: string,
+  offset: "+01:00" | "Z",
+  raw: string,
+): string {
+  const iso = `${yearStr}-${monthStr.padStart(2, "0")}-${dayStr.padStart(2, "0")}T${hourStr.padStart(2, "0")}:${minuteStr.padStart(2, "0")}:${secondStr.padStart(2, "0")}${offset}`;
+  try {
+    return parseIsoTimestamp(iso, "earthquake", "CRAAG");
+  } catch {
+    throw new Error(
+      `CRAAG schema invalid: invalid calendar date in earthquake timestamp "${raw}"`,
+    );
+  }
+}
+
 export function parseCraagTimestamp(
   raw: string,
   defaultOffset: "+01:00" | "Z" = "+01:00",
@@ -147,8 +168,7 @@ export function parseCraagTimestamp(
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(cleaned)) {
     const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(cleaned);
     const iso = hasZone ? cleaned : `${cleaned}${defaultOffset}`;
-    const ms = Date.parse(iso);
-    if (Number.isFinite(ms)) return new Date(ms).toISOString();
+    return parseIsoTimestamp(iso, "earthquake", "CRAAG");
   }
 
   const isAlgiers =
@@ -165,16 +185,16 @@ export function parseCraagTimestamp(
     /(\d{1,2})[/-](\d{1,2})[/-](\d{4})\s*(?:à|a|at|-|\s)?\s*(\d{1,2})[:h](\d{2})(?::(\d{2}))?/i,
   );
   if (dmy) {
-    const day = dmy[1]!.padStart(2, "0");
-    const month = dmy[2]!.padStart(2, "0");
-    const year = dmy[3]!;
-    const hour = dmy[4]!.padStart(2, "0");
-    const minute = dmy[5]!.padStart(2, "0");
-    const second = (dmy[6] ?? "00").padStart(2, "0");
-    const ms = Date.parse(
-      `${year}-${month}-${day}T${hour}:${minute}:${second}${offset}`,
+    return buildValidatedCraagIso(
+      dmy[3]!,
+      dmy[2]!,
+      dmy[1]!,
+      dmy[4]!,
+      dmy[5]!,
+      dmy[6] ?? "00",
+      offset,
+      raw,
     );
-    if (Number.isFinite(ms)) return new Date(ms).toISOString();
   }
 
   // YYYY-MM-DD HH:MM(:SS)? or YYYY/MM/DD HH:MM(:SS)?
@@ -182,16 +202,16 @@ export function parseCraagTimestamp(
     /(\d{4})[/-](\d{1,2})[/-](\d{1,2})\s+(\d{1,2})[:h](\d{2})(?::(\d{2}))?/i,
   );
   if (ymd) {
-    const year = ymd[1]!;
-    const month = ymd[2]!.padStart(2, "0");
-    const day = ymd[3]!.padStart(2, "0");
-    const hour = ymd[4]!.padStart(2, "0");
-    const minute = ymd[5]!.padStart(2, "0");
-    const second = (ymd[6] ?? "00").padStart(2, "0");
-    const ms = Date.parse(
-      `${year}-${month}-${day}T${hour}:${minute}:${second}${offset}`,
+    return buildValidatedCraagIso(
+      ymd[1]!,
+      ymd[2]!,
+      ymd[3]!,
+      ymd[4]!,
+      ymd[5]!,
+      ymd[6] ?? "00",
+      offset,
+      raw,
     );
-    if (Number.isFinite(ms)) return new Date(ms).toISOString();
   }
 
   throw new Error(
@@ -228,18 +248,18 @@ export function parseCraagCoordinate(
     throw new Error(`CRAAG schema invalid: non-finite ${axis} "${raw}"`);
   }
   if (axis === "lat") {
-    if (/(?:\bS\b|°\s*S|جنوبا|جنوب)/i.test(normalized)) {
+    if (/(?:(?<![A-Za-z])S(?![A-Za-z])|جنوبا|جنوب)/i.test(normalized)) {
       value = -Math.abs(value);
-    } else if (/(?:\bN\b|°\s*N|شمالا|شمال)/i.test(normalized)) {
+    } else if (/(?:(?<![A-Za-z])N(?![A-Za-z])|شمالا|شمال)/i.test(normalized)) {
       value = Math.abs(value);
     }
     if (value < -90 || value > 90) {
       throw new Error(`CRAAG schema invalid: out-of-range lat ${value}`);
     }
   } else {
-    if (/(?:\b[WO]\b|°\s*[WO]|غربا|غرب)/i.test(normalized)) {
+    if (/(?:(?<![A-Za-z])[WO](?![A-Za-z])|غربا|غرب)/i.test(normalized)) {
       value = -Math.abs(value);
-    } else if (/(?:\bE\b|°\s*E|شرقا|شرق)/i.test(normalized)) {
+    } else if (/(?:(?<![A-Za-z])E(?![A-Za-z])|شرقا|شرق)/i.test(normalized)) {
       value = Math.abs(value);
     }
     if (value < -180 || value > 180) {

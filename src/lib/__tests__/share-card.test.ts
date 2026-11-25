@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { OfficialIncident } from "@/lib/nadhir";
+import { algiersTime, relativeTime, type OfficialIncident } from "@/lib/nadhir";
 import {
   CARD_REVISION,
   algiersDateTime,
@@ -93,6 +93,15 @@ describe("incidentCardModel", () => {
     expect(algiersDateTime("2026-09-27T13:32:00Z", "en")).toMatch(/14:32/);
     expect(algiersDateTime("2026-09-27T13:32:00Z", "fr")).toContain("2026");
     expect(incidentCardModel(incident(), t, "en").time).toContain("14:32");
+  });
+
+  it("returns empty string without throwing on invalid or NaN dates (T5-09)", () => {
+    for (const bad of ["", "not-a-date", "2026-99-99"]) {
+      expect(algiersTime(bad)).toBe("");
+      expect(relativeTime(bad, "fr")).toBe("");
+      expect(algiersDateTime(bad, "ar")).toBe("");
+    }
+    expect(relativeTime("2026-09-27T13:32:00Z", "fr", Number.NaN)).toBe("");
   });
 });
 

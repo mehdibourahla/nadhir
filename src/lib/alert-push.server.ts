@@ -20,7 +20,7 @@ export type ClaimedPush = {
   created_at?: string | null;
 };
 
-type PushState = "sent" | "pending" | "failed" | "no_device";
+type PushState = "sent" | "pending" | "failed" | "no_device" | "skipped";
 
 const MAX_ATTEMPTS = 5;
 const CLAIM_LOST = "alert push claim lost";
@@ -34,6 +34,17 @@ const store = {
     });
     if (error) throw new Error(error.message);
     return (data ?? []) as ClaimedPush[];
+  },
+  withdrawnPushConsent: async (userIds: string[]): Promise<Set<string>> => {
+    if (!userIds.length) return new Set();
+    const { data, error } = await supabaseAdmin
+      .from("privacy_consents")
+      .select("user_id")
+      .in("user_id", userIds)
+      .eq("consent_type", "push_alerts")
+      .eq("status", "withdrawn");
+    if (error) throw new Error(error.message);
+    return new Set((data ?? []).map((row) => row.user_id));
   },
   devices: async (userIds: string[]): Promise<Set<string>> => {
     if (!userIds.length) return new Set();
@@ -65,18 +76,34 @@ export async function drainAlertPushes(
 ) {
   const deps = { ...store, ...dependencies };
   if (!deps.configured())
-    return { pushed: 0, pushFailed: 0, noDevice: 0, claimsLost: 0 };
+    return {
+      pushed: 0,
+      pushFailed: 0,
+      noDevice: 0,
+      consentWithdrawn: 0,
+      claimsLost: 0,
+    };
   let pushed = 0;
   let pushFailed = 0;
   let noDevice = 0;
+  let consentWithdrawn = 0;
   let claimsLost = 0;
   const rows = await deps.claim();
-  const reachable = await deps.devices([
-    ...new Set(rows.map((row) => row.user_id)),
-  ]);
+  if (!rows.length) {
+    return { pushed, pushFailed, noDevice, consentWithdrawn, claimsLost };
+  }
+  const uniqueUserIds = [...new Set(rows.map((row) => row.user_id))];
+  // Fail-closed defense-in-depth (Law 18-07 / Law 25-11): check push_alerts
+  // consent withdrawal before querying devices or sending any FCM payload.
+  const withdrawn = await deps.withdrawnPushConsent(uniqueUserIds);
+  const eligibleUserIds = uniqueUserIds.filter((uid) => !withdrawn.has(uid));
+  const reachable = eligibleUserIds.length
+    ? await deps.devices(eligibleUserIds)
+    : new Set<string>();
   for (const row of rows) {
     let state: PushState = "sent";
-    if (!reachable.has(row.user_id)) state = "no_device";
+    if (withdrawn.has(row.user_id)) state = "skipped";
+    else if (!reachable.has(row.user_id)) state = "no_device";
     else {
       try {
         await deps.send(row);
@@ -89,11 +116,12 @@ export async function drainAlertPushes(
       await deps.finish(row, state);
       if (state === "sent") pushed++;
       if (state === "no_device") noDevice++;
+      if (state === "skipped") consentWithdrawn++;
     } catch (failure) {
       if (!(failure instanceof Error && failure.message === CLAIM_LOST))
         throw failure;
       claimsLost++;
     }
   }
-  return { pushed, pushFailed, noDevice, claimsLost };
+  return { pushed, pushFailed, noDevice, consentWithdrawn, claimsLost };
 }

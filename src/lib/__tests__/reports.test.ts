@@ -44,11 +44,14 @@ const reportInput = {
   observed_at: "2026-09-01T00:00:00.000Z",
 };
 
+const jpegBytes = new Uint8Array([
+  0xff, 0xd8, 0xff, 0xda, 0x00, 0x04, 0x00, 0x01, 0x12, 0x34, 0xff, 0xd9,
+]);
 const jpeg = {
   name: "evidence.jpg",
-  size: 4,
+  size: jpegBytes.byteLength,
   type: "image/jpeg",
-  arrayBuffer: async () => new Uint8Array([0xff, 0xd8, 0xff, 0xd9]).buffer,
+  arrayBuffer: async () => jpegBytes.slice().buffer,
 } as File;
 const uploadDraft = { file: jpeg, objectId: photoId };
 

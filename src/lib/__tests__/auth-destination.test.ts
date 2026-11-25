@@ -73,5 +73,21 @@ describe("authentication destination", () => {
       expect(resolveAuthLocale("invalid", "/settings?lang=kab")).toBe("kab");
       expect(resolveAuthLocale("invalid", "/settings")).toBeUndefined();
     });
+
+    it("ignores query-like parameters inside URL #fragments (T5-08)", () => {
+      expect(
+        extractLocaleFromDestination("/alerts#section?lang=en"),
+      ).toBeUndefined();
+      expect(authRedirectSearch("/alerts#section?lang=en")).toEqual({
+        returnTo: "/alerts#section?lang=en",
+      });
+      expect(
+        extractLocaleFromDestination("/alerts?lang=ar#section?lang=en"),
+      ).toBe("ar");
+      expect(authRedirectSearch("/alerts?lang=ar#section?lang=en")).toEqual({
+        returnTo: "/alerts?lang=ar#section?lang=en",
+        lang: "ar",
+      });
+    });
   });
 });

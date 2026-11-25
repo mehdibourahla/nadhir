@@ -46,7 +46,13 @@ describe("Tier 1 — F14: High-Craft UI/UX Overhaul (Mobile & Desktop, AR RTL & 
           timeout: 25_000,
         });
         expect(res?.status()).toBe(200);
-        await page.waitForTimeout(400);
+        await page.waitForFunction(
+          () =>
+            document.documentElement.getAttribute("dir") === "rtl" &&
+            /[\u0600-\u06FF]/.test(document.body.innerText ?? ""),
+          undefined,
+          { timeout: 10_000 },
+        );
 
         const docMeta = await page.evaluate(() => ({
           dir: document.documentElement.getAttribute("dir"),
@@ -74,7 +80,13 @@ describe("Tier 1 — F14: High-Craft UI/UX Overhaul (Mobile & Desktop, AR RTL & 
           timeout: 25_000,
         });
         expect(res?.status()).toBe(200);
-        await page.waitForTimeout(400);
+        await page.waitForFunction(
+          () =>
+            document.documentElement.getAttribute("dir") === "ltr" &&
+            (document.body.innerText ?? "").trim().length > 20,
+          undefined,
+          { timeout: 10_000 },
+        );
 
         const docMeta = await page.evaluate(() => ({
           dir: document.documentElement.getAttribute("dir"),
@@ -110,10 +122,13 @@ describe("Tier 1 — F14: High-Craft UI/UX Overhaul (Mobile & Desktop, AR RTL & 
           timeout: 25_000,
         });
         expect(res?.status()).toBe(200);
-        await page.waitForTimeout(500);
 
         const sheetSelector =
           '[data-sheet-detent], [data-detent], [aria-label*="detent" i], [aria-label*="sheet" i], [role="region"]';
+        await page
+          .locator(sheetSelector)
+          .first()
+          .waitFor({ state: "attached", timeout: 10_000 });
         const sheetCount = await page.locator(sheetSelector).count();
         expect(sheetCount).toBeGreaterThan(0);
 
@@ -121,8 +136,17 @@ describe("Tier 1 — F14: High-Craft UI/UX Overhaul (Mobile & Desktop, AR RTL & 
           '[data-sheet-handle], [data-detent-toggle], button[aria-controls*="sheet" i], button[aria-expanded]',
         );
         if ((await detentHandle.count()) > 0) {
+          await detentHandle
+            .first()
+            .waitFor({ state: "visible", timeout: 5_000 });
           await detentHandle.first().click();
-          await page.waitForTimeout(150);
+          await page.waitForFunction(
+            () =>
+              document.documentElement.scrollWidth <=
+              document.documentElement.clientWidth + 1,
+            undefined,
+            { timeout: 5_000 },
+          );
         }
 
         const overflow = await measureHorizontalOverflow(page);
@@ -140,11 +164,13 @@ describe("Tier 1 — F14: High-Craft UI/UX Overhaul (Mobile & Desktop, AR RTL & 
           timeout: 25_000,
         });
         expect(res?.status()).toBe(200);
-        await page.waitForTimeout(500);
 
         const pillLocator = page.locator(
           '[data-hazard-filter], [role="tab"], [aria-pressed]',
         );
+        await pillLocator
+          .first()
+          .waitFor({ state: "visible", timeout: 10_000 });
         const count = await pillLocator.count();
         expect(count, "Hazard filter pills must be rendered").toBeGreaterThan(
           0,
@@ -179,7 +205,11 @@ describe("Tier 1 — F14: High-Craft UI/UX Overhaul (Mobile & Desktop, AR RTL & 
           timeout: 25_000,
         });
         expect(res?.status()).toBe(200);
-        await page.waitForTimeout(400);
+        await page.waitForFunction(
+          () => (document.body.innerText ?? "").trim().length > 20,
+          undefined,
+          { timeout: 10_000 },
+        );
 
         const visibleText = await page.evaluate(
           () => document.body.innerText ?? "",
@@ -199,7 +229,11 @@ describe("Tier 1 — F14: High-Craft UI/UX Overhaul (Mobile & Desktop, AR RTL & 
           timeout: 25_000,
         });
         expect(res?.status()).toBe(200);
-        await page.waitForTimeout(400);
+        await page.waitForFunction(
+          () => /\b14\b/.test(document.body.innerText ?? ""),
+          undefined,
+          { timeout: 10_000 },
+        );
 
         const text = await page.evaluate(() => document.body.innerText ?? "");
         expect(text).toMatch(/\b14\b/);
@@ -228,7 +262,15 @@ describe("Tier 1 — F14: High-Craft UI/UX Overhaul (Mobile & Desktop, AR RTL & 
             timeout: 25_000,
           });
           expect(res?.status()).toBe(200);
-          await page.waitForTimeout(500);
+          await page
+            .locator("main, [role='main'], h1, button, a")
+            .first()
+            .waitFor({ state: "visible", timeout: 10_000 });
+          await page.waitForFunction(
+            () => (document.body.innerText ?? "").trim().length > 20,
+            undefined,
+            { timeout: 10_000 },
+          );
 
           const touchViolations = await measureTouchTargets(page, 44);
           expect(
@@ -287,7 +329,11 @@ describe("Tier 1 — F15: Multi-Hazard /forecast View", () => {
           timeout: 25_000,
         });
         expect(res?.status()).toBe(200);
-        await page.waitForTimeout(400);
+        await page.waitForFunction(
+          () => (document.body.innerText ?? "").trim().length > 40,
+          undefined,
+          { timeout: 10_000 },
+        );
 
         const text = await page.evaluate(() => document.body.innerText ?? "");
         expect(text.length).toBeGreaterThan(40);
@@ -312,7 +358,11 @@ describe("Tier 1 — F15: Multi-Hazard /forecast View", () => {
           timeout: 25_000,
         });
         expect(pageRes?.status()).toBe(200);
-        await page.waitForTimeout(400);
+        await page.waitForFunction(
+          () => /[\u0600-\u06FF]/.test(document.body.innerText ?? ""),
+          undefined,
+          { timeout: 10_000 },
+        );
 
         const overflow = await measureHorizontalOverflow(page);
         expect(overflow.hasOverflow).toBe(false);

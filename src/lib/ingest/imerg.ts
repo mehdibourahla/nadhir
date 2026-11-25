@@ -82,6 +82,11 @@ export function gridCellKey(
   return `${prefix}:${lat.toFixed(2)}:${lon.toFixed(2)}`;
 }
 
+const STRICT_ISO_TIMESTAMP_RE =
+  /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?(?:([Zz])|([+-])(\d{2}):?(\d{2}))$/;
+
+const UPSTREAM_ERROR_SAMPLE_BYTES = 4096;
+
 export function parseIsoTimestamp(
   value: unknown,
   label: string,
@@ -90,13 +95,74 @@ export function parseIsoTimestamp(
   if (typeof value !== "string" || !value.trim()) {
     throw new Error(`${sourceName} schema invalid: missing ${label} timestamp`);
   }
-  const ms = Date.parse(value);
-  if (!Number.isFinite(ms)) {
+  const trimmed = value.trim();
+  const match = STRICT_ISO_TIMESTAMP_RE.exec(trimmed);
+  if (!match) {
     throw new Error(
       `${sourceName} schema invalid: invalid ${label} timestamp "${value}"`,
     );
   }
-  return new Date(ms).toISOString();
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = match[6] !== undefined ? Number(match[6]) : 0;
+  const msPart =
+    match[7] !== undefined ? Number(match[7].slice(0, 3).padEnd(3, "0")) : 0;
+
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31 ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59
+  ) {
+    throw new Error(
+      `${sourceName} schema invalid: invalid ${label} timestamp "${value}"`,
+    );
+  }
+
+  let offsetMs = 0;
+  if (match[9] !== undefined) {
+    const tzHour = Number(match[10]);
+    const tzMinute = Number(match[11]);
+    if (tzHour > 23 || tzMinute > 59) {
+      throw new Error(
+        `${sourceName} schema invalid: invalid ${label} timestamp "${value}"`,
+      );
+    }
+    const sign = match[9] === "-" ? -1 : 1;
+    offsetMs = sign * ((tzHour * 60 + tzMinute) * 60_000);
+  }
+
+  // Verify real calendar date without JS Date rollover (rejects Feb 30, Apr 31, etc.)
+  const utcCheck = new Date(
+    Date.UTC(year, month - 1, day, hour, minute, second, msPart),
+  );
+  if (
+    utcCheck.getUTCFullYear() !== year ||
+    utcCheck.getUTCMonth() !== month - 1 ||
+    utcCheck.getUTCDate() !== day ||
+    utcCheck.getUTCHours() !== hour ||
+    utcCheck.getUTCMinutes() !== minute ||
+    utcCheck.getUTCSeconds() !== second
+  ) {
+    throw new Error(
+      `${sourceName} schema invalid: impossible calendar date in ${label} timestamp "${value}"`,
+    );
+  }
+
+  const epochMs = utcCheck.getTime() - offsetMs;
+  if (!Number.isFinite(epochMs)) {
+    throw new Error(
+      `${sourceName} schema invalid: invalid ${label} timestamp "${value}"`,
+    );
+  }
+  return new Date(epochMs).toISOString();
 }
 
 export function isTiffMagicBytes(bytes: Uint8Array): boolean {
@@ -119,14 +185,19 @@ const HTML_OR_XML_PREFIX =
 const PLAIN_ERROR_TEXT =
   /^\s*(?:error\b|service unavailable|bad gateway|gateway timeout|access denied|unauthorized|forbidden|maintenance|temporarily unavailable|too many requests|50[0234]\b|40[134]\b)/i;
 
-function stripLeadingHtmlComments(sample: string): string {
+function inspectLeadingHtmlComments(sample: string): {
+  stripped: string;
+  unclosedComment: boolean;
+} {
   let text = sample.trimStart();
   while (text.startsWith("<!--")) {
     const end = text.indexOf("-->", 4);
-    if (end === -1) break;
+    if (end === -1) {
+      return { stripped: text, unclosedComment: true };
+    }
     text = text.slice(end + 3).trimStart();
   }
-  return text;
+  return { stripped: text, unclosedComment: false };
 }
 
 export function assertNotUpstreamErrorBody(
@@ -140,7 +211,9 @@ export function assertNotUpstreamErrorBody(
     ct.includes("application/xhtml+xml") ||
     ct.includes("text/plain") ||
     ct.includes("application/xml") ||
-    ct.includes("text/xml")
+    ct.includes("text/xml") ||
+    ct.includes("se_xml") ||
+    ct.includes("+xml")
   ) {
     throw new Error(
       `${sourceName} upstream returned non-data error content-type (${ct.split(";")[0]?.trim() || "text"})`,
@@ -149,17 +222,22 @@ export function assertNotUpstreamErrorBody(
 
   let sample: string;
   if (typeof body === "string") {
-    sample = body.slice(0, 512);
+    sample = body.slice(0, UPSTREAM_ERROR_SAMPLE_BYTES);
   } else {
     const view =
       body instanceof Uint8Array
-        ? body.subarray(0, 512)
-        : new Uint8Array(body, 0, Math.min(body.byteLength, 512));
+        ? body.subarray(0, UPSTREAM_ERROR_SAMPLE_BYTES)
+        : new Uint8Array(
+            body,
+            0,
+            Math.min(body.byteLength, UPSTREAM_ERROR_SAMPLE_BYTES),
+          );
     if (isTiffMagicBytes(view)) return;
     sample = new TextDecoder("utf-8", { fatal: false }).decode(view);
   }
 
-  if (HTML_OR_XML_PREFIX.test(stripLeadingHtmlComments(sample))) {
+  const { stripped, unclosedComment } = inspectLeadingHtmlComments(sample);
+  if (unclosedComment || HTML_OR_XML_PREFIX.test(stripped)) {
     throw new Error(
       `${sourceName} upstream returned HTML/XML error page instead of rainfall data`,
     );

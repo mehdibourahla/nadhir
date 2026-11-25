@@ -505,4 +505,54 @@ describe("F20 - EMSC M2+ Feed & CRAAG Official Earthquake Attribution Matcher", 
       }),
     ).rejects.toThrow(/upload_failed/);
   });
+
+  it("rejects impossible calendar dates in CRAAG timestamps and parses adjacent compass coordinates accurately (T5-03 & T5-04)", () => {
+    for (const badTs of [
+      "2026-02-30T12:00:00Z",
+      "2026-04-31T00:00:00Z",
+      "30/02/2026 12:00:00",
+      "31/04/2026 09:30:00",
+      "2026-02-29 12:00:00",
+      "May 2026",
+    ]) {
+      expect(() => parseCraagTimestamp(badTs), badTs).toThrow(
+        /CRAAG schema invalid/i,
+      );
+    }
+
+    expect(parseCraagCoordinate("1.25W", "lon")).toBe(-1.25);
+    expect(parseCraagCoordinate("1.25O", "lon")).toBe(-1.25);
+    expect(parseCraagCoordinate("36.75S", "lat")).toBe(-36.75);
+    expect(parseCraagCoordinate("36.75N", "lat")).toBe(36.75);
+    expect(parseCraagCoordinate("3.05E", "lon")).toBe(3.05);
+    expect(parseCraagCoordinate("0.65°W", "lon")).toBe(-0.65);
+    expect(parseCraagCoordinate("0.65 W", "lon")).toBe(-0.65);
+    expect(parseCraagCoordinate("NORTH 36.75", "lat")).toBe(36.75);
+    expect(parseCraagCoordinate("WEST 1.25", "lon")).toBe(1.25);
+    expect(parseCraagCoordinate("EST 3.05", "lon")).toBe(3.05);
+
+    const parsed = parseCraagBulletins({
+      bulletins: [
+        {
+          observed_at: "2026-11-25T10:15:00Z",
+          lat: "35.69N",
+          lon: "1.25W",
+          magnitude: 4.3,
+          place: "Tlemcen / Oran",
+        },
+      ],
+    });
+    expect(parsed.bulletins).toHaveLength(1);
+    expect(parsed.bulletins[0]!.lon).toBe(-1.25);
+    const matched = matchCraagToEmsc(parsed.bulletins[0]!, [
+      {
+        id: "20261125_west_dz",
+        occurred_at: "2026-11-25T10:15:10Z",
+        lat: 35.7,
+        lon: -1.24,
+        magnitude: 4.2,
+      },
+    ]);
+    expect(matched?.earthquakeId).toBe("20261125_west_dz");
+  });
 });

@@ -396,7 +396,23 @@ function ForecastPage() {
               {t("translation:track3.forecast.wilayaDirectoryTitle")}
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              {t("translation:track3.forecast.wilayaDirectoryBody")}
+              {(() => {
+                const lawCode = "26-06";
+                const body = t(
+                  "translation:track3.forecast.wilayaDirectoryBody",
+                );
+                const idx = body.indexOf(lawCode);
+                if (idx === -1) return body;
+                return (
+                  <>
+                    {body.slice(0, idx)}
+                    <bdi dir="ltr" className="tabular-nums">
+                      {lawCode}
+                    </bdi>
+                    {body.slice(idx + lawCode.length)}
+                  </>
+                );
+              })()}
             </p>
           </div>
           <button

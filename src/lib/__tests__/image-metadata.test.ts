@@ -320,4 +320,88 @@ describe("hardened JPEG, PNG, and WebP metadata stripping", () => {
       "invalid_image",
     );
   });
+
+  it("enforces PNG allowlist (drops zXIf/meTa/dSIG), rejects zero-IDAT PNGs, drops non-minimal APP0 JFXX/thumbnails, and rejects 4-byte empty JPEGs (T5-05)", () => {
+    const pngWithPrivateChunks = new Uint8Array([
+      0x89,
+      0x50,
+      0x4e,
+      0x47,
+      0x0d,
+      0x0a,
+      0x1a,
+      0x0a,
+      ...chunk("IHDR", new Array(13).fill(1)),
+      ...chunk("zXIf", ascii("GPS:36.7538N,3.0588E")),
+      ...chunk("meTa", ascii("iPhone16Pro")),
+      ...chunk("dSIG", ascii("SIGNER_IDENTITY")),
+      ...chunk("IDAT", [1, 2, 3, 4]),
+      ...chunk("IEND", []),
+    ]);
+    const cleanPng = stripImageMetadata(pngWithPrivateChunks, "image/png");
+    const pngDecoded = text(cleanPng);
+    expect(pngDecoded).not.toContain("zXIf");
+    expect(pngDecoded).not.toContain("meTa");
+    expect(pngDecoded).not.toContain("dSIG");
+    expect(pngDecoded).not.toContain("36.7538");
+    expect(pngDecoded).not.toContain("iPhone16Pro");
+    expect(pngDecoded).toContain("IHDR");
+    expect(pngDecoded).toContain("IDAT");
+    expect(pngDecoded).toContain("IEND");
+
+    const zeroIdatPng = new Uint8Array([
+      0x89,
+      0x50,
+      0x4e,
+      0x47,
+      0x0d,
+      0x0a,
+      0x1a,
+      0x0a,
+      ...chunk("IHDR", new Array(13).fill(1)),
+      ...chunk("IEND", []),
+    ]);
+    expect(() => stripImageMetadata(zeroIdatPng, "image/png")).toThrow(
+      "invalid_image",
+    );
+
+    const minimalJfifPayload = [...ascii("JFIF\0"), 1, 1, 0, 0, 1, 0, 1, 0, 0];
+    const jfifWithThumbnail = [
+      ...ascii("JFIF\0"),
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      1,
+      0xaa,
+      0xbb,
+      0xcc,
+    ];
+    const jpegWithApp0s = new Uint8Array([
+      0xff,
+      0xd8,
+      ...segment(0xe0, minimalJfifPayload),
+      ...segment(0xe0, ascii("JFXX\0GPS:36.7538N,3.0588E")),
+      ...segment(0xe0, jfifWithThumbnail),
+      ...segment(0xda, [0x00, 0x01]),
+      0x12,
+      0x34,
+      0xff,
+      0xd9,
+    ]);
+    const cleanJpeg = stripImageMetadata(jpegWithApp0s, "image/jpeg");
+    const jpegDecoded = text(cleanJpeg);
+    expect(jpegDecoded).toContain("JFIF\0");
+    expect(jpegDecoded).not.toContain("JFXX");
+    expect(jpegDecoded).not.toContain("36.7538");
+
+    const empty4ByteJpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+    expect(() => stripImageMetadata(empty4ByteJpeg, "image/jpeg")).toThrow(
+      "invalid_image",
+    );
+  });
 });

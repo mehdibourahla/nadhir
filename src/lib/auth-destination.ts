@@ -29,14 +29,12 @@ export function authDestination(value: unknown): string {
 export function extractLocaleFromDestination(
   destination: string,
 ): AnyLocale | undefined {
-  const queryStart = destination.indexOf("?");
+  const firstHash = destination.indexOf("#");
+  const beforeHash =
+    firstHash === -1 ? destination : destination.slice(0, firstHash);
+  const queryStart = beforeHash.indexOf("?");
   if (queryStart === -1) return undefined;
-  const hashStart = destination.indexOf("#", queryStart);
-  const query =
-    hashStart === -1
-      ? destination.slice(queryStart)
-      : destination.slice(queryStart, hashStart);
-  return parseAnyQueryLocale(query) ?? undefined;
+  return parseAnyQueryLocale(beforeHash.slice(queryStart)) ?? undefined;
 }
 
 export function resolveAuthLocale(

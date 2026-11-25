@@ -842,7 +842,7 @@ export function wilayaName(entry: WilayaSlugEntry, locale: AnyLocale): string {
 }
 
 const FRENCH_DE_VOWEL_RE =
-  /\b(d|D)e ([AEIOUYÀÂÄÉÈÊËÎÏÔÖÙÛÜŒÆaeiouyàâäéèêëîïôöùûüœæ])/g;
+  /(?<![\p{L}\p{N}_])(d|D)e ([AEIOUYÀÂÄÉÈÊËÎÏÔÖÙÛÜŒÆaeiouyàâäéèêëîïôöùûüœæ])/gu;
 
 /** Apply French vowel elision ("Wilaya de Alger" -> "Wilaya d'Alger"). */
 export function applyFrenchElision(text: string): string {

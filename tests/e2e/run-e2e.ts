@@ -7,6 +7,7 @@ const TIER_DIRS: Record<string, string> = {
   "2": "tests/e2e/tier2",
   "3": "tests/e2e/tier3",
   "4": "tests/e2e/tier4",
+  "5": "tests/e2e/tier5",
 };
 
 function printUsage(): void {
@@ -21,6 +22,7 @@ function printUsage(): void {
       "  --tier=2         Run Tier 2 boundary & corner tests (tests/e2e/tier2)",
       "  --tier=3         Run Tier 3 pairwise interaction tests (tests/e2e/tier3)",
       "  --tier=4         Run Tier 4 Algeria real-world scenarios (tests/e2e/tier4)",
+      "  --tier=5         Run Tier 5 adversarial hardening tests (tests/e2e/tier5)",
       "  --self           Run E2E harness self-tests (tests/e2e/lib/harness.self.test.ts)",
       "  --all            Run Tiers 1, 2, 3, and 4 sequentially with summary",
       "  --screenshots    Run Playwright 28-screenshot + DOM telemetry capture",
@@ -83,7 +85,7 @@ function main(): void {
     if (arg.startsWith("--tier=")) {
       const value = arg.slice("--tier=".length);
       if (!(value in TIER_DIRS)) {
-        console.error(`Invalid tier "${value}". Expected 1, 2, 3, or 4.`);
+        console.error(`Invalid tier "${value}". Expected 1, 2, 3, 4, or 5.`);
         printUsage();
         process.exit(2);
       }

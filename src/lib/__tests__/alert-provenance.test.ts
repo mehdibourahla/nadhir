@@ -144,7 +144,7 @@ describe("buildAlertProvenance", () => {
     expect(validateProvenanceInvariants(builtArea)).toEqual([]);
 
     const verbatimOnm =
-      "ONM · Météo Algérie · BMS Pluie/Orages N°42 (Niveau 3 — Rouge)";
+      "ONM · Météo Algérie · BMS Pluie/Orages N°42 (Niveau 3 · Rouge)";
     const builtOnm = buildAlertProvenance({
       triggerKind: "wilaya_warning",
       areaLabel: "Tizi Ouzou",
@@ -154,6 +154,20 @@ describe("buildAlertProvenance", () => {
     });
     expect(builtOnm.sourceAttribution).toBe(verbatimOnm);
     expect(validateProvenanceInvariants(builtOnm)).toEqual([]);
+
+    const onmWithEmDash = buildAlertProvenance({
+      triggerKind: "wilaya_warning",
+      areaLabel: "Tizi Ouzou",
+      sourceKey: "onm",
+      sourceAttribution: "ONM \u2014 Météo Algérie",
+      observedAt: SAMPLE_ISO,
+    });
+    expect(onmWithEmDash.sourceAttribution).toBe("ONM \u2014 Météo Algérie");
+    expect(
+      validateProvenanceInvariants(onmWithEmDash).some((v) =>
+        /em dash/i.test(v),
+      ),
+    ).toBe(true);
   });
 
   it("normalizes adversarial repeated middot, em-dash, and whitespace areaLabels in strictly linear time", () => {
@@ -221,6 +235,8 @@ describe("validateProvenanceInvariants", () => {
       "Office National de la Météorologie",
       "Office National de la Me\u0301te\u0301orologie",
       "Office National de la Meteorologie",
+      "Météo Algérie (ONM)",
+      "ONM (Météo Algérie)",
     ]) {
       const built = buildAlertProvenance({
         triggerKind: "wilaya_warning",
@@ -233,6 +249,26 @@ describe("validateProvenanceInvariants", () => {
       });
       expect(built.sourceAttribution).toBe(validOnm);
       expect(validateProvenanceInvariants(built), validOnm).toEqual([]);
+    }
+
+    for (const spoofedOnm of [
+      "Not ONM model output",
+      "Fake ONM spoof",
+      "Unofficial ONM summary",
+    ]) {
+      const violations = validateProvenanceInvariants({
+        triggerKind: "wilaya_warning",
+        areaLabel: "Alger",
+        sourceKey: "onm",
+        sourceAttribution: spoofedOnm,
+        ruleLabelKey: "provenance.rule.onmSevere",
+        observedAt: SAMPLE_ISO,
+        authorityStatus: "official",
+      });
+      expect(
+        violations.some((v) => /ONM/i.test(v)),
+        `expected spoofed ONM attribution "${spoofedOnm}" to be rejected`,
+      ).toBe(true);
     }
 
     const loneEmDashSource: AlertProvenanceData = {

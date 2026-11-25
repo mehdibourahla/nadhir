@@ -81,9 +81,10 @@ const BLANK_OR_EM_DASH_ONLY = /^[\s\u2014]+$/;
 const ISO_8601_WITH_TZ_RE =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?(?:[Zz]|([+-])(\d{2}):?(\d{2}))$/;
 const ONM_ATTRIBUTION_PATTERNS: readonly RegExp[] = [
-  /\bONM\b/i,
-  /الديوان الوطني للأرصاد الجوية/,
-  /Office National de la M[ée]t[ée]orologie/i,
+  /^ONM(?:\b|\s|[·(:-])/i,
+  /^M[ée]t[ée]o\s+Alg[ée]rie\s*(?:[·(:-]\s*|\s+)ONM\b/i,
+  /^Office\s+National\s+de\s+la\s+M[ée]t[ée]orologie(?:\b|$)/i,
+  /^الديوان\s+الوطني\s+للأرصاد\s+الجوية(?:\s|[·(:-]|$)/,
 ];
 
 const TRIGGER_KIND_SET: ReadonlySet<string> = new Set(ALERT_TRIGGER_KINDS);
@@ -194,7 +195,7 @@ function normalizeAuthorityStatus(
 }
 
 function hasValidOnmAttribution(attribution: string): boolean {
-  const normalized = attribution.normalize("NFC");
+  const normalized = attribution.trim().normalize("NFC");
   return ONM_ATTRIBUTION_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
@@ -280,12 +281,17 @@ export function validateProvenanceInvariants(
     BLANK_OR_EM_DASH_ONLY.test(data.sourceAttribution)
   ) {
     violations.push("sourceAttribution must be non-empty");
-  } else if (
-    hasValidSourceKey &&
-    data.sourceKey.trim().toLowerCase() === "onm" &&
-    !hasValidOnmAttribution(data.sourceAttribution)
-  ) {
-    violations.push("ONM sourceAttribution must preserve ONM attribution");
+  } else {
+    if (data.sourceAttribution.includes(EM_DASH)) {
+      violations.push("sourceAttribution contains banned em dash");
+    }
+    if (
+      hasValidSourceKey &&
+      data.sourceKey.trim().toLowerCase() === "onm" &&
+      !hasValidOnmAttribution(data.sourceAttribution)
+    ) {
+      violations.push("ONM sourceAttribution must preserve ONM attribution");
+    }
   }
 
   if (data.authorityStatus !== undefined) {

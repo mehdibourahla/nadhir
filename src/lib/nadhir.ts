@@ -294,7 +294,9 @@ export function intlLocale(locale: AnyLocale): string {
 }
 
 export function relativeTime(iso: string, locale: AnyLocale, now = Date.now()) {
-  const diffMs = now - new Date(iso).getTime();
+  const parsedMs = new Date(iso).getTime();
+  if (Number.isNaN(parsedMs) || !Number.isFinite(now)) return "";
+  const diffMs = now - parsedMs;
   const mins = Math.round(diffMs / 60000);
   const rtf = new Intl.RelativeTimeFormat(intlLocale(locale), {
     numeric: "auto",
@@ -306,6 +308,8 @@ export function relativeTime(iso: string, locale: AnyLocale, now = Date.now()) {
 }
 
 export function algiersTime(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat("fr-DZ", {
     timeZone: "Africa/Algiers",
     day: "2-digit",
@@ -313,7 +317,7 @@ export function algiersTime(iso: string) {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
-  }).format(new Date(iso));
+  }).format(date);
 }
 
 /* ---------- queries ---------- */

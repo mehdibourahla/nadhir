@@ -7,6 +7,7 @@ import {
   SITE_URL,
   WILAYA_REGISTRY,
   allWilayaSlugs,
+  applyFrenchElision,
   isValidWilayaSlug,
   slugifyWilayaName,
   wilayaByCode,
@@ -141,5 +142,16 @@ describe("wilaya-slugs (69 Loi 26-06 registry)", () => {
     expect(wilayaShareImageUrl("bou-saada", "fr", "og")).toBe(
       "/api/public/share/wilaya/bou-saada.og.webp?lang=fr",
     );
+  });
+
+  it("uses Unicode word boundaries in applyFrenchElision so accented words are never corrupted (T5-10)", () => {
+    expect(applyFrenchElision("procéde Alger")).toBe("procéde Alger");
+    expect(applyFrenchElision("côtéde Alger")).toBe("côtéde Alger");
+    expect(applyFrenchElision("méde Oran")).toBe("méde Oran");
+    expect(applyFrenchElision("Wilaya de Alger")).toBe("Wilaya d'Alger");
+    expect(applyFrenchElision("Wilaya de El Abiodh Sidi Cheikh")).toBe(
+      "Wilaya d'El Abiodh Sidi Cheikh",
+    );
+    expect(applyFrenchElision("De Oran")).toBe("D'Oran");
   });
 });

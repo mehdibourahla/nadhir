@@ -264,13 +264,10 @@ export function validateMtgFciPushProductId(
 }
 
 function normalizeSlotString(value: string): string {
-  const ms = Date.parse(value);
-  if (!Number.isFinite(ms)) {
-    throw new Error(
-      `MTG FCI push schema invalid: invalid slot timestamp "${value}"`,
-    );
-  }
-  return new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+  return parseIsoTimestamp(value, "slot", "MTG FCI push").replace(
+    /\.\d{3}Z$/,
+    "Z",
+  );
 }
 
 function parsePixelEntry(

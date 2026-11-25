@@ -509,4 +509,53 @@ describe("F18 - IMERG & H-SAF Observed 30-Min Satellite Rainfall", () => {
       expect(code).not.toMatch(/weather_snapshots|risk_forecasts/);
     }
   });
+
+  it("rejects impossible calendar dates, non-ISO timestamps, long HTML comments, and unclosed comments (T5-03 & T5-11)", async () => {
+    for (const badTs of [
+      "2026-02-30T12:00:00Z",
+      "2026-04-31T00:00:00Z",
+      "2026-02-29T12:00:00Z",
+      "1",
+      "May 2026",
+      "2026-11-24T25:00:00Z",
+    ]) {
+      await expect(
+        parseImergPayload({
+          valid_time: badTs,
+          window_minutes: 30,
+          cells: [],
+        }),
+      ).rejects.toThrow(/schema invalid/i);
+      await expect(
+        parseHsafPayload({
+          valid_time: badTs,
+          window_minutes: 30,
+          cells: [],
+        }),
+      ).rejects.toThrow(/schema invalid/i);
+    }
+
+    const longCommentHtml = `<!-- ${"A".repeat(600)} --><html><body>502 Bad Gateway</body></html>`;
+    const unclosedComment = `<!-- ${"B".repeat(5000)}`;
+    await expect(
+      parseImergPayload(longCommentHtml, {
+        contentType: "application/octet-stream",
+      }),
+    ).rejects.toThrow(/HTML\/XML error page/i);
+    await expect(
+      parseHsafPayload(longCommentHtml, {
+        contentType: "application/octet-stream",
+      }),
+    ).rejects.toThrow(/HTML\/XML error page/i);
+    await expect(
+      parseImergPayload(unclosedComment, {
+        contentType: "application/octet-stream",
+      }),
+    ).rejects.toThrow(/HTML\/XML error page/i);
+    await expect(
+      parseImergPayload("<ServiceExceptionReport/>", {
+        contentType: "application/vnd.ogc.se_xml",
+      }),
+    ).rejects.toThrow(/error content-type/i);
+  });
 });

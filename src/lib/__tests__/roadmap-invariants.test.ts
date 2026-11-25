@@ -141,7 +141,10 @@ function splitTopLevelCommas(input: string): string[] {
 function listRoadmapMigrations(): string[] {
   const migrationsDir = join(REPO_ROOT, "supabase/migrations");
   return readdirSync(migrationsDir)
-    .filter((name) => /^20261124\d{6}_.*\.sql$/.test(name))
+    .filter((name) => {
+      const match = /^(\d{14})_.*\.sql$/.exec(name);
+      return match !== null && match[1]! >= "20261124000000";
+    })
     .sort()
     .map((name) => `supabase/migrations/${name}`);
 }
@@ -201,6 +204,20 @@ function extractJsxTextNodes(tsxSource: string): string[] {
     }
   }
   return nodes;
+}
+
+function extractJsxUserStringAttrs(tsxSource: string): string[] {
+  const withoutComments = stripTsComments(tsxSource);
+  const attrs: string[] = [];
+  for (const match of withoutComments.matchAll(
+    /\b(?:aria-label|title|placeholder)\s*=\s*(?:"([^"]*)"|'([^']*)')/g,
+  )) {
+    const raw = (match[1] ?? match[2] ?? "").replace(/\s+/g, " ").trim();
+    if (raw.length > 0) {
+      attrs.push(raw);
+    }
+  }
+  return attrs;
 }
 
 function unescapeAndroidXml(raw: string): string {
@@ -672,7 +689,7 @@ describe("Invariant 2 — Zero bare 'safe' status labels (ADR-0002) and Survival
     expect(violations).toEqual([]);
   });
 
-  it("contains zero hardcoded bare 'safe' status labels in component and route JSX text nodes", () => {
+  it("contains zero hardcoded bare 'safe' status labels or em dashes in component and route JSX text nodes and user-facing attributes", () => {
     const tsxFiles = [
       ...walkFiles(
         join(REPO_ROOT, "src/components"),
@@ -688,15 +705,28 @@ describe("Invariant 2 — Zero bare 'safe' status labels (ADR-0002) and Survival
     const violations: string[] = [];
     for (const relPath of tsxFiles) {
       const content = readRepoFile(relPath);
-      for (const nodeText of extractJsxTextNodes(content)) {
-        const cleaned = stripAllowedSafeDisclaimers("", nodeText).trim();
+      const stringsToScan = [
+        ...extractJsxTextNodes(content).map((text) => ({
+          kind: "text",
+          text,
+        })),
+        ...extractJsxUserStringAttrs(content).map((text) => ({
+          kind: "attr",
+          text,
+        })),
+      ];
+      for (const { kind, text } of stringsToScan) {
+        if (text.includes("\u2014")) {
+          violations.push(`${relPath} (${kind}): em dash in "${text}"`);
+        }
+        const cleaned = stripAllowedSafeDisclaimers("", text).trim();
         if (cleaned.length === 0) continue;
         if (BANNED_SAFE_STANDALONE_RE.test(cleaned)) {
-          violations.push(`${relPath}: standalone "${nodeText}"`);
+          violations.push(`${relPath} (${kind}): standalone "${text}"`);
         }
         for (const pattern of BANNED_SAFE_PHRASE_PATTERNS) {
           if (pattern.test(cleaned)) {
-            violations.push(`${relPath}: "${nodeText}"`);
+            violations.push(`${relPath} (${kind}): "${text}"`);
           }
         }
       }
@@ -777,7 +807,7 @@ describe("Invariant 3 — Zero evacuation routing or safest-route logic (ADR-000
   });
 });
 
-describe("Invariant 4 — Zero PostGIS types or extensions in all 7 roadmap migrations (ADR-0001)", () => {
+describe("Invariant 4 — Zero PostGIS types or extensions in all roadmap migrations (ADR-0001)", () => {
   const POSTGIS_PATTERNS: readonly RegExp[] = [
     /\bpostgis\b/i,
     /\bST_[A-Za-z]+\b/,
@@ -785,9 +815,9 @@ describe("Invariant 4 — Zero PostGIS types or extensions in all 7 roadmap migr
     /\b(?:public\.|extensions\.)?geometry\b/i,
   ];
 
-  it("scans all 7 roadmap migrations (comment-stripped) and confirms zero PostGIS usage", () => {
+  it("scans all roadmap migrations >= 20261124000000 (comment-stripped) and confirms zero PostGIS usage", () => {
     const migrations = listRoadmapMigrations();
-    expect(migrations).toHaveLength(7);
+    expect(migrations.length).toBeGreaterThanOrEqual(9);
 
     const violations: string[] = [];
     for (const relPath of migrations) {
@@ -803,23 +833,43 @@ describe("Invariant 4 — Zero PostGIS types or extensions in all 7 roadmap migr
   });
 });
 
-describe("Invariant 5 — Explicit REVOKE ALL ON FUNCTION ... FROM PUBLIC, anon, authenticated in all 7 roadmap migrations", () => {
-  it("verifies every created SQL function (public.* and private.*, RPCs and triggers) explicitly revokes PUBLIC, anon, authenticated", () => {
+describe("Invariant 5 — Explicit REVOKE ALL ON FUNCTION ... FROM PUBLIC, anon, authenticated and SECURITY DEFINER search_path in all roadmap migrations", () => {
+  it("verifies every created SQL function (public.* and private.*, RPCs and triggers) explicitly revokes PUBLIC, anon, authenticated and pins search_path on SECURITY DEFINER", () => {
     const migrations = listRoadmapMigrations();
-    expect(migrations).toHaveLength(7);
+    expect(migrations.length).toBeGreaterThanOrEqual(9);
+    expect(
+      migrations.some((m) =>
+        m.includes("20261125010000_enforce_email_digest_consent_withdrawal"),
+      ),
+    ).toBe(true);
+    expect(
+      migrations.some((m) =>
+        m.includes("20261125020000_enforce_push_alerts_consent_withdrawal"),
+      ),
+    ).toBe(true);
 
     let totalFunctions = 0;
     const unrevoked: string[] = [];
+    const unpinnedSearchPath: string[] = [];
 
     for (const relPath of migrations) {
       const stripped = stripSqlComments(readRepoFile(relPath));
       const createdFunctions = new Set<string>();
 
       for (const match of stripped.matchAll(
-        /\bcreate\s+(?:or\s+replace\s+)?function\s+((?:public|private)\.[a-z0-9_]+)\s*\(/gi,
+        /\bcreate\s+(?:or\s+replace\s+)?function\s+((?:public|private)\.[a-z0-9_]+)\s*\(([\s\S]*?)\bas\s+\$/gi,
       )) {
         const fnName = match[1]?.toLowerCase();
-        if (fnName) createdFunctions.add(fnName);
+        const header = match[2] ?? "";
+        if (fnName) {
+          createdFunctions.add(fnName);
+          if (
+            /\bsecurity\s+definer\b/i.test(header) &&
+            !/\bset\s+search_path\s*=\s*''/i.test(header)
+          ) {
+            unpinnedSearchPath.push(`${relPath}: ${fnName}`);
+          }
+        }
       }
 
       const revokedFunctions = new Set<string>();
@@ -857,8 +907,9 @@ describe("Invariant 5 — Explicit REVOKE ALL ON FUNCTION ... FROM PUBLIC, anon,
       }
     }
 
-    expect(totalFunctions).toBeGreaterThanOrEqual(33);
+    expect(totalFunctions).toBeGreaterThanOrEqual(36);
     expect(unrevoked).toEqual([]);
+    expect(unpinnedSearchPath).toEqual([]);
   });
 });
 
@@ -928,7 +979,7 @@ describe("Invariant 6 — Zero forbidden external-company / hub / workflow refer
 
   it("confirms tests/e2e/** contains zero imports, URLs, or MCP invocations of the forbidden brand and restricts negative guard patterns to the 3 locked guard files", () => {
     const e2eFiles = walkFiles(join(REPO_ROOT, "tests/e2e"), () => true);
-    expect(e2eFiles).toHaveLength(23);
+    expect(e2eFiles.length).toBeGreaterThanOrEqual(27);
 
     const unexpectedLiteralFiles: string[] = [];
     const runtimeViolations: string[] = [];
@@ -960,9 +1011,9 @@ describe("Invariant 7 — Zero PR #31 banned artifacts across src/, worker/, roa
     /\b(?:const|let|var)\s+\w*(?:burnCircle|fuelRecovery|logisticCalib)\b/i,
   ];
 
-  it("forbids PR #31 artifacts in all 7 comment-stripped roadmap migrations", () => {
+  it("forbids PR #31 artifacts in all comment-stripped roadmap migrations", () => {
     const migrations = listRoadmapMigrations();
-    expect(migrations).toHaveLength(7);
+    expect(migrations.length).toBeGreaterThanOrEqual(9);
 
     const violations: string[] = [];
     for (const relPath of migrations) {
@@ -1411,7 +1462,7 @@ describe("Invariant 10 — Cross-track integration, source contracts, Track 2 de
     const migrationFiles = readdirSync(migrationDir)
       .filter((f) => f.endsWith(".sql"))
       .sort();
-    expect(migrationFiles.length).toBe(175);
+    expect(migrationFiles.length).toBe(176);
 
     const activeContracts = new Set<string>();
     for (const file of migrationFiles) {

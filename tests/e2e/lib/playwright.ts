@@ -96,6 +96,11 @@ export interface PageHandle {
       timeout?: number;
     },
   ): Promise<unknown>;
+  waitForFunction<R>(
+    fn: () => R | Promise<R>,
+    arg?: unknown,
+    options?: { polling?: number | "raf"; timeout?: number },
+  ): Promise<unknown>;
   waitForTimeout(timeout: number): Promise<void>;
   waitForLoadState(
     state?: "load" | "domcontentloaded" | "networkidle",

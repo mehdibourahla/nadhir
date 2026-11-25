@@ -175,6 +175,8 @@ export type CardText = {
 };
 
 export function algiersDateTime(iso: string, locale: AnyLocale) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: "Africa/Algiers",
     day: "numeric",
@@ -183,7 +185,7 @@ export function algiersDateTime(iso: string, locale: AnyLocale) {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
-  }).format(new Date(iso));
+  }).format(date);
 }
 
 export function incidentCardModel(
