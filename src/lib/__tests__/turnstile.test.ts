@@ -324,6 +324,57 @@ describe("F24 verifyTurnstileToken (fail-closed Cloudflare Turnstile verifier)",
     }
     expect(fetchImpl).not.toHaveBeenCalled();
   });
+
+  it("refuses to follow HTTP 307 redirects on verifyUrl and fails closed with 503 upstream_error", async () => {
+    let targetHits = 0;
+    const targetServer = createServer((_req, res) => {
+      targetHits += 1;
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          success: true,
+          action: "redirected",
+          hostname: "nadhir.app",
+        }),
+      );
+    });
+
+    await new Promise<void>((resolve) =>
+      targetServer.listen(0, "127.0.0.1", () => resolve()),
+    );
+    const { port: targetPort } = targetServer.address() as AddressInfo;
+
+    const redirectServer = createServer((_req, res) => {
+      res.writeHead(307, {
+        location: `http://127.0.0.1:${targetPort}/stolen`,
+      });
+      res.end();
+    });
+
+    await new Promise<void>((resolve) =>
+      redirectServer.listen(0, "127.0.0.1", () => resolve()),
+    );
+    const { port: redirectPort } = redirectServer.address() as AddressInfo;
+
+    try {
+      const result = await verifyTurnstileToken({
+        token: "redirect-probe-token",
+        secretKey: SECRET,
+        verifyUrl: `http://127.0.0.1:${redirectPort}/turnstile/v0/siteverify`,
+      });
+      expect(result).toEqual({
+        ok: false,
+        status: 503,
+        reason: "upstream_error",
+      });
+      expect(targetHits).toBe(0);
+    } finally {
+      await new Promise<void>((resolve) =>
+        redirectServer.close(() => resolve()),
+      );
+      await new Promise<void>((resolve) => targetServer.close(() => resolve()));
+    }
+  });
 });
 
 describe("F24 wired write handlers enforce Turnstile", () => {

@@ -203,6 +203,7 @@ export async function verifyTurnstileToken(
       },
       body: payload.toString(),
       signal: controller.signal,
+      redirect: "error",
     });
   } catch (error) {
     if (
