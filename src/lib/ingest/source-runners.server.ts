@@ -19,6 +19,7 @@ import {
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { runItaSource } from "@/lib/text-sources/ita-pipeline.server";
 import { runItaFacebookSource } from "@/lib/text-sources/ita-facebook.server";
+import { runTarikiSource } from "@/lib/text-sources/tariki.server";
 import {
   runTextSource,
   type TextSourceRun,
@@ -26,11 +27,19 @@ import {
 
 import { algiersToday } from "./algiers-date";
 import { publishBroadcasts } from "./broadcast.server";
+import { runClmsNdviSwiSource } from "./clms.server";
+import { runCraagSource } from "./craag.server";
 import { deliverBroadcasts } from "./delivery.server";
 import { ingestEffis } from "./effis.server";
 import { ingestFci, ingestS3, type FciRun } from "./fci.server";
 import { ingestFirms } from "./firms.server";
 import { fuseDetections } from "./fusion.server";
+import { runGhslPopulationSource } from "./ghsl.server";
+import { runGwisBurnedAreasSource } from "./gwis.server";
+import { runHsafSource } from "./hsaf.server";
+import { runImergSource } from "./imerg.server";
+import { runMtgFciPushSource } from "./mtg-fci-push.server";
+import { runMtgLightningSource } from "./mtg-lightning.server";
 import { ingestOnm } from "./onm.server";
 import { ingestEmsc } from "./emsc.server";
 import { ingestMetar } from "./metar.server";
@@ -59,6 +68,15 @@ export const RUNTIME_CONTRACT_KEYS = [
   "alert_evaluation",
   "broadcast_publish",
   "broadcast_delivery",
+  "imerg_rainfall",
+  "hsaf_rainfall",
+  "tariki_facebook",
+  "craag_earthquakes",
+  "mtg_fci_push",
+  "mtg_lightning",
+  "gwis_burned_areas",
+  "clms_ndvi_swi",
+  "ghsl_population",
 ] as const;
 
 export type RuntimeContractKey = (typeof RUNTIME_CONTRACT_KEYS)[number];
@@ -87,6 +105,15 @@ export type SourceRunnerDependencies = {
   drainWebhookDeliveries: typeof drainWebhookDeliveries;
   deliverWhatsappChannel?: typeof deliverWhatsappChannelBroadcasts;
   deliverEmailDigests?: typeof deliverZoneEmailDigests;
+  runImergSource: typeof runImergSource;
+  runHsafSource: typeof runHsafSource;
+  runTarikiSource: typeof runTarikiSource;
+  runCraagSource: typeof runCraagSource;
+  runMtgFciPushSource: typeof runMtgFciPushSource;
+  runMtgLightningSource: typeof runMtgLightningSource;
+  runGwisBurnedAreasSource: typeof runGwisBurnedAreasSource;
+  runClmsNdviSwiSource: typeof runClmsNdviSwiSource;
+  runGhslPopulationSource: typeof runGhslPopulationSource;
 };
 
 function baseReport(
@@ -500,6 +527,15 @@ export function createSourceRunners(
         ),
       };
     },
+    imerg_rainfall: (job) => dependencies.runImergSource(job),
+    hsaf_rainfall: (job) => dependencies.runHsafSource(job),
+    tariki_facebook: (job) => dependencies.runTarikiSource(job),
+    craag_earthquakes: (job) => dependencies.runCraagSource(job),
+    mtg_fci_push: (job) => dependencies.runMtgFciPushSource(job),
+    mtg_lightning: (job) => dependencies.runMtgLightningSource(job),
+    gwis_burned_areas: (job) => dependencies.runGwisBurnedAreasSource(job),
+    clms_ndvi_swi: (job) => dependencies.runClmsNdviSwiSource(job),
+    ghsl_population: (job) => dependencies.runGhslPopulationSource(job),
   };
 }
 
@@ -525,6 +561,15 @@ const sourceRunnerDependencies: SourceRunnerDependencies = {
   drainWebhookDeliveries,
   deliverWhatsappChannel: deliverWhatsappChannelBroadcasts,
   deliverEmailDigests: deliverZoneEmailDigests,
+  runImergSource,
+  runHsafSource,
+  runTarikiSource,
+  runCraagSource,
+  runMtgFciPushSource,
+  runMtgLightningSource,
+  runGwisBurnedAreasSource,
+  runClmsNdviSwiSource,
+  runGhslPopulationSource,
 };
 
 export const SOURCE_RUNNERS = createSourceRunners(sourceRunnerDependencies);

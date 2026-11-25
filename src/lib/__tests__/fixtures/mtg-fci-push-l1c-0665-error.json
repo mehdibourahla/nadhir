@@ -1,0 +1,9 @@
+{
+  "product_id": "EO:EUM:DAT:0665:MTG-I1-FCI-L1C-HRFI-20260815T132000Z",
+  "product_level": "L1c",
+  "source": "eumetsat_fci",
+  "slot_time": "2026-08-15T13:20:00Z",
+  "published_at": "2026-08-15T13:22:00Z",
+  "type": "FeatureCollection",
+  "features": []
+}

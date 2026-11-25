@@ -1,0 +1,96 @@
+{
+  "type": "FeatureCollection",
+  "licence": "CC BY 4.0",
+  "estimation_basis": "firms_derived_estimate",
+  "is_official_confirmation": false,
+  "is_optical_scar": false,
+  "published_at": "2026-08-18T18:00:00Z",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [4.70, 36.67],
+            [4.74, 36.67],
+            [4.74, 36.69],
+            [4.70, 36.69],
+            [4.70, 36.67]
+          ]
+        ]
+      },
+      "properties": {
+        "event_id": "gwis-2026-dz-0142",
+        "product_layer": "nrt.ba",
+        "burn_start_at": "2026-08-15",
+        "burn_end_at": "2026-08-18",
+        "published_at": "2026-08-18T18:00:00Z",
+        "area_ha": 182.4,
+        "licence": "CC BY 4.0",
+        "estimation_basis": "firms_derived_estimate",
+        "is_official_confirmation": false,
+        "is_optical_scar": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [6.55, 36.82],
+              [6.58, 36.82],
+              [6.58, 36.84],
+              [6.55, 36.84],
+              [6.55, 36.82]
+            ]
+          ],
+          [
+            [
+              [6.59, 36.83],
+              [6.61, 36.83],
+              [6.61, 36.85],
+              [6.59, 36.85],
+              [6.59, 36.83]
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "event_id": "gwis-2026-dz-0143",
+        "product_layer": "nrt.ba",
+        "burn_start_at": "2026-08-16",
+        "burn_end_at": "2026-08-18",
+        "published_at": "2026-08-18T17:45:00Z",
+        "area_ha": 94.7,
+        "licence": "CC BY 4.0"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [14.20, 40.80],
+            [14.24, 40.80],
+            [14.24, 40.82],
+            [14.20, 40.82],
+            [14.20, 40.80]
+          ]
+        ]
+      },
+      "properties": {
+        "event_id": "gwis-2026-it-0881",
+        "product_layer": "nrt.ba",
+        "burn_start_at": "2026-08-17",
+        "burn_end_at": "2026-08-18",
+        "published_at": "2026-08-18T17:30:00Z",
+        "area_ha": 61.0,
+        "licence": "CC BY 4.0"
+      }
+    }
+  ]
+}

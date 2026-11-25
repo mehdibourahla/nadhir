@@ -1683,9 +1683,12 @@ export type Database = {
           fp_reason: string | null;
           frp_mw: number | null;
           id: string;
+          intake_channel: string | null;
           lat: number;
           lon: number;
           natural_key: string;
+          push_product_id: string | null;
+          push_received_at: string | null;
           raw: Json | null;
           sensor: string;
           source: string;
@@ -1699,9 +1702,12 @@ export type Database = {
           fp_reason?: string | null;
           frp_mw?: number | null;
           id?: string;
+          intake_channel?: string | null;
           lat: number;
           lon: number;
           natural_key: string;
+          push_product_id?: string | null;
+          push_received_at?: string | null;
           raw?: Json | null;
           sensor: string;
           source: string;
@@ -1715,9 +1721,12 @@ export type Database = {
           fp_reason?: string | null;
           frp_mw?: number | null;
           id?: string;
+          intake_channel?: string | null;
           lat?: number;
           lon?: number;
           natural_key?: string;
+          push_product_id?: string | null;
+          push_received_at?: string | null;
           raw?: Json | null;
           sensor?: string;
           source?: string;
@@ -2809,6 +2818,393 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      clms_land_indices: {
+        Row: {
+          attribution: string;
+          commune_code: string;
+          commune_id: string | null;
+          id: string;
+          ingested_at: string;
+          is_calibrated_fuel: boolean;
+          lat: number;
+          lon: number;
+          ndvi_value: number | null;
+          observed_at: string;
+          product_version: string;
+          published_at: string;
+          qa_pixel_fraction: number | null;
+          quality_state: string;
+          source_key: string;
+          swi_value: number | null;
+          wilaya_code: string;
+        };
+        Insert: {
+          attribution: string;
+          commune_code: string;
+          commune_id?: string | null;
+          id?: string;
+          ingested_at?: string;
+          is_calibrated_fuel?: boolean;
+          lat: number;
+          lon: number;
+          ndvi_value?: number | null;
+          observed_at: string;
+          product_version: string;
+          published_at: string;
+          qa_pixel_fraction?: number | null;
+          quality_state?: string;
+          source_key?: string;
+          swi_value?: number | null;
+          wilaya_code: string;
+        };
+        Update: {
+          attribution?: string;
+          commune_code?: string;
+          commune_id?: string | null;
+          id?: string;
+          ingested_at?: string;
+          is_calibrated_fuel?: boolean;
+          lat?: number;
+          lon?: number;
+          ndvi_value?: number | null;
+          observed_at?: string;
+          product_version?: string;
+          published_at?: string;
+          qa_pixel_fraction?: number | null;
+          quality_state?: string;
+          source_key?: string;
+          swi_value?: number | null;
+          wilaya_code?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "clms_land_indices_commune_id_fkey";
+            columns: ["commune_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "clms_land_indices_source_key_fkey";
+            columns: ["source_key"];
+            isOneToOne: false;
+            referencedRelation: "source_contracts";
+            referencedColumns: ["key"];
+          },
+        ];
+      };
+      ghsl_exposure: {
+        Row: {
+          attribution: string;
+          commune_code: string;
+          commune_id: string | null;
+          conservation_delta: number;
+          crs_code: string;
+          dataset_release: string;
+          epoch_year: number;
+          exposure_label: string;
+          id: string;
+          ingested_at: string;
+          lat: number;
+          lon: number;
+          modeled_residents: number;
+          published_at: string;
+          resolution_m: number;
+          source_cell_count: number;
+          source_cell_sum: number;
+          source_key: string;
+          wilaya_code: string;
+        };
+        Insert: {
+          attribution: string;
+          commune_code: string;
+          commune_id?: string | null;
+          conservation_delta: number;
+          crs_code: string;
+          dataset_release?: string;
+          epoch_year: number;
+          exposure_label?: string;
+          id?: string;
+          ingested_at?: string;
+          lat: number;
+          lon: number;
+          modeled_residents: number;
+          published_at: string;
+          resolution_m: number;
+          source_cell_count: number;
+          source_cell_sum: number;
+          source_key?: string;
+          wilaya_code: string;
+        };
+        Update: {
+          attribution?: string;
+          commune_code?: string;
+          commune_id?: string | null;
+          conservation_delta?: number;
+          crs_code?: string;
+          dataset_release?: string;
+          epoch_year?: number;
+          exposure_label?: string;
+          id?: string;
+          ingested_at?: string;
+          lat?: number;
+          lon?: number;
+          modeled_residents?: number;
+          published_at?: string;
+          resolution_m?: number;
+          source_cell_count?: number;
+          source_cell_sum?: number;
+          source_key?: string;
+          wilaya_code?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ghsl_exposure_commune_id_fkey";
+            columns: ["commune_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "ghsl_exposure_source_key_fkey";
+            columns: ["source_key"];
+            isOneToOne: false;
+            referencedRelation: "source_contracts";
+            referencedColumns: ["key"];
+          },
+        ];
+      };
+      gwis_burned_areas: {
+        Row: {
+          area_ha: number;
+          attribution: string;
+          burn_end_at: string;
+          burn_start_at: string;
+          commune_code: string | null;
+          commune_id: string | null;
+          estimation_basis: string;
+          event_id: string;
+          id: string;
+          ingested_at: string;
+          is_official_confirmation: boolean;
+          is_optical_scar: boolean;
+          lat: number;
+          licence: string;
+          lon: number;
+          perimeter_geojson: Json;
+          product_layer: string;
+          published_at: string;
+          source_key: string;
+          wilaya_code: string | null;
+        };
+        Insert: {
+          area_ha: number;
+          attribution: string;
+          burn_end_at: string;
+          burn_start_at: string;
+          commune_code?: string | null;
+          commune_id?: string | null;
+          estimation_basis?: string;
+          event_id: string;
+          id?: string;
+          ingested_at?: string;
+          is_official_confirmation?: boolean;
+          is_optical_scar?: boolean;
+          lat: number;
+          licence?: string;
+          lon: number;
+          perimeter_geojson: Json;
+          product_layer?: string;
+          published_at: string;
+          source_key?: string;
+          wilaya_code?: string | null;
+        };
+        Update: {
+          area_ha?: number;
+          attribution?: string;
+          burn_end_at?: string;
+          burn_start_at?: string;
+          commune_code?: string | null;
+          commune_id?: string | null;
+          estimation_basis?: string;
+          event_id?: string;
+          id?: string;
+          ingested_at?: string;
+          is_official_confirmation?: boolean;
+          is_optical_scar?: boolean;
+          lat?: number;
+          licence?: string;
+          lon?: number;
+          perimeter_geojson?: Json;
+          product_layer?: string;
+          published_at?: string;
+          source_key?: string;
+          wilaya_code?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "gwis_burned_areas_commune_id_fkey";
+            columns: ["commune_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "gwis_burned_areas_source_key_fkey";
+            columns: ["source_key"];
+            isOneToOne: false;
+            referencedRelation: "source_contracts";
+            referencedColumns: ["key"];
+          },
+        ];
+      };
+      lightning_observations: {
+        Row: {
+          attribution: string;
+          commune_code: string | null;
+          commune_id: string | null;
+          duration_ms: number | null;
+          flash_id: string;
+          group_count: number | null;
+          id: string;
+          ingested_at: string;
+          is_wildfire: boolean;
+          lat: number;
+          lon: number;
+          observation_kind: string;
+          observed_at: string;
+          product_type: string;
+          published_at: string;
+          quality_state: string;
+          radiance_uj_m2: number | null;
+          source_key: string;
+          wilaya_code: string | null;
+        };
+        Insert: {
+          attribution: string;
+          commune_code?: string | null;
+          commune_id?: string | null;
+          duration_ms?: number | null;
+          flash_id: string;
+          group_count?: number | null;
+          id?: string;
+          ingested_at?: string;
+          is_wildfire?: boolean;
+          lat: number;
+          lon: number;
+          observation_kind?: string;
+          observed_at: string;
+          product_type: string;
+          published_at: string;
+          quality_state?: string;
+          radiance_uj_m2?: number | null;
+          source_key?: string;
+          wilaya_code?: string | null;
+        };
+        Update: {
+          attribution?: string;
+          commune_code?: string | null;
+          commune_id?: string | null;
+          duration_ms?: number | null;
+          flash_id?: string;
+          group_count?: number | null;
+          id?: string;
+          ingested_at?: string;
+          is_wildfire?: boolean;
+          lat?: number;
+          lon?: number;
+          observation_kind?: string;
+          observed_at?: string;
+          product_type?: string;
+          published_at?: string;
+          quality_state?: string;
+          radiance_uj_m2?: number | null;
+          source_key?: string;
+          wilaya_code?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "lightning_observations_commune_id_fkey";
+            columns: ["commune_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "lightning_observations_source_key_fkey";
+            columns: ["source_key"];
+            isOneToOne: false;
+            referencedRelation: "source_contracts";
+            referencedColumns: ["key"];
+          },
+        ];
+      };
+      mtg_fci_push_deliveries: {
+        Row: {
+          attribution: string;
+          fallback_contract_key: string;
+          id: string;
+          ingested_at: string;
+          latency_seconds: number;
+          pixels_filtered: number;
+          pixels_seen: number;
+          pixels_stored: number;
+          product_id: string;
+          published_at: string;
+          quality_state: string;
+          received_at: string;
+          slot_time: string;
+          source_key: string;
+        };
+        Insert: {
+          attribution: string;
+          fallback_contract_key?: string;
+          id?: string;
+          ingested_at?: string;
+          latency_seconds: number;
+          pixels_filtered?: number;
+          pixels_seen?: number;
+          pixels_stored?: number;
+          product_id: string;
+          published_at: string;
+          quality_state?: string;
+          received_at: string;
+          slot_time: string;
+          source_key?: string;
+        };
+        Update: {
+          attribution?: string;
+          fallback_contract_key?: string;
+          id?: string;
+          ingested_at?: string;
+          latency_seconds?: number;
+          pixels_filtered?: number;
+          pixels_seen?: number;
+          pixels_stored?: number;
+          product_id?: string;
+          published_at?: string;
+          quality_state?: string;
+          received_at?: string;
+          slot_time?: string;
+          source_key?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "mtg_fci_push_deliveries_fallback_contract_key_fkey";
+            columns: ["fallback_contract_key"];
+            isOneToOne: false;
+            referencedRelation: "source_contracts";
+            referencedColumns: ["key"];
+          },
+          {
+            foreignKeyName: "mtg_fci_push_deliveries_source_key_fkey";
+            columns: ["source_key"];
+            isOneToOne: false;
+            referencedRelation: "source_contracts";
+            referencedColumns: ["key"];
+          },
+        ];
       };
       rainfall_observations: {
         Row: {
@@ -4272,6 +4668,22 @@ export type Database = {
       };
       apply_onm_cap_chain: {
         Args: { _cap_ids: string[] };
+        Returns: Json;
+      };
+      record_mtg_fci_push_delivery: {
+        Args: {
+          _attribution?: string;
+          _fallback_contract_key?: string;
+          _latency_seconds: number;
+          _pixels_filtered?: number;
+          _pixels_seen?: number;
+          _pixels_stored?: number;
+          _product_id: string;
+          _published_at: string;
+          _quality_state?: string;
+          _received_at: string;
+          _slot_time: string;
+        };
         Returns: Json;
       };
       claim_email_digest_delivery: {

@@ -1,0 +1,43 @@
+{
+  "product_version": "ndvi_v3_300m",
+  "is_calibrated_fuel": false,
+  "observed_at": "2026-10-11",
+  "published_at": "2026-10-14T06:00:00Z",
+  "communes": [
+    {
+      "commune_code": "1501",
+      "wilaya_code": "15",
+      "lat": 36.7118,
+      "lon": 4.0459,
+      "ndvi_value": 0.442,
+      "swi_value": null,
+      "qa_pixel_fraction": 0.93,
+      "quality_state": "valid"
+    },
+    {
+      "commune_code": "0601",
+      "wilaya_code": "06",
+      "lat": 36.7509,
+      "lon": 5.0567,
+      "ndvi_value": 0.518,
+      "swi_value": 41.5,
+      "qa_pixel_fraction": 0.88,
+      "quality_state": "valid"
+    },
+    {
+      "commune_code": "1601",
+      "wilaya_code": "16",
+      "lat": 36.7529,
+      "lon": 3.0420,
+      "qa_masked": true
+    },
+    {
+      "commune_code": "9901",
+      "wilaya_code": "99",
+      "lat": 41.3851,
+      "lon": 2.1734,
+      "ndvi_value": 0.61,
+      "qa_pixel_fraction": 0.95
+    }
+  ]
+}

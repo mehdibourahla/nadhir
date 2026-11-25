@@ -54,6 +54,16 @@ export function publicReasonForError(error: string): PublicSourceReason {
     return "schema_invalid";
 
   if (
+    (message.includes("licence") || message.includes("license")) &&
+    !/\b(?:http\s+\d{3}|[45]\d\d)\b/.test(message) &&
+    !message.includes("wfs") &&
+    !message.includes("fetch") &&
+    !message.includes("network") &&
+    !message.includes("upstream")
+  )
+    return "licence_invalid";
+
+  if (
     message.includes("missing") ||
     message.includes("not configured") ||
     message.includes("credential")
@@ -69,9 +79,6 @@ export function publicReasonForError(error: string): PublicSourceReason {
     /\b[45]\d\d\b/.test(message)
   )
     return "upstream_unreachable";
-
-  if (message.includes("licence") || message.includes("license"))
-    return "licence_invalid";
 
   if (message.includes("provider") || message.includes("feed"))
     return "upstream_unreachable";
