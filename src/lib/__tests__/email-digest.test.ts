@@ -101,9 +101,10 @@ function makeInMemoryEmailStore(options: {
     async isPipelineActive() {
       return options.pipelineActive ?? true;
     },
-    async listPendingUsers(limit) {
+    async listPendingUsers(limit, afterUserId) {
       return options.users
         .filter((u) => !suppressedUsers.has(u.user_id))
+        .filter((u) => !afterUserId || u.user_id > afterUserId)
         .slice(0, limit);
     },
     async loadUndeliveredAlerts(userId, limit) {
@@ -188,6 +189,16 @@ describe("HTML escaping & URL sanitization", () => {
       "https://nadhir.app/fire/abc-1",
     );
     expect(sanitizeNadhirUrl("/settings")).toBe("https://nadhir.app/settings");
+    // Reject non-standard ports & embedded userinfo credentials
+    expect(sanitizeNadhirUrl("https://nadhir.app:8443/phish")).toBe(
+      "https://nadhir.app/alerts",
+    );
+    expect(sanitizeNadhirUrl("https://evil@nadhir.app/alerts")).toBe(
+      "https://nadhir.app/alerts",
+    );
+    expect(sanitizeNadhirUrl("https://user:pass@nadhir.app/alerts")).toBe(
+      "https://nadhir.app/alerts",
+    );
   });
 });
 
@@ -210,6 +221,11 @@ describe("Algiers quiet hours, midnight guard & urgent bypass", () => {
     expect(isInAlgiersQuietHours(22, 6, noonAlgiers)).toBe(false);
     expect(isInAlgiersQuietHours(13, 16, afternoonAlgiers)).toBe(true);
     expect(isInAlgiersQuietHours(13, 16, noonAlgiers)).toBe(false);
+    // Out-of-range and non-integer bounds fail safe to false
+    expect(isInAlgiersQuietHours(-1, 24, noonAlgiers)).toBe(false);
+    expect(isInAlgiersQuietHours(24, 6, midnightAlgiers)).toBe(false);
+    expect(isInAlgiersQuietHours(1.5, 6, midnightAlgiers)).toBe(false);
+    expect(isInAlgiersQuietHours(Number.NaN, 6, midnightAlgiers)).toBe(false);
   });
 
   it("bypasses quiet hours for urgent fire, Extreme ONM, urgent official, and M5+ earthquake, while deferring non-urgent alerts", () => {
@@ -271,6 +287,76 @@ describe("Algiers quiet hours, midnight guard & urgent bypass", () => {
         }),
       ).toBe(false);
     }
+
+    // Cleared/extinguished/end official incidents never bypass quiet hours
+    expect(
+      isUrgentDigestAlert(
+        makeAlert({
+          kind: "official",
+          severity: 4,
+          payload: { status: "cleared", phase: "end" },
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isUrgentDigestAlert(
+        makeAlert({
+          kind: "official",
+          severity: 4,
+          payload: { incident_status: "extinguished", phase: "update" },
+        }),
+      ),
+    ).toBe(false);
+
+    // Non-finite earthquake magnitude returns false; absent magnitude requires severity >= 5
+    expect(
+      isUrgentDigestAlert(
+        makeAlert({
+          kind: "earthquake",
+          severity: 4,
+          payload: { magnitude: Number.NaN },
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isUrgentDigestAlert(
+        makeAlert({
+          kind: "earthquake",
+          severity: 4,
+          payload: { magnitude: Number.POSITIVE_INFINITY },
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isUrgentDigestAlert(
+        makeAlert({
+          kind: "earthquake",
+          severity: 4,
+          payload: { magnitude: "invalid" },
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isUrgentDigestAlert(
+        makeAlert({ kind: "earthquake", severity: 4, payload: {} }),
+      ),
+    ).toBe(false);
+    expect(
+      isUrgentDigestAlert(
+        makeAlert({ kind: "earthquake", severity: 5, payload: {} }),
+      ),
+    ).toBe(true);
+
+    // Prototype-inherited payload properties are ignored via Object.hasOwn
+    const protoPayload = Object.create({ phase: "urgent" }) as Record<
+      string,
+      unknown
+    >;
+    expect(
+      isUrgentDigestAlert(
+        makeAlert({ kind: "fire", severity: 3, payload: protoPayload }),
+      ),
+    ).toBe(false);
   });
 
   it("builds deterministic window keys and enforces daily hour schedule unless urgent", () => {
@@ -387,6 +473,65 @@ describe("renderZoneDigestEmail", () => {
     });
     expect(rendered.text).toContain(nfdAttr);
     expect(rendered.provenanceLines[0]).toContain(nfdAttr);
+  });
+
+  it("neutralizes single LF/CR/NUL header injection in email subjects, sanitizes provenance safe/em-dash leaks across all 4 locales, and supports payload.map_event links", () => {
+    const injectedAlerts = [
+      makeAlert({ title: "Flood warning\nBcc: evil@attacker.com" }),
+      makeAlert({ title: "Flood warning\rBcc: evil@attacker.com" }),
+      makeAlert({ title: "Flood warning\u0000Bcc: evil@attacker.com" }),
+    ];
+    for (const alert of injectedAlerts) {
+      const rendered = renderZoneDigestEmail({
+        locale: "en",
+        alerts: [alert],
+        urgentBypass: false,
+      });
+      expect(rendered.subject).not.toMatch(/[\r\n]/);
+      for (let i = 0; i < rendered.subject.length; i += 1) {
+        const code = rendered.subject.charCodeAt(i);
+        expect(code > 0x1f && code !== 0x7f).toBe(true);
+      }
+    }
+
+    const locales: AnyLocale[] = ["ar", "fr", "en", "kab"];
+    const provenanceLeakAlert = makeAlert({
+      kind: "official",
+      zone_name: "Safe Zone \u2014 Blida",
+      title: "Intervention sur la RN1",
+      payload: {
+        map_event: "official:inc-42",
+        provenance_trigger: "watch_zone",
+        provenance_area: "Safe Zone \u2014 Blida",
+        provenance_source_key: "dgpc_telegram",
+        provenance_source: "DGPC \u2014 Algérie",
+        provenance_rule: "provenance.rule.dgpcNonFire",
+        provenance_observed_at: "2026-11-25T07:15:00Z",
+      },
+    });
+    for (const locale of locales) {
+      const rendered = renderZoneDigestEmail({
+        locale,
+        alerts: [provenanceLeakAlert],
+        urgentBypass: false,
+      });
+      expect(rendered.subject).not.toContain("\u2014");
+      expect(rendered.html).not.toContain("\u2014");
+      expect(rendered.text).not.toContain("\u2014");
+      expect(rendered.subject.toLowerCase()).not.toMatch(/\bsafe\b/);
+      expect(rendered.html.toLowerCase()).not.toMatch(/\bsafe\b/);
+      expect(rendered.text.toLowerCase()).not.toMatch(/\bsafe\b/);
+      expect(rendered.provenanceLines[0]?.toLowerCase()).not.toMatch(
+        /\bsafe\b/,
+      );
+      expect(rendered.text).toContain("sur la RN1");
+      expect(rendered.html).toContain(
+        "https://nadhir.app/?event=official%3Ainc-42",
+      );
+      expect(rendered.text).toContain(
+        "https://nadhir.app/?event=official%3Ainc-42",
+      );
+    }
   });
 });
 
@@ -651,5 +796,84 @@ describe("deliverZoneEmailDigests pipeline", () => {
     });
     expect(b2).toMatchObject({ usersChecked: 0, sent: 0 });
     expect(bounceTransport.sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("paginates past deferred lower-UUID users via cursor and delivers scheduled daily digest even after an earlier immediate urgent bypass", async () => {
+    // 1. Pagination past deferred users: 4 quiet-hours deferred users (page size 2) + user #5 with urgent M5+ quake on page 3
+    const users: PendingEmailDigestUser[] = [
+      makeUser({ user_id: "0001", email: "u1@example.invalid" }),
+      makeUser({ user_id: "0002", email: "u2@example.invalid" }),
+      makeUser({ user_id: "0003", email: "u3@example.invalid" }),
+      makeUser({ user_id: "0004", email: "u4@example.invalid" }),
+      makeUser({
+        user_id: "0005",
+        email: "u5@example.invalid",
+        email_digest_frequency: "daily",
+      }),
+    ];
+    const alertsByUser: Record<string, DigestAlertItem[]> = {
+      "0001": [makeAlert({ id: "a-d1" })],
+      "0002": [makeAlert({ id: "a-d2" })],
+      "0003": [makeAlert({ id: "a-d3" })],
+      "0004": [makeAlert({ id: "a-d4" })],
+      "0005": [
+        makeAlert({
+          id: "a-urgent-5",
+          kind: "earthquake",
+          severity: 4,
+          title: "M5.4 Quake",
+          payload: { magnitude: 5.4 },
+        }),
+      ],
+    };
+    const harness = makeInMemoryEmailStore({ users, alertsByUser });
+    const sentInputs: ResendEmailInput[] = [];
+    const transport: ResendEmailTransport = {
+      sendEmail: vi.fn(async (input) => {
+        sentInputs.push(input);
+        return { providerMessageId: `re_page_${sentInputs.length}` };
+      }),
+    };
+
+    const nightRun = await deliverZoneEmailDigests({
+      env: {},
+      transport,
+      store: harness.store,
+      limit: 2,
+      now: new Date("2026-11-25T23:30:00Z"), // 00:30 Algiers (quiet hours 22..6)
+    });
+    expect(nightRun).toMatchObject({
+      usersChecked: 5,
+      deferredQuietHours: 4,
+      sent: 1,
+    });
+    expect(sentInputs[0]?.to).toBe("u5@example.invalid");
+
+    // 2. Same-day daily digest still fires at 07:30 Algiers when last_sent_at is scoped to 'daily' (null after 00:30 'immediate' bypass)
+    alertsByUser["0005"]!.push(
+      makeAlert({
+        id: "a-daily-5",
+        kind: "weather",
+        severity: 3,
+        title: "Daily rain summary",
+        payload: { onm_severity: "Severe" },
+      }),
+    );
+    const morningRun = await deliverZoneEmailDigests({
+      env: {},
+      transport,
+      store: harness.store,
+      limit: 2,
+      maxDeliveriesPerRun: 10,
+      now: new Date("2026-11-26T06:30:00Z"), // 07:30 Algiers (daily hour = 7)
+    });
+    expect(morningRun.sent).toBe(5);
+    expect(
+      sentInputs.some(
+        (m) =>
+          m.to === "u5@example.invalid" &&
+          m.subject.includes("Daily rain summary"),
+      ),
+    ).toBe(true);
   });
 });

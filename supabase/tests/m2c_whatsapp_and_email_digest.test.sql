@@ -212,6 +212,34 @@ select is(
   'broadcast_delivery_queue still enqueues exact 2 rows (fcm, telegram) with zero WhatsApp interference'
 );
 
+-- Verify list_pending_whatsapp_broadcasts hydrates pending broadcasts and honors kill switches
+select ok(
+  exists (
+    select 1
+    from public.list_pending_whatsapp_broadcasts('channel-dz-ar', 'ar', 20) r
+    where r.id = 'c2c30000-0000-4000-8000-000000000001'
+      and r.kind = 'onm'
+      and r.onm_event = 'Rain'
+      and r.onm_area_desc = 'Wilaya M2C'
+  ) and exists (
+    select 1
+    from public.list_pending_whatsapp_broadcasts('channel-dz-ar', 'ar', 20) r
+    where r.id = 'c2c30000-0000-4000-8000-000000000002'
+      and r.kind = 'official'
+      and r.incident_status = 'ongoing'
+      and r.incident_authority_tier = 'national'
+  ),
+  'list_pending_whatsapp_broadcasts returns un-enqueued ONM and official broadcasts with hydrated metadata'
+);
+
+update public.broadcast_settings set enabled = false where id = true;
+select is(
+  (select count(*)::int from public.list_pending_whatsapp_broadcasts('channel-dz-ar', 'ar', 20)),
+  0,
+  'list_pending_whatsapp_broadcasts returns empty when broadcast_settings.enabled = false'
+);
+update public.broadcast_settings set enabled = true where id = true;
+
 -- Enqueue WhatsApp broadcast idempotently
 select ok(
   public.enqueue_whatsapp_broadcast(
@@ -225,7 +253,16 @@ select ok(
   'enqueue_whatsapp_broadcast inserts pending WhatsApp delivery row'
 );
 
--- Re-enqueue with same dedupe_key or same (broadcast_id, channel_target, locale) returns same id, 0 duplicates
+-- Enqueued broadcast is now excluded from list_pending_whatsapp_broadcasts for same target+locale
+select is(
+  (select count(*)::int
+     from public.list_pending_whatsapp_broadcasts('channel-dz-ar', 'ar', 20)
+    where id = 'c2c30000-0000-4000-8000-000000000001'),
+  0,
+  'list_pending_whatsapp_broadcasts excludes already-enqueued broadcast for target+locale'
+);
+
+-- Re-enqueue with same dedupe_key or same (broadcast_id, channel_target, locale) returns NULL, 0 duplicates
 select is(
   public.enqueue_whatsapp_broadcast(
     'c2c30000-0000-4000-8000-000000000001',
@@ -234,8 +271,8 @@ select is(
     'wa:c2c30000-0000-4000-8000-000000000001:channel-dz-ar:ar',
     '{"text":"duplicate"}'::jsonb
   ),
-  (select id from public.whatsapp_channel_deliveries where dedupe_key = 'wa:c2c30000-0000-4000-8000-000000000001:channel-dz-ar:ar'),
-  'enqueue_whatsapp_broadcast is idempotent on dedupe_key'
+  null::uuid,
+  'enqueue_whatsapp_broadcast returns null on duplicate conflict'
 );
 
 select is(
@@ -422,28 +459,28 @@ begin
      set cancelled_at = now()
    where id = 'c2c20000-0000-4000-8000-000000000001';
 
-  -- Finish mid-flight leased row as not-delivered -> must preserve cancelled state
-  select public.finish_whatsapp_delivery(_leased.id, _leased.lease_token, false, null, 'aborted_before_send', false, null)
+  -- Mid-flight race: even finish(..., _delivered => true) must return false and preserve cancelled/cap_cancelled
+  select public.finish_whatsapp_delivery(_leased.id, _leased.lease_token, true, 'wamid.race.onm', null, false, null)
     into _ok;
-  if not _ok then
-    raise exception 'finish on invalidated leased row must succeed';
+  if _ok then
+    raise exception 'finish_whatsapp_delivery(_delivered => true) after mid-flight CAP Cancel must return false';
   end if;
 end;
 $$;
-select pass('ONM CAP Cancel trigger executes cleanly with pending and mid-flight leased rows');
+select pass('ONM CAP Cancel trigger executes cleanly and mid-flight finish(_delivered=>true) returns false without overwriting state');
 
 select ok(
-  (select state = 'cancelled' and last_error = 'cap_cancelled'
+  (select state = 'cancelled' and last_error = 'cap_cancelled' and lease_token is null and lease_until is null
      from public.whatsapp_channel_deliveries
     where dedupe_key = 'wa:c2c30000-0000-4000-8000-000000000001:channel-dz-en:en'),
   'pending WhatsApp row is cancelled with last_error=cap_cancelled on ONM CAP Cancel'
 );
 
 select ok(
-  (select state = 'cancelled' and last_error = 'cap_cancelled'
+  (select state = 'cancelled' and last_error = 'cap_cancelled' and lease_token is null and lease_until is null and provider_message_id is null
      from public.whatsapp_channel_deliveries
     where dedupe_key = 'wa:c2c30000-0000-4000-8000-000000000001:channel-dz-kab:kab'),
-  'mid-flight leased WhatsApp row preserves cancelled/cap_cancelled on finish'
+  'mid-flight leased WhatsApp row preserves cancelled/cap_cancelled even when finish_whatsapp_delivery receives _delivered=true'
 );
 
 select is(
@@ -495,21 +532,22 @@ begin
   update public.official_incidents
      set status = 'cleared'
    where id = 'c2c20000-0000-4000-8000-000000000002';
-  select public.finish_whatsapp_delivery(_leased.id, _leased.lease_token, false, null, 'aborted', false, null)
+  -- Mid-flight race: even finish(..., _delivered => true) must return false and preserve cancelled/official_cleared
+  select public.finish_whatsapp_delivery(_leased.id, _leased.lease_token, true, 'wamid.race.official', null, false, null)
     into _ok;
-  if not _ok then
-    raise exception 'finish on cleared official leased row must succeed';
+  if _ok then
+    raise exception 'finish_whatsapp_delivery(_delivered => true) after mid-flight official cleared must return false';
   end if;
 end;
 $$;
 select ok(
-  (select state = 'cancelled' and last_error = 'official_cleared'
+  (select state = 'cancelled' and last_error = 'official_cleared' and lease_token is null and lease_until is null
      from public.whatsapp_channel_deliveries
     where dedupe_key = 'wa:c2c30000-0000-4000-8000-000000000002:channel-dz-ar:ar')
-  and (select state = 'cancelled' and last_error = 'official_cleared'
+  and (select state = 'cancelled' and last_error = 'official_cleared' and lease_token is null and lease_until is null and provider_message_id is null
      from public.whatsapp_channel_deliveries
     where dedupe_key = 'wa:c2c30000-0000-4000-8000-000000000002:channel-dz-fr:fr'),
-  'official incident cleared trigger invalidates both pending and mid-flight leased WhatsApp rows'
+  'official incident cleared trigger invalidates both pending and mid-flight leased WhatsApp rows even when finish receives _delivered=true'
 );
 
 select is(
@@ -560,6 +598,55 @@ select is(
   ],
   'list_pending_email_digest_users returns only opted-in users with confirmed emails and undelivered alerts'
 );
+
+-- Cursor pagination: passing user 1 as _after_user_id advances directly to user 4
+select is(
+  (select array_agg(user_id order by user_id)
+     from public.list_pending_email_digest_users(100, 'c2c10000-0000-4000-8000-000000000001'::uuid)
+    where user_id in (
+      'c2c10000-0000-4000-8000-000000000001',
+      'c2c10000-0000-4000-8000-000000000004'
+    )),
+  array['c2c10000-0000-4000-8000-000000000004'::uuid],
+  'list_pending_email_digest_users cursor _after_user_id paginates past lower-UUID users'
+);
+
+-- Urgent 'immediate' sent email for a 'daily' user must NOT pollute daily last_sent_at
+do $$
+declare
+  _claim record;
+  _ok boolean;
+begin
+  select * into _claim from public.claim_email_digest_delivery(
+    'c2c10000-0000-4000-8000-000000000001',
+    'immediate',
+    'immediate:urgent-bypass-0200',
+    'email:u1:immediate:urgent-bypass-0200',
+    'ar',
+    array['c2c50000-0000-4000-8000-000000000001'::uuid],
+    true,
+    '[Urgent] Night alert'
+  );
+  select public.finish_email_digest_delivery(_claim.id, _claim.lease_token, true, 're_urgent_0200', null, false, false, null)
+    into _ok;
+  if not _ok then
+    raise exception 'urgent immediate finish should succeed';
+  end if;
+end;
+$$;
+
+select is(
+  (select last_sent_at
+     from public.list_pending_email_digest_users(100)
+    where user_id = 'c2c10000-0000-4000-8000-000000000001'),
+  null::timestamptz,
+  'same-day immediate urgent bypass does NOT pollute last_sent_at for a daily digest subscriber'
+);
+
+-- Reset alert 1 back to delivered_email = false for the daily digest lifecycle tests below
+update public.alerts
+   set delivered_email = false
+ where id = 'c2c50000-0000-4000-8000-000000000001';
 
 -- Pause email_digest pipeline -> list & claim return empty
 select is(
@@ -802,6 +889,49 @@ select is(
   'permanent non-bounce 4xx immediately transitions email digest row to failed'
 );
 
+-- Expired attempt-5 stale lease is swept to failed by claim_email_digest_delivery
+insert into public.email_digest_deliveries (
+  user_id, digest_kind, window_key, dedupe_key, locale, alert_ids, alert_count,
+  urgent_bypass, state, attempts, lease_token, lease_until, subject
+)
+values (
+  'c2c10000-0000-4000-8000-000000000001',
+  'immediate',
+  'immediate:stale-attempt-5',
+  'email:u1:immediate:stale-attempt-5',
+  'ar',
+  array['c2c50000-0000-4000-8000-000000000006'::uuid],
+  1,
+  false,
+  'leased',
+  5,
+  gen_random_uuid(),
+  now() - interval '10 seconds',
+  'Stale attempt 5'
+);
+
+select is(
+  (select count(*)::int from public.claim_email_digest_delivery(
+    'c2c10000-0000-4000-8000-000000000001',
+    'immediate',
+    'immediate:stale-attempt-5',
+    'email:u1:immediate:stale-attempt-5',
+    'ar',
+    array['c2c50000-0000-4000-8000-000000000006'::uuid],
+    false,
+    'Stale attempt 5'
+  )),
+  0,
+  'claim_email_digest_delivery does not re-claim expired attempt-5 row'
+);
+
+select ok(
+  (select state = 'failed' and lease_token is null and lease_until is null and last_error = 'max_attempts_exceeded'
+     from public.email_digest_deliveries
+    where dedupe_key = 'email:u1:immediate:stale-attempt-5'),
+  'claim_email_digest_delivery sweeps expired attempt-5 stale lease to state=failed'
+);
+
 -- ON DELETE CASCADE on auth.users deletes email_digest_deliveries & email_digest_suppressions cleanly
 delete from auth.users where id = 'c2c10000-0000-4000-8000-000000000004';
 select is(
@@ -827,10 +957,11 @@ declare
     'public.email_digest_suppressions'
   ];
   _rpcs text[] := array[
+    'public.list_pending_whatsapp_broadcasts(text, text, integer)',
     'public.enqueue_whatsapp_broadcast(uuid, text, text, text, jsonb, timestamptz)',
     'public.claim_whatsapp_deliveries(integer)',
     'public.finish_whatsapp_delivery(uuid, uuid, boolean, text, text, boolean, integer)',
-    'public.list_pending_email_digest_users(integer)',
+    'public.list_pending_email_digest_users(integer, uuid)',
     'public.claim_email_digest_delivery(uuid, text, text, text, text, uuid[], boolean, text)',
     'public.finish_email_digest_delivery(uuid, uuid, boolean, text, text, boolean, boolean, integer)',
     'public.set_delivery_pipeline_state(text, boolean, boolean, text)'
@@ -863,7 +994,7 @@ begin
     end if;
   end loop;
 
-  -- Verify all 7 RPCs: execute ONLY for service_role
+  -- Verify all 8 RPCs: execute ONLY for service_role
   foreach _fn in array _rpcs loop
     foreach _role in array array['public', 'anon', 'authenticated', 'cold_reader'] loop
       if has_function_privilege(_role, _fn, 'execute') then
@@ -884,7 +1015,7 @@ begin
     end loop;
   end loop;
 
-  -- Verify search_path = '' on all 9 new functions
+  -- Verify search_path = '' on all 10 new functions
   _all_fns := _rpcs || _triggers;
   foreach _fn in array _all_fns loop
     select p.proconfig into _proconfig
@@ -896,7 +1027,7 @@ begin
   end loop;
 end;
 $$;
-select pass('5-role privilege matrix, RLS enablement, and search_path = '''' verified across all 4 tables and 9 functions');
+select pass('5-role privilege matrix, RLS enablement, and search_path = '''' verified across all 4 tables and 10 functions');
 
 -- Runtime role checks: anon, authenticated, cold_reader rejected on tables & RPCs
 set local role anon;
@@ -905,6 +1036,7 @@ select throws_ok($$select * from public.whatsapp_channel_deliveries$$, '42501', 
 select throws_ok($$select * from public.email_digest_deliveries$$, '42501', null, 'anon cannot read email_digest_deliveries');
 select throws_ok($$select * from public.email_digest_suppressions$$, '42501', null, 'anon cannot read email_digest_suppressions');
 select throws_ok($$select * from public.list_pending_email_digest_users(10)$$, '42501', null, 'anon cannot execute list_pending_email_digest_users');
+select throws_ok($$select * from public.list_pending_whatsapp_broadcasts('channel-dz', 'ar', 10)$$, '42501', null, 'anon cannot execute list_pending_whatsapp_broadcasts');
 reset role;
 
 set local role authenticated;
@@ -913,6 +1045,7 @@ select throws_ok($$select * from public.whatsapp_channel_deliveries$$, '42501', 
 select throws_ok($$select * from public.email_digest_deliveries$$, '42501', null, 'authenticated cannot read email_digest_deliveries');
 select throws_ok($$select * from public.email_digest_suppressions$$, '42501', null, 'authenticated cannot read email_digest_suppressions');
 select throws_ok($$select * from public.claim_whatsapp_deliveries(10)$$, '42501', null, 'authenticated cannot execute claim_whatsapp_deliveries');
+select throws_ok($$select * from public.list_pending_whatsapp_broadcasts('channel-dz', 'ar', 10)$$, '42501', null, 'authenticated cannot execute list_pending_whatsapp_broadcasts');
 select throws_ok($$select public.set_delivery_pipeline_state('email_digest', false, null, null)$$, '42501', null, 'authenticated cannot execute set_delivery_pipeline_state');
 reset role;
 

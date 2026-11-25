@@ -7,11 +7,15 @@ import {
   classifyDeliveryError,
   computeBackoffSeconds,
   createMetaWhatsAppChannelTransport,
+  createSupabaseWhatsAppDeliveryStore,
   deliverWhatsappChannelBroadcasts,
   evaluateWhatsappBroadcastEligibility,
   formatAlgiersTimestamp,
   formatWhatsappBroadcastMessage,
+  mapPendingBroadcastRowToCandidate,
+  sanitizeCopyText,
   WhatsAppHttpError,
+  type PendingWhatsAppBroadcastRow,
   type QueuedWhatsAppDelivery,
   type WhatsAppBroadcastCandidate,
   type WhatsAppChannelTransport,
@@ -362,6 +366,135 @@ describe("evaluateWhatsappBroadcastEligibility", () => {
       ),
     ).toEqual({ eligible: false, reason: "earthquake_below_m4" });
   });
+
+  it("fails closed on omitted/null fire corroboration flags, Arabic/variant ITA, open-meteo, lowercase ONM cancel, and unlisted/cleared official updates", () => {
+    // Bare/minimal kind="fire" with omitted or null flags must fail closed
+    expect(
+      evaluateWhatsappBroadcastEligibility(
+        {
+          id: "b-fire-omitted",
+          kind: "fire",
+          phase: "initial",
+          severity: "Severe",
+          sourceKey: "firms",
+          sourceAttribution: "NASA FIRMS",
+          observedAt: "2026-11-25T09:30:00Z",
+          headline: "Raw thermal hotspot",
+        },
+        NOW,
+      ),
+    ).toEqual({ eligible: false, reason: "raw_heat_signal_excluded" });
+
+    expect(
+      evaluateWhatsappBroadcastEligibility(
+        {
+          id: "b-fire-null",
+          kind: "fire",
+          phase: "initial",
+          severity: "Extreme",
+          sourceKey: "firms",
+          corroborated: null,
+          isHeatSignal: null,
+          confirmed: null,
+          authorityStatus: null,
+          observedAt: "2026-11-25T09:30:00Z",
+          headline: "Null flags hotspot",
+        },
+        NOW,
+      ),
+    ).toEqual({ eligible: false, reason: "raw_heat_signal_excluded" });
+
+    // Arabic & variant ITA attributions + infix/suffix ITA sourceKey
+    for (const attr of [
+      "إعلام المرور",
+      "إنفو ترافيك الجزائر",
+      "انفو ترافيك",
+      "InfoTrafic Algérie",
+    ]) {
+      expect(
+        evaluateWhatsappBroadcastEligibility(
+          {
+            id: `b-ita-${attr}`,
+            kind: "fire",
+            phase: "initial",
+            severity: "Severe",
+            sourceKey: "other",
+            sourceAttribution: attr,
+            corroborated: true,
+            observedAt: "2026-11-25T09:30:00Z",
+            headline: "Road post",
+          },
+          NOW,
+        ),
+      ).toEqual({ eligible: false, reason: "ita_media_excluded" });
+    }
+
+    for (const key of ["dz_ita_feed", "ITA_CUSTOM", "feed.ita"]) {
+      expect(
+        evaluateWhatsappBroadcastEligibility(
+          makeOnmCandidate({ sourceKey: key }),
+          NOW,
+        ),
+      ).toEqual({ eligible: false, reason: "ita_media_excluded" });
+    }
+
+    // Hyphenated model sourceKey
+    expect(
+      evaluateWhatsappBroadcastEligibility(
+        makeOnmCandidate({ sourceKey: "open-meteo" }),
+        NOW,
+      ),
+    ).toEqual({ eligible: false, reason: "model_output_excluded" });
+
+    // Lowercase ONM msgType "cancel"
+    expect(
+      evaluateWhatsappBroadcastEligibility(
+        makeOnmCandidate({ msgType: "cancel" }),
+        NOW,
+      ),
+    ).toEqual({ eligible: false, reason: "onm_cancelled_or_superseded" });
+
+    // Unlisted official incident rejected across ALL phases (initial, update, end)
+    for (const phase of ["initial", "update", "end"] as const) {
+      expect(
+        evaluateWhatsappBroadcastEligibility(
+          {
+            id: `b-off-unlisted-${phase}`,
+            kind: "official",
+            phase,
+            severity: "Severe",
+            hazard: "flood",
+            sourceKey: "dgpc_telegram",
+            incidentStatus: "ongoing",
+            unlistedAt: "2026-11-25T09:45:00Z",
+            observedAt: "2026-11-25T09:30:00Z",
+            headline: "Unlisted official incident",
+          },
+          NOW,
+        ),
+      ).toEqual({ eligible: false, reason: "official_incident_cleared" });
+    }
+
+    // Cleared/extinguished official incident rejected on update phase (allowed only on end phase)
+    for (const status of ["cleared", "extinguished"]) {
+      expect(
+        evaluateWhatsappBroadcastEligibility(
+          {
+            id: `b-off-update-${status}`,
+            kind: "official",
+            phase: "update",
+            severity: "Severe",
+            hazard: "flood",
+            sourceKey: "dgpc_telegram",
+            incidentStatus: status,
+            observedAt: "2026-11-25T09:30:00Z",
+            headline: "Cleared update",
+          },
+          NOW,
+        ),
+      ).toEqual({ eligible: false, reason: "official_incident_cleared" });
+    }
+  });
 });
 
 describe("formatWhatsappBroadcastMessage & invariants", () => {
@@ -443,6 +576,62 @@ describe("formatWhatsappBroadcastMessage & invariants", () => {
         clusterShortId: "abc-99",
       }),
     ).toBe("https://nadhir.app/fire/abc-99");
+  });
+
+  it("strips single LF/CR/NUL control chars and trims dangling middots in sanitizeCopyText and provenance footers across all 4 locales", () => {
+    expect(sanitizeCopyText("Alert\nBcc: evil@attacker.com")).toBe(
+      "Alert Bcc: evil@attacker.com",
+    );
+    expect(sanitizeCopyText("Alert\rSecond\u0000Line")).toBe(
+      "Alert SecondLine",
+    );
+    expect(sanitizeCopyText("Safe Zone \u2014 Blida")).toBe("Blida");
+
+    const locales: AnyLocale[] = ["ar", "fr", "en", "kab"];
+    for (const locale of locales) {
+      const onmMsg = formatWhatsappBroadcastMessage({
+        candidate: makeOnmCandidate({
+          areaLabel: "Safe Zone \u2014 Blida",
+          sourceAttribution: "ONM · Me\u0301te\u0301o Alge\u0301rie",
+        }),
+        locale,
+      });
+      expect(onmMsg.text).toContain("ONM · Me\u0301te\u0301o Alge\u0301rie");
+      expect(onmMsg.text).not.toContain("\u2014");
+      expect(onmMsg.text.toLowerCase()).not.toMatch(/\bsafe\b/);
+      expect(onmMsg.provenanceFooter.toLowerCase()).not.toMatch(/\bsafe\b/);
+      expect(onmMsg.text).not.toContain(": · Blida");
+
+      const dgpcMsg = formatWhatsappBroadcastMessage({
+        candidate: {
+          id: "b-dgpc-prov",
+          kind: "official",
+          phase: "initial",
+          severity: "Severe",
+          hazard: "flood",
+          sourceKey: "dgpc_telegram",
+          sourceAttribution: "DGPC \u2014 Algérie",
+          areaLabel: "Safe Zone \u2014 Alger",
+          observedAt: "2026-11-25T09:00:00Z",
+          headline: "Flooding reported sur la route",
+          provenance: {
+            triggerKind: "commune_topic",
+            areaLabel: "Safe Zone \u2014 Alger",
+            sourceKey: "dgpc_telegram",
+            sourceAttribution: "DGPC \u2014 Algérie",
+            ruleLabelKey: "provenance.rule.dgpcNonFire",
+            observedAt: "2026-11-25T09:00:00Z",
+            authorityStatus: "official",
+          },
+        },
+        locale,
+      });
+      expect(dgpcMsg.text).not.toContain("\u2014");
+      expect(dgpcMsg.provenanceFooter).not.toContain("\u2014");
+      expect(dgpcMsg.text.toLowerCase()).not.toMatch(/\bsafe\b/);
+      expect(dgpcMsg.provenanceFooter.toLowerCase()).not.toMatch(/\bsafe\b/);
+      expect(dgpcMsg.text).toContain("sur la route");
+    }
   });
 });
 
@@ -716,5 +905,106 @@ describe("deliverWhatsappChannelBroadcasts pipeline", () => {
       status: 429,
       retryAfterSeconds: 95,
     });
+  });
+
+  it("createSupabaseWhatsAppDeliveryStore exposes loadPendingCandidates and deliverWhatsappChannelBroadcasts pulls candidates from store.loadPendingCandidates end-to-end", async () => {
+    const supabaseStore = createSupabaseWhatsAppDeliveryStore({
+      channelTarget: "channel-dz",
+      locale: "ar",
+    });
+    expect(typeof supabaseStore.loadPendingCandidates).toBe("function");
+
+    // Verify mapPendingBroadcastRowToCandidate fail-closed fire mapping & ONM/official/quake mapping
+    const rawFireRow: PendingWhatsAppBroadcastRow = {
+      id: "b-raw-fire",
+      kind: "fire",
+      phase: "initial",
+      severity: "Severe",
+      hazard: "fire",
+      source_key: "firms",
+      metadata: {},
+      commune_codes: ["1601"],
+      created_at: "2026-11-25T09:00:00Z",
+      onm_vigilance_id: null,
+      official_incident_id: null,
+      earthquake_id: null,
+      cluster_id: "c-1",
+      onm_msg_type: null,
+      onm_cancelled_at: null,
+      onm_superseded_by: null,
+      onm_onset: null,
+      onm_expires: null,
+      onm_sent: null,
+      onm_area_desc: null,
+      onm_title: null,
+      onm_headline_fr: null,
+      onm_event: null,
+      incident_status: null,
+      incident_unlisted_at: null,
+      incident_kind: null,
+      incident_source_key: null,
+      incident_source_label: null,
+      incident_authority_tier: null,
+      incident_evidence: null,
+      incident_place_text: null,
+      incident_as_of: null,
+      incident_area_label: null,
+      quake_magnitude: null,
+      quake_occurred_at: null,
+      quake_region: null,
+      quake_network: null,
+      fire_short_id: "f-unconf",
+      fire_state: "unconfirmed",
+      fire_confirmed_at: null,
+      fire_detection_count: 1,
+      fire_sources: ["firms"],
+      fire_suspected_persistent: false,
+      fire_last_detected_at: "2026-11-25T09:00:00Z",
+      fire_area_label: "Blida",
+      cap_headline: "Single thermal hotspot",
+      cap_description: null,
+      cap_area_desc: "Blida",
+      cap_sent: "2026-11-25T09:00:00Z",
+      cap_expires: null,
+    };
+    const rawFireCandidate = mapPendingBroadcastRowToCandidate(rawFireRow);
+    expect(evaluateWhatsappBroadcastEligibility(rawFireCandidate, NOW)).toEqual(
+      { eligible: false, reason: "raw_heat_signal_excluded" },
+    );
+
+    const activeFireCandidate = mapPendingBroadcastRowToCandidate({
+      ...rawFireRow,
+      id: "b-active-fire",
+      fire_state: "active",
+    });
+    expect(
+      evaluateWhatsappBroadcastEligibility(activeFireCandidate, NOW),
+    ).toEqual({ eligible: true });
+
+    // End-to-end deliverWhatsappChannelBroadcasts pulling via store.loadPendingCandidates (no options.candidates)
+    const { store } = makeInMemoryStore();
+    const loadSpy = vi.fn(async () => [makeOnmCandidate(), rawFireCandidate]);
+    store.loadPendingCandidates = loadSpy;
+
+    const transport: WhatsAppChannelTransport = {
+      sendChannelMessage: vi.fn(async () => ({
+        providerMessageId: "wamid.auto.1",
+      })),
+    };
+
+    const summary = await deliverWhatsappChannelBroadcasts({
+      env: { WHATSAPP_CHANNEL_ID: "channel-auto" },
+      transport,
+      store,
+      now: NOW,
+    });
+    expect(loadSpy).toHaveBeenCalledWith(20, "channel-auto", "ar");
+    expect(summary).toMatchObject({
+      enqueued: 1,
+      sent: 1,
+      skipped: 1,
+      failed: 0,
+    });
+    expect(transport.sendChannelMessage).toHaveBeenCalledTimes(1);
   });
 });

@@ -4230,7 +4230,7 @@ export type Database = {
         Returns: boolean;
       };
       list_pending_email_digest_users: {
-        Args: { _limit?: number };
+        Args: { _after_user_id?: string | null; _limit?: number };
         Returns: {
           display_name: string | null;
           email: string;
@@ -4241,6 +4241,65 @@ export type Database = {
           quiet_hours_end: number | null;
           quiet_hours_start: number | null;
           user_id: string;
+        }[];
+      };
+      list_pending_whatsapp_broadcasts: {
+        Args: {
+          _channel_target: string;
+          _limit?: number;
+          _locale?: string;
+        };
+        Returns: {
+          cap_area_desc: string | null;
+          cap_description: string | null;
+          cap_expires: string | null;
+          cap_headline: string | null;
+          cap_sent: string | null;
+          cluster_id: string | null;
+          commune_codes: string[];
+          created_at: string;
+          earthquake_id: string | null;
+          fire_area_label: string | null;
+          fire_confirmed_at: string | null;
+          fire_detection_count: number | null;
+          fire_last_detected_at: string | null;
+          fire_short_id: string | null;
+          fire_sources: string[] | null;
+          fire_state: string | null;
+          fire_suspected_persistent: boolean | null;
+          hazard: string | null;
+          id: string;
+          incident_area_label: string | null;
+          incident_as_of: string | null;
+          incident_authority_tier: string | null;
+          incident_evidence: string | null;
+          incident_kind: string | null;
+          incident_place_text: string | null;
+          incident_source_key: string | null;
+          incident_source_label: string | null;
+          incident_status: string | null;
+          incident_unlisted_at: string | null;
+          kind: string;
+          metadata: Json;
+          official_incident_id: string | null;
+          onm_area_desc: string | null;
+          onm_cancelled_at: string | null;
+          onm_event: string | null;
+          onm_expires: string | null;
+          onm_headline_fr: string | null;
+          onm_msg_type: string | null;
+          onm_onset: string | null;
+          onm_sent: string | null;
+          onm_superseded_by: string | null;
+          onm_title: string | null;
+          onm_vigilance_id: string | null;
+          phase: string;
+          quake_magnitude: number | null;
+          quake_network: string | null;
+          quake_occurred_at: string | null;
+          quake_region: string | null;
+          severity: string;
+          source_key: string | null;
         }[];
       };
       set_delivery_pipeline_state: {

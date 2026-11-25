@@ -161,7 +161,11 @@ export interface QueuedWhatsAppDelivery {
 export interface WhatsAppDeliveryStore {
   isGlobalBroadcastEnabled(): Promise<boolean>;
   isPipelineActive(): Promise<boolean>;
-  loadPendingCandidates?(limit: number): Promise<WhatsAppBroadcastCandidate[]>;
+  loadPendingCandidates?(
+    limit: number,
+    channelTarget?: string,
+    locale?: AnyLocale,
+  ): Promise<WhatsAppBroadcastCandidate[]>;
   enqueueBroadcast(input: {
     broadcastId: string;
     channelTarget: string;
@@ -236,14 +240,31 @@ export function formatAlgiersTimestamp(iso: string): string {
   return `${get("day")}/${get("month")}/${get("year")} ${safeHour}:${get("minute")}`;
 }
 
+function stripAsciiControlChars(value: string): string {
+  let out = "";
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i);
+    if (code === 0x0a || code === 0x0d || code === 0x09) {
+      out += " ";
+    } else if (code <= 0x1f || code === 0x7f) {
+      // Strip NUL and all remaining ASCII control characters
+    } else {
+      out += value[i] ?? "";
+    }
+  }
+  return out;
+}
+
 export function sanitizeCopyText(raw: string): string {
-  let cleaned = raw.replace(/\u2014/g, " · ");
+  let cleaned = stripAsciiControlChars(raw).replace(/\u2014/g, " · ");
   for (const pattern of BANNED_STATUS_PATTERNS) {
     cleaned = cleaned.replace(pattern, "");
   }
   return cleaned
-    .replace(/\s{2,}/g, " ")
+    .replace(/\s+/g, " ")
     .replace(/\s+([.,:;!?])/g, "$1")
+    .replace(/(?:^\s*·\s*)+|(?:\s*·\s*$)+/g, "")
+    .replace(/\s*·(?:\s*·)+\s*/g, " · ")
     .trim();
 }
 
@@ -424,11 +445,20 @@ function looksLikeItaAttribution(
   attribution: string | null | undefined,
 ): boolean {
   if (!attribution) return false;
-  const normalized = attribution.normalize("NFKC").toLowerCase();
+  const normalized = attribution
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
   return (
     normalized.includes("info trafic") ||
+    normalized.includes("info-trafic") ||
+    normalized.includes("infotrafic") ||
     /\bita\b/.test(normalized) ||
-    normalized.includes("info-trafic")
+    normalized.includes("إعلام المرور") ||
+    normalized.includes("اعلام المرور") ||
+    normalized.includes("إنفو ترافيك") ||
+    normalized.includes("انفو ترافيك")
   );
 }
 
@@ -437,7 +467,8 @@ export function evaluateWhatsappBroadcastEligibility(
   now: Date = new Date(),
 ): WhatsAppEligibilityResult {
   const kind = input.kind.trim().toLowerCase();
-  const sourceKey = (input.sourceKey ?? "").trim().toLowerCase();
+  const rawSourceKey = (input.sourceKey ?? "").trim().toLowerCase();
+  const sourceKey = rawSourceKey.replace(/[-\s]+/g, "_");
   const authorityTier = (input.authorityTier ?? "").trim().toLowerCase();
   const authorityStatus = (input.authorityStatus ?? "").trim().toLowerCase();
   const severity = (input.severity ?? "").trim();
@@ -445,7 +476,8 @@ export function evaluateWhatsappBroadcastEligibility(
 
   // Hard exclusions (ADR-0002 & official-notification-policy.md)
   if (
-    sourceKey.startsWith("ita") ||
+    rawSourceKey.startsWith("ita") ||
+    /(^|[_\-.])ita($|[_\-.])/i.test(rawSourceKey) ||
     authorityTier === "media" ||
     looksLikeItaAttribution(input.sourceAttribution)
   ) {
@@ -469,8 +501,9 @@ export function evaluateWhatsappBroadcastEligibility(
   }
 
   if (kind === "onm") {
+    const msgType = (input.msgType ?? "").trim().toLowerCase();
     if (
-      input.msgType === "Cancel" ||
+      msgType === "cancel" ||
       input.cancelledAt != null ||
       input.supersededBy != null
     ) {
@@ -508,12 +541,13 @@ export function evaluateWhatsappBroadcastEligibility(
     if (!APPROVED_OFFICIAL_HAZARDS.has(hazard)) {
       return { eligible: false, reason: "unapproved_official_hazard" };
     }
+    if (input.unlistedAt != null) {
+      return { eligible: false, reason: "official_incident_cleared" };
+    }
     const status = (input.incidentStatus ?? "").trim().toLowerCase();
     if (
-      phase === "initial" &&
-      (status === "cleared" ||
-        status === "extinguished" ||
-        input.unlistedAt != null)
+      phase !== "end" &&
+      (status === "cleared" || status === "extinguished")
     ) {
       return { eligible: false, reason: "official_incident_cleared" };
     }
@@ -528,12 +562,15 @@ export function evaluateWhatsappBroadcastEligibility(
     return { eligible: true };
   }
 
-  // kind === "fire"
-  if (
-    input.isHeatSignal === true ||
-    input.corroborated === false ||
-    (authorityStatus === "observed" && input.confirmed !== true)
-  ) {
+  // kind === "fire" (fail-closed: raw satellite Heat Signals never broadcast)
+  const isCorroboratedFire =
+    input.isHeatSignal !== true &&
+    input.corroborated !== false &&
+    (input.confirmed === true ||
+      input.corroborated === true ||
+      authorityStatus === "probable" ||
+      authorityStatus === "official");
+  if (!isCorroboratedFire) {
     return { eligible: false, reason: "raw_heat_signal_excluded" };
   }
   return { eligible: true };
@@ -583,6 +620,23 @@ function defaultAttributionForCandidate(
   return candidate.confirmed ? "DGPC" : "NASA FIRMS";
 }
 
+function sanitizeProvenanceForRender(
+  provenance: AlertProvenanceData,
+  fallbackSource: string,
+): AlertProvenanceData {
+  const cleanedArea =
+    provenance.areaLabel != null ? sanitizeCopyText(provenance.areaLabel) : "";
+  const isOnm = provenance.sourceKey.trim().toLowerCase() === "onm";
+  const cleanedSource = isOnm
+    ? provenance.sourceAttribution
+    : sanitizeCopyText(provenance.sourceAttribution) || fallbackSource;
+  return {
+    ...provenance,
+    areaLabel: cleanedArea.length > 0 ? cleanedArea : null,
+    sourceAttribution: cleanedSource,
+  };
+}
+
 export function formatWhatsappBroadcastMessage(
   input: WhatsAppFormatInput,
 ): FormattedWhatsAppMessage {
@@ -593,7 +647,11 @@ export function formatWhatsappBroadcastMessage(
   const algiersTimestamp = formatAlgiersTimestamp(candidate.observedAt);
   const timeLabel = t("whatsapp.algiersTime", { time: algiersTimestamp });
 
-  const provenance =
+  const safeArea = candidate.areaLabel
+    ? sanitizeCopyText(candidate.areaLabel)
+    : "";
+
+  const rawProvenance =
     candidate.provenance ??
     provenanceForBroadcast({
       kind: candidate.kind,
@@ -603,9 +661,11 @@ export function formatWhatsappBroadcastMessage(
       magnitude: candidate.magnitude,
       sourceKey: candidate.sourceKey,
       sourceAttribution: attribution,
-      areaLabel: candidate.areaLabel ?? null,
+      areaLabel: safeArea.length > 0 ? safeArea : null,
       observedAt: candidate.observedAt,
     });
+
+  const provenance = sanitizeProvenanceForRender(rawProvenance, attribution);
 
   const provenanceFooter = formatLocalizedProvenanceDigest(
     provenance,
@@ -627,9 +687,6 @@ export function formatWhatsappBroadcastMessage(
   const safeHeadline = sanitizeCopyText(candidate.headline);
   const safeSummary = candidate.summary
     ? sanitizeCopyText(candidate.summary)
-    : "";
-  const safeArea = candidate.areaLabel
-    ? sanitizeCopyText(candidate.areaLabel)
     : "";
 
   // Attribution-first layout; zero Nadhir-authored instructions, zero em dashes, zero "safe" labels
@@ -665,7 +722,254 @@ export function buildWhatsappDedupeKey(
   return `wa:${broadcastId}:${channelTarget}:${locale}`;
 }
 
-export function createSupabaseWhatsAppDeliveryStore(): WhatsAppDeliveryStore {
+export interface PendingWhatsAppBroadcastRow {
+  id: string;
+  kind: string;
+  phase: string;
+  severity: string;
+  hazard: string | null;
+  source_key: string | null;
+  metadata: unknown;
+  commune_codes: string[];
+  created_at: string;
+  onm_vigilance_id: string | null;
+  official_incident_id: string | null;
+  earthquake_id: string | null;
+  cluster_id: string | null;
+  onm_msg_type: string | null;
+  onm_cancelled_at: string | null;
+  onm_superseded_by: string | null;
+  onm_onset: string | null;
+  onm_expires: string | null;
+  onm_sent: string | null;
+  onm_area_desc: string | null;
+  onm_title: string | null;
+  onm_headline_fr: string | null;
+  onm_event: string | null;
+  incident_status: string | null;
+  incident_unlisted_at: string | null;
+  incident_kind: string | null;
+  incident_source_key: string | null;
+  incident_source_label: string | null;
+  incident_authority_tier: string | null;
+  incident_evidence: string | null;
+  incident_place_text: string | null;
+  incident_as_of: string | null;
+  incident_area_label: string | null;
+  quake_magnitude: number | null;
+  quake_occurred_at: string | null;
+  quake_region: string | null;
+  quake_network: string | null;
+  fire_short_id: string | null;
+  fire_state: string | null;
+  fire_confirmed_at: string | null;
+  fire_detection_count: number | null;
+  fire_sources: string[] | null;
+  fire_suspected_persistent: boolean | null;
+  fire_last_detected_at: string | null;
+  fire_area_label: string | null;
+  cap_headline: string | null;
+  cap_description: string | null;
+  cap_area_desc: string | null;
+  cap_sent: string | null;
+  cap_expires: string | null;
+}
+
+function metaRecord(raw: unknown): Record<string, unknown> {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    return raw as Record<string, unknown>;
+  }
+  return {};
+}
+
+function metaString(meta: Record<string, unknown>, key: string): string | null {
+  if (!Object.hasOwn(meta, key)) return null;
+  const val = meta[key];
+  return typeof val === "string" && val.trim().length > 0 ? val.trim() : null;
+}
+
+function metaNumber(meta: Record<string, unknown>, key: string): number | null {
+  if (!Object.hasOwn(meta, key)) return null;
+  const val = meta[key];
+  if (typeof val === "number" && Number.isFinite(val)) return val;
+  if (typeof val === "string" && val.trim().length > 0) {
+    const parsed = Number(val);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+export function mapPendingBroadcastRowToCandidate(
+  row: PendingWhatsAppBroadcastRow,
+): WhatsAppBroadcastCandidate {
+  const kind = row.kind.trim().toLowerCase();
+  const meta = metaRecord(row.metadata);
+  const firstCommune = row.commune_codes?.[0] ?? null;
+
+  if (kind === "onm") {
+    const observedAt = row.onm_sent ?? row.cap_sent ?? row.created_at;
+    return {
+      id: row.id,
+      kind,
+      phase: row.phase,
+      severity: row.severity,
+      hazard:
+        row.onm_event ?? row.hazard ?? metaString(meta, "event") ?? "weather",
+      sourceKey: row.source_key ?? "onm",
+      sourceAttribution:
+        metaString(meta, "source_attribution") ?? "ONM · Météo Algérie",
+      authorityTier: "national",
+      authorityStatus: "official",
+      msgType: row.onm_msg_type ?? metaString(meta, "msg_type") ?? "Alert",
+      cancelledAt: row.onm_cancelled_at,
+      supersededBy: row.onm_superseded_by,
+      onsetAt: row.onm_onset,
+      expiresAt: row.onm_expires ?? row.cap_expires,
+      sentAt: row.onm_sent ?? row.cap_sent ?? row.created_at,
+      observedAt,
+      headline:
+        row.onm_headline_fr ??
+        row.onm_title ??
+        row.cap_headline ??
+        row.onm_event ??
+        "ONM",
+      summary: row.cap_description ?? null,
+      areaLabel:
+        row.onm_area_desc ??
+        metaString(meta, "area_desc") ??
+        row.cap_area_desc ??
+        null,
+      communeCode: firstCommune,
+    };
+  }
+
+  if (kind === "official") {
+    const hazard =
+      row.hazard ??
+      row.incident_kind ??
+      metaString(meta, "hazard_kind") ??
+      "fire";
+    const observedAt =
+      row.incident_as_of ?? metaString(meta, "observed_at") ?? row.created_at;
+    return {
+      id: row.id,
+      kind,
+      phase: row.phase,
+      severity: row.severity,
+      hazard,
+      sourceKey: row.source_key ?? row.incident_source_key ?? null,
+      sourceAttribution:
+        row.incident_source_label ??
+        metaString(meta, "source_attribution") ??
+        "DGPC",
+      authorityTier: row.incident_authority_tier ?? "national",
+      authorityStatus: "official",
+      incidentStatus:
+        row.incident_status ?? metaString(meta, "incident_status") ?? null,
+      unlistedAt: row.incident_unlisted_at,
+      officialIncidentId: row.official_incident_id,
+      observedAt,
+      expiresAt: row.cap_expires,
+      headline: row.cap_headline ?? row.incident_evidence ?? "DGPC",
+      summary:
+        row.cap_description ??
+        (row.cap_headline ? row.incident_evidence : null),
+      areaLabel:
+        row.incident_area_label ??
+        metaString(meta, "area_label") ??
+        row.cap_area_desc ??
+        null,
+      communeCode: firstCommune,
+    };
+  }
+
+  if (kind === "earthquake") {
+    const magnitude =
+      typeof row.quake_magnitude === "number" &&
+      Number.isFinite(row.quake_magnitude)
+        ? row.quake_magnitude
+        : metaNumber(meta, "magnitude");
+    const sourceKey = row.source_key ?? "emsc";
+    const observedAt =
+      row.quake_occurred_at ??
+      metaString(meta, "occurred_at") ??
+      row.created_at;
+    const region = row.quake_region ?? metaString(meta, "area_label") ?? null;
+    const defaultHeadline =
+      magnitude !== null
+        ? `M${magnitude.toFixed(1)}${region ? ` ${region}` : ""}`
+        : (region ?? "Earthquake");
+    return {
+      id: row.id,
+      kind,
+      phase: row.phase,
+      severity: row.severity,
+      hazard: "earthquake",
+      sourceKey,
+      sourceAttribution:
+        row.quake_network ?? metaString(meta, "network") ?? "EMSC",
+      authorityStatus: sourceKey.toLowerCase().includes("craag")
+        ? "official"
+        : "observed",
+      magnitude,
+      earthquakeId: row.earthquake_id,
+      observedAt,
+      expiresAt: row.cap_expires,
+      headline: row.cap_headline ?? defaultHeadline,
+      summary: row.cap_description ?? null,
+      areaLabel: row.cap_area_desc ?? region,
+      communeCode: firstCommune,
+    };
+  }
+
+  // kind === "fire" (or fallback): fail closed on corroboration flags
+  const confirmed = row.fire_confirmed_at !== null;
+  const fireState = (row.fire_state ?? "").trim().toLowerCase();
+  const suspectedPersistent = row.fire_suspected_persistent === true;
+  const isRejectedState =
+    fireState === "false_positive" ||
+    fireState === "extinguished" ||
+    suspectedPersistent;
+  const corroborated =
+    !isRejectedState && (confirmed || fireState === "active");
+  const isHeatSignal = !corroborated;
+  const authorityStatus: WhatsAppBroadcastCandidate["authorityStatus"] =
+    confirmed ? "official" : corroborated ? "probable" : "observed";
+  const observedAt =
+    row.fire_last_detected_at ?? row.cap_sent ?? row.created_at;
+
+  return {
+    id: row.id,
+    kind,
+    phase: row.phase,
+    severity: row.severity,
+    hazard: row.hazard ?? "fire",
+    sourceKey:
+      row.source_key ??
+      (confirmed ? "dgpc_telegram" : (row.fire_sources?.[0] ?? "firms")),
+    sourceAttribution:
+      metaString(meta, "source_attribution") ??
+      (confirmed ? "DGPC" : "NASA FIRMS"),
+    authorityStatus,
+    corroborated,
+    isHeatSignal,
+    confirmed,
+    clusterShortId: row.fire_short_id,
+    observedAt,
+    expiresAt: row.cap_expires,
+    headline:
+      row.cap_headline ??
+      (row.fire_short_id ? `Fire ${row.fire_short_id}` : "Fire alert"),
+    summary: row.cap_description ?? null,
+    areaLabel: row.cap_area_desc ?? row.fire_area_label ?? null,
+    communeCode: firstCommune,
+  };
+}
+
+export function createSupabaseWhatsAppDeliveryStore(defaults?: {
+  channelTarget?: string;
+  locale?: AnyLocale;
+}): WhatsAppDeliveryStore {
   return {
     async isGlobalBroadcastEnabled(): Promise<boolean> {
       const { data, error } = await supabaseAdmin
@@ -685,6 +989,30 @@ export function createSupabaseWhatsAppDeliveryStore(): WhatsAppDeliveryStore {
         .maybeSingle();
       if (error || !data) return false;
       return data.enabled === true && data.paused === false;
+    },
+
+    async loadPendingCandidates(
+      limit: number,
+      channelTarget?: string,
+      locale?: AnyLocale,
+    ): Promise<WhatsAppBroadcastCandidate[]> {
+      const target = (channelTarget ?? defaults?.channelTarget ?? "").trim();
+      if (!target) return [];
+      const resolvedLocale: AnyLocale = locale ?? defaults?.locale ?? "ar";
+      const { data, error } = await supabaseAdmin.rpc(
+        "list_pending_whatsapp_broadcasts",
+        {
+          _channel_target: target,
+          _locale: resolvedLocale,
+          _limit: limit,
+        },
+      );
+      if (error) {
+        throw new Error(`list_pending_whatsapp_broadcasts: ${error.message}`);
+      }
+      return (data ?? []).map((row) =>
+        mapPendingBroadcastRowToCandidate(row as PendingWhatsAppBroadcastRow),
+      );
     },
 
     async enqueueBroadcast(input): Promise<string | null> {
@@ -819,7 +1147,12 @@ export async function deliverWhatsappChannelBroadcasts(
     return summary;
   }
 
-  const store = options.store ?? createSupabaseWhatsAppDeliveryStore();
+  const store =
+    options.store ??
+    createSupabaseWhatsAppDeliveryStore({
+      channelTarget,
+      locale: locales[0] ?? "ar",
+    });
 
   const [globalEnabled, pipelineActive] = await Promise.all([
     store.isGlobalBroadcastEnabled(),
@@ -831,44 +1164,84 @@ export async function deliverWhatsappChannelBroadcasts(
   }
 
   // 1. Enqueue eligible candidates idempotently
-  const candidates =
-    options.candidates ??
-    (store.loadPendingCandidates
-      ? await store.loadPendingCandidates(limit)
-      : []);
+  if (options.candidates !== undefined) {
+    for (const candidate of options.candidates) {
+      const eligibility = evaluateWhatsappBroadcastEligibility(candidate, now);
+      if (!eligibility.eligible) {
+        summary.skipped += 1;
+        continue;
+      }
 
-  for (const candidate of candidates) {
-    const eligibility = evaluateWhatsappBroadcastEligibility(candidate, now);
-    if (!eligibility.eligible) {
-      summary.skipped += 1;
-      continue;
+      for (const locale of locales) {
+        const formatted = formatWhatsappBroadcastMessage({ candidate, locale });
+        const dedupeKey = buildWhatsappDedupeKey(
+          candidate.id,
+          channelTarget,
+          locale,
+        );
+        const enqueuedId = await store.enqueueBroadcast({
+          broadcastId: candidate.id,
+          channelTarget,
+          locale,
+          dedupeKey,
+          payload: {
+            text: formatted.text,
+            deepLink: formatted.deepLink,
+            provenance: formatted.provenance,
+            provenanceFooter: formatted.provenanceFooter,
+            algiersTimestamp: formatted.algiersTimestamp,
+          },
+          expiresAt: candidate.expiresAt ?? null,
+        });
+        if (enqueuedId) {
+          summary.enqueued += 1;
+        } else {
+          summary.skipped += 1;
+        }
+      }
     }
-
+  } else if (store.loadPendingCandidates) {
     for (const locale of locales) {
-      const formatted = formatWhatsappBroadcastMessage({ candidate, locale });
-      const dedupeKey = buildWhatsappDedupeKey(
-        candidate.id,
+      const candidates = await store.loadPendingCandidates(
+        limit,
         channelTarget,
         locale,
       );
-      const enqueuedId = await store.enqueueBroadcast({
-        broadcastId: candidate.id,
-        channelTarget,
-        locale,
-        dedupeKey,
-        payload: {
-          text: formatted.text,
-          deepLink: formatted.deepLink,
-          provenance: formatted.provenance,
-          provenanceFooter: formatted.provenanceFooter,
-          algiersTimestamp: formatted.algiersTimestamp,
-        },
-        expiresAt: candidate.expiresAt ?? null,
-      });
-      if (enqueuedId) {
-        summary.enqueued += 1;
-      } else {
-        summary.skipped += 1;
+      for (const candidate of candidates) {
+        const eligibility = evaluateWhatsappBroadcastEligibility(
+          candidate,
+          now,
+        );
+        if (!eligibility.eligible) {
+          summary.skipped += 1;
+          continue;
+        }
+
+        const formatted = formatWhatsappBroadcastMessage({ candidate, locale });
+        const dedupeKey = buildWhatsappDedupeKey(
+          candidate.id,
+          channelTarget,
+          locale,
+        );
+        const enqueuedId = await store.enqueueBroadcast({
+          broadcastId: candidate.id,
+          channelTarget,
+          locale,
+          dedupeKey,
+          payload: {
+            text: formatted.text,
+            deepLink: formatted.deepLink,
+            provenance: formatted.provenance,
+            provenanceFooter: formatted.provenanceFooter,
+            algiersTimestamp: formatted.algiersTimestamp,
+          },
+          expiresAt: candidate.expiresAt ?? null,
+        });
+        if (enqueuedId) {
+          summary.enqueued += 1;
+        } else {
+          summary.skipped += 1;
+        }
       }
     }
   }
@@ -925,13 +1298,17 @@ export async function deliverWhatsappChannelBroadcasts(
         idempotencyKey: row.dedupe_key,
         locale,
       });
-      await store.finishDelivery({
+      const committed = await store.finishDelivery({
         id: row.id,
         leaseToken: row.lease_token,
         delivered: true,
         providerMessageId: result.providerMessageId,
       });
-      summary.sent += 1;
+      if (committed) {
+        summary.sent += 1;
+      } else {
+        summary.skipped += 1;
+      }
     } catch (error) {
       const classified = classifyDeliveryError(error);
       const retryAfter = classified.transient

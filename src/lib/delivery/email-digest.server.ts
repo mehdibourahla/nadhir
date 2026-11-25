@@ -35,6 +35,7 @@ const DEFAULT_FROM_EMAIL = "Nadhir <no-reply@nadhir.app>";
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_USER_LIMIT = 100;
 const DEFAULT_ALERTS_PER_USER = 50;
+const DEFAULT_MAX_PAGES = 20;
 
 export interface ResendEmailInput {
   from: string;
@@ -146,7 +147,10 @@ export interface ClaimedEmailDigestRow {
 
 export interface EmailDigestStore {
   isPipelineActive(): Promise<boolean>;
-  listPendingUsers(limit: number): Promise<PendingEmailDigestUser[]>;
+  listPendingUsers(
+    limit: number,
+    afterUserId?: string | null,
+  ): Promise<PendingEmailDigestUser[]>;
   loadUndeliveredAlerts(
     userId: string,
     limit: number,
@@ -179,6 +183,8 @@ export interface DeliverEmailDigestsOptions {
   store?: EmailDigestStore;
   fromEmail?: string;
   limit?: number;
+  maxPages?: number;
+  maxDeliveriesPerRun?: number;
   now?: Date;
 }
 
@@ -227,7 +233,12 @@ export function sanitizeNadhirUrl(
     const parsed = trimmed.startsWith("/")
       ? new URL(trimmed, APP_ORIGIN)
       : new URL(trimmed);
-    if (parsed.protocol !== "https:" || parsed.hostname !== "nadhir.app") {
+    if (
+      parsed.origin !== APP_ORIGIN ||
+      parsed.port !== "" ||
+      parsed.username !== "" ||
+      parsed.password !== ""
+    ) {
       return fallback;
     }
     return parsed.toString();
@@ -258,8 +269,12 @@ export function isInAlgiersQuietHours(
   if (
     start === null ||
     end === null ||
-    !Number.isFinite(start) ||
-    !Number.isFinite(end) ||
+    !Number.isInteger(start) ||
+    !Number.isInteger(end) ||
+    start < 0 ||
+    start > 23 ||
+    end < 0 ||
+    end > 23 ||
     start === end
   ) {
     return false;
@@ -274,7 +289,7 @@ function payloadString(
   payload: Record<string, unknown> | null | undefined,
   key: string,
 ): string | null {
-  if (!payload) return null;
+  if (!payload || !Object.hasOwn(payload, key)) return null;
   const val = payload[key];
   return typeof val === "string" && val.trim().length > 0 ? val.trim() : null;
 }
@@ -283,7 +298,7 @@ function payloadNumber(
   payload: Record<string, unknown> | null | undefined,
   key: string,
 ): number | null {
-  if (!payload) return null;
+  if (!payload || !Object.hasOwn(payload, key)) return null;
   const val = payload[key];
   if (typeof val === "number" && Number.isFinite(val)) return val;
   if (typeof val === "string" && val.trim().length > 0) {
@@ -315,6 +330,19 @@ export function isUrgentDigestAlert(alert: DigestAlertItem): boolean {
   }
 
   if (kind === "official") {
+    const status = (
+      payloadString(payload, "status") ??
+      payloadString(payload, "incident_status") ??
+      ""
+    ).toLowerCase();
+    const phase = (
+      payloadString(payload, "phase") ??
+      payloadString(payload, "broadcast_phase") ??
+      ""
+    ).toLowerCase();
+    if (status === "cleared" || status === "extinguished" || phase === "end") {
+      return false;
+    }
     const officialSeverity = (
       payloadString(payload, "severity") ?? ""
     ).toLowerCase();
@@ -322,11 +350,12 @@ export function isUrgentDigestAlert(alert: DigestAlertItem): boolean {
   }
 
   if (kind === "earthquake") {
-    const mag = payloadNumber(payload, "magnitude");
-    if (mag !== null) {
-      return mag >= 5.0 || alert.severity >= SEVERITY.emergency;
+    if (payload && Object.hasOwn(payload, "magnitude")) {
+      const mag = payloadNumber(payload, "magnitude");
+      if (mag === null) return false;
+      return mag >= 5.0;
     }
-    return alert.severity >= 4;
+    return alert.severity >= SEVERITY.emergency;
   }
 
   return false;
@@ -346,7 +375,7 @@ export function shouldDeferForQuietHours(args: {
 }
 
 function deterministicHexHash(input: string): string {
-  // Dual 32-bit FNV-1a hash (pure JS, zero node: imports, deterministic 16-hex-char digest)
+  // Dual 32-bit FNV-1a hash (pure JS, zero Node built-in imports, deterministic 16-hex-char digest)
   let h1 = 0x811c9dc5;
   let h2 = 0x01000193;
   for (let i = 0; i < input.length; i += 1) {
@@ -430,7 +459,10 @@ function resolveAlertProvenance(alert: DigestAlertItem): AlertProvenanceData {
   const magnitude = payloadNumber(payload, "magnitude");
   const radiusKm = payloadNumber(payload, "radius_km");
   const onmSeverity = payloadString(payload, "onm_severity");
-  const confirmed = payload?.["confirmed"] === true;
+  const confirmed =
+    payload !== null &&
+    Object.hasOwn(payload, "confirmed") &&
+    payload["confirmed"] === true;
 
   return provenanceForWatchZoneAlert({
     kind,
@@ -464,6 +496,13 @@ function resolveAlertLink(alert: DigestAlertItem): string {
   if (alert.kind.toLowerCase() === "fire" && shortId) {
     return sanitizeNadhirUrl(`/fire/${encodeURIComponent(shortId)}`, "/alerts");
   }
+  const mapEvent = payloadString(payload, "map_event");
+  if (mapEvent) {
+    return sanitizeNadhirUrl(
+      `/?event=${encodeURIComponent(mapEvent)}`,
+      "/alerts",
+    );
+  }
   return `${APP_ORIGIN}/alerts`;
 }
 
@@ -472,6 +511,21 @@ function preserveOrSanitizeSource(provenance: AlertProvenanceData): string {
     return provenance.sourceAttribution;
   }
   return sanitizeCopyText(provenance.sourceAttribution);
+}
+
+function sanitizeProvenanceForEmail(
+  provenance: AlertProvenanceData,
+  fallbackSource: string,
+): AlertProvenanceData {
+  const cleanedArea =
+    provenance.areaLabel != null ? sanitizeCopyText(provenance.areaLabel) : "";
+  const sourceAttribution =
+    preserveOrSanitizeSource(provenance) || fallbackSource;
+  return {
+    ...provenance,
+    areaLabel: cleanedArea.length > 0 ? cleanedArea : null,
+    sourceAttribution,
+  };
 }
 
 export function renderZoneDigestEmail(
@@ -524,8 +578,12 @@ export function renderZoneDigestEmail(
   const textItems: string[] = [];
 
   for (const alert of input.alerts) {
-    const provenance = resolveAlertProvenance(alert);
-    const sourceAttr = preserveOrSanitizeSource(provenance);
+    const rawProvenance = resolveAlertProvenance(alert);
+    const provenance = sanitizeProvenanceForEmail(
+      rawProvenance,
+      t("common.notRecorded"),
+    );
+    const sourceAttr = provenance.sourceAttribution;
     const algiersStamp = formatAlgiersTimestamp(provenance.observedAt);
     const timeLabel = sanitizeCopyText(
       t("emailDigest.algiersTime", { time: algiersStamp }),
@@ -798,10 +856,13 @@ export function createSupabaseEmailDigestStore(): EmailDigestStore {
       return data.enabled === true && data.paused === false;
     },
 
-    async listPendingUsers(limit: number): Promise<PendingEmailDigestUser[]> {
+    async listPendingUsers(
+      limit: number,
+      afterUserId?: string | null,
+    ): Promise<PendingEmailDigestUser[]> {
       const { data, error } = await supabaseAdmin.rpc(
         "list_pending_email_digest_users",
-        { _limit: limit },
+        { _limit: limit, _after_user_id: afterUserId ?? null },
       );
       if (error) {
         throw new Error(`list_pending_email_digest_users: ${error.message}`);
@@ -958,125 +1019,161 @@ export async function deliverZoneEmailDigests(
     return summary;
   }
 
-  const users = await store.listPendingUsers(limit);
-  for (const user of users) {
-    summary.usersChecked += 1;
-    const frequency = normalizeFrequency(user.email_digest_frequency);
-    if (frequency === "off") {
-      summary.skipped += 1;
-      continue;
+  const maxPages = Math.max(1, options.maxPages ?? DEFAULT_MAX_PAGES);
+  const maxDeliveriesPerRun = Math.max(1, options.maxDeliveriesPerRun ?? limit);
+  const seenUserIds = new Set<string>();
+  let afterUserId: string | null = null;
+
+  for (let page = 0; page < maxPages; page += 1) {
+    if (summary.sent + summary.failed >= maxDeliveriesPerRun) {
+      break;
     }
+    const users = await store.listPendingUsers(limit, afterUserId);
+    if (users.length === 0) break;
 
-    const alerts = await store.loadUndeliveredAlerts(
-      user.user_id,
-      DEFAULT_ALERTS_PER_USER,
-    );
-    if (alerts.length === 0) {
-      summary.skipped += 1;
-      continue;
-    }
-
-    const hasUrgent = alerts.some((alert) => isUrgentDigestAlert(alert));
-    const inQuiet = isInAlgiersQuietHours(
-      user.quiet_hours_start,
-      user.quiet_hours_end,
-      now,
-    );
-    if (inQuiet && !hasUrgent) {
-      // Defer cleanly without marking delivered_email = true
-      summary.deferredQuietHours += 1;
-      continue;
-    }
-    const urgentBypass = inQuiet && hasUrgent;
-
-    const due = isDigestScheduleDue({
-      frequency,
-      digestHourAlgiers: user.email_digest_hour_algiers,
-      lastSentAt: user.last_sent_at,
-      urgentBypass: hasUrgent,
-      now,
-    });
-    if (!due) {
-      summary.deferredSchedule += 1;
-      continue;
-    }
-
-    const locale: AnyLocale = isAnyLocale(user.locale) ? user.locale : "ar";
-    const rendered = renderZoneDigestEmail({
-      locale,
-      recipientName: user.display_name,
-      alerts,
-      urgentBypass,
-    });
-
-    const alertIds = alerts.map((a) => a.id);
-    const effectiveKind: Exclude<EmailDigestFrequency, "off"> =
-      hasUrgent && frequency !== "immediate" ? "immediate" : frequency;
-    const windowKey = buildEmailDigestWindowKey(effectiveKind, alertIds, now);
-    const dedupeKey = buildEmailDigestDedupeKey(
-      user.user_id,
-      effectiveKind,
-      windowKey,
-    );
-
-    const claimed = await store.claimDigestDelivery({
-      userId: user.user_id,
-      digestKind: effectiveKind,
-      windowKey,
-      dedupeKey,
-      locale,
-      alertIds,
-      urgentBypass,
-      subject: rendered.subject,
-    });
-
-    if (!claimed) {
-      summary.skipped += 1;
-      continue;
-    }
-
-    try {
-      const sent = await transport.sendEmail({
-        from: fromEmail,
-        to: user.email,
-        subject: rendered.subject,
-        html: rendered.html,
-        text: rendered.text,
-        idempotencyKey: dedupeKey,
-        headers: {
-          "List-Unsubscribe": `<${APP_ORIGIN}/settings>`,
-        },
-      });
-      await store.finishDigestDelivery({
-        id: claimed.id,
-        leaseToken: claimed.lease_token,
-        sent: true,
-        providerMessageId: sent.providerMessageId,
-      });
-      summary.sent += 1;
-    } catch (error) {
-      const classified = classifyResendError(error);
-      const retryAfter = classified.transient
-        ? computeBackoffSeconds(claimed.attempts, classified.retryAfterSeconds)
-        : null;
-      await store.finishDigestDelivery({
-        id: claimed.id,
-        leaseToken: claimed.lease_token,
-        sent: false,
-        error: `${classified.code}: ${classified.message}`,
-        permanent: classified.permanent,
-        bounced: classified.bounced,
-        retryAfterSeconds: retryAfter,
-      });
-      if (classified.bounced) {
-        summary.bounced += 1;
-      } else if (classified.permanent || claimed.attempts >= 5) {
-        summary.failed += 1;
-      } else {
-        summary.retried += 1;
+    let progressed = false;
+    for (const user of users) {
+      if (summary.sent + summary.failed >= maxDeliveriesPerRun) {
+        break;
       }
-      summary.errors.push(`${user.user_id}: ${classified.code}`);
+      if (seenUserIds.has(user.user_id)) {
+        continue;
+      }
+      seenUserIds.add(user.user_id);
+      progressed = true;
+
+      summary.usersChecked += 1;
+      const frequency = normalizeFrequency(user.email_digest_frequency);
+      if (frequency === "off") {
+        summary.skipped += 1;
+        continue;
+      }
+
+      const alerts = await store.loadUndeliveredAlerts(
+        user.user_id,
+        DEFAULT_ALERTS_PER_USER,
+      );
+      if (alerts.length === 0) {
+        summary.skipped += 1;
+        continue;
+      }
+
+      const hasUrgent = alerts.some((alert) => isUrgentDigestAlert(alert));
+      const inQuiet = isInAlgiersQuietHours(
+        user.quiet_hours_start,
+        user.quiet_hours_end,
+        now,
+      );
+      if (inQuiet && !hasUrgent) {
+        // Defer cleanly without marking delivered_email = true
+        summary.deferredQuietHours += 1;
+        continue;
+      }
+      const urgentBypass = inQuiet && hasUrgent;
+
+      const due = isDigestScheduleDue({
+        frequency,
+        digestHourAlgiers: user.email_digest_hour_algiers,
+        lastSentAt: user.last_sent_at,
+        urgentBypass: hasUrgent,
+        now,
+      });
+      if (!due) {
+        summary.deferredSchedule += 1;
+        continue;
+      }
+
+      const locale: AnyLocale = isAnyLocale(user.locale) ? user.locale : "ar";
+      const rendered = renderZoneDigestEmail({
+        locale,
+        recipientName: user.display_name,
+        alerts,
+        urgentBypass,
+      });
+
+      const alertIds = alerts.map((a) => a.id);
+      const effectiveKind: Exclude<EmailDigestFrequency, "off"> =
+        hasUrgent && frequency !== "immediate" ? "immediate" : frequency;
+      const windowKey = buildEmailDigestWindowKey(effectiveKind, alertIds, now);
+      const dedupeKey = buildEmailDigestDedupeKey(
+        user.user_id,
+        effectiveKind,
+        windowKey,
+      );
+
+      const claimed = await store.claimDigestDelivery({
+        userId: user.user_id,
+        digestKind: effectiveKind,
+        windowKey,
+        dedupeKey,
+        locale,
+        alertIds,
+        urgentBypass,
+        subject: rendered.subject,
+      });
+
+      if (!claimed) {
+        summary.skipped += 1;
+        continue;
+      }
+
+      try {
+        const sent = await transport.sendEmail({
+          from: fromEmail,
+          to: user.email,
+          subject: rendered.subject,
+          html: rendered.html,
+          text: rendered.text,
+          idempotencyKey: dedupeKey,
+          headers: {
+            "List-Unsubscribe": `<${APP_ORIGIN}/settings>`,
+          },
+        });
+        await store.finishDigestDelivery({
+          id: claimed.id,
+          leaseToken: claimed.lease_token,
+          sent: true,
+          providerMessageId: sent.providerMessageId,
+        });
+        summary.sent += 1;
+      } catch (error) {
+        const classified = classifyResendError(error);
+        const retryAfter = classified.transient
+          ? computeBackoffSeconds(
+              claimed.attempts,
+              classified.retryAfterSeconds,
+            )
+          : null;
+        await store.finishDigestDelivery({
+          id: claimed.id,
+          leaseToken: claimed.lease_token,
+          sent: false,
+          error: `${classified.code}: ${classified.message}`,
+          permanent: classified.permanent,
+          bounced: classified.bounced,
+          retryAfterSeconds: retryAfter,
+        });
+        if (classified.bounced) {
+          summary.bounced += 1;
+        } else if (classified.permanent || claimed.attempts >= 5) {
+          summary.failed += 1;
+        } else {
+          summary.retried += 1;
+        }
+        summary.errors.push(`${user.user_id}: ${classified.code}`);
+      }
     }
+
+    const lastUserId = users[users.length - 1]?.user_id ?? null;
+    if (
+      !progressed ||
+      users.length < limit ||
+      !lastUserId ||
+      lastUserId === afterUserId
+    ) {
+      break;
+    }
+    afterUserId = lastUserId;
   }
 
   return summary;

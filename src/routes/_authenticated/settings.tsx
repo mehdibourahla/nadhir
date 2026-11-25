@@ -104,12 +104,13 @@ function SettingsPage() {
       profile.data.email_digest_frequency === "daily"
         ? profile.data.email_digest_frequency
         : "off";
+    const emailEnabled = Boolean(profile.data.alert_email);
     setDraft({
       display_name: profile.data.display_name ?? "",
       phone: profile.data.phone ?? "",
       locale: profile.data.locale,
-      alert_email: Boolean(profile.data.alert_email) && freq !== "off",
-      email_digest_frequency: freq,
+      alert_email: emailEnabled && freq !== "off",
+      email_digest_frequency: emailEnabled ? freq : "off",
       alert_push: profile.data.alert_push,
       min_danger_level: profile.data.min_danger_level,
       quiet_hours_start: profile.data.quiet_hours_start?.toString() ?? "",

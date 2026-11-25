@@ -149,8 +149,8 @@ begin
     from public.broadcasts b
    where b.id = q.broadcast_id
      and b.kind = 'official'
-     and b.phase = 'initial'
      and b.official_incident_id = new.id
+     and (new.unlisted_at is not null or b.phase <> 'end')
      and q.state = 'pending';
 
   update public.whatsapp_channel_deliveries q
@@ -160,8 +160,8 @@ begin
     from public.broadcasts b
    where b.id = q.broadcast_id
      and b.kind = 'official'
-     and b.phase = 'initial'
      and b.official_incident_id = new.id
+     and (new.unlisted_at is not null or b.phase <> 'end')
      and q.state = 'leased';
 
   return new;
@@ -236,6 +236,228 @@ grant select, insert, update, delete on table public.email_digest_suppressions
 -- 6. service_role-only RPCs (all with set search_path = '' and strict REVOKE/GRANT)
 -- ============================================================================
 
+-- 6.0 list_pending_whatsapp_broadcasts
+create function public.list_pending_whatsapp_broadcasts(
+  _channel_target text,
+  _locale text default 'ar',
+  _limit integer default 20
+)
+returns table (
+  id uuid,
+  kind text,
+  phase text,
+  severity text,
+  hazard text,
+  source_key text,
+  metadata jsonb,
+  commune_codes text[],
+  created_at timestamptz,
+  onm_vigilance_id uuid,
+  official_incident_id uuid,
+  earthquake_id text,
+  cluster_id uuid,
+  onm_msg_type text,
+  onm_cancelled_at timestamptz,
+  onm_superseded_by uuid,
+  onm_onset timestamptz,
+  onm_expires timestamptz,
+  onm_sent timestamptz,
+  onm_area_desc text,
+  onm_title text,
+  onm_headline_fr text,
+  onm_event text,
+  incident_status text,
+  incident_unlisted_at timestamptz,
+  incident_kind text,
+  incident_source_key text,
+  incident_source_label text,
+  incident_authority_tier text,
+  incident_evidence text,
+  incident_place_text text,
+  incident_as_of timestamptz,
+  incident_area_label text,
+  quake_magnitude double precision,
+  quake_occurred_at timestamptz,
+  quake_region text,
+  quake_network text,
+  fire_short_id text,
+  fire_state text,
+  fire_confirmed_at timestamptz,
+  fire_detection_count integer,
+  fire_sources text[],
+  fire_suspected_persistent boolean,
+  fire_last_detected_at timestamptz,
+  fire_area_label text,
+  cap_headline text,
+  cap_description text,
+  cap_area_desc text,
+  cap_sent timestamptz,
+  cap_expires text
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  _clean_target text := btrim(coalesce(_channel_target, ''));
+  _clean_locale text := coalesce(nullif(btrim(_locale), ''), 'ar');
+begin
+  if _limit < 1 or _limit > 100 then
+    raise exception 'invalid_delivery_limit';
+  end if;
+
+  if length(_clean_target) = 0 then
+    return;
+  end if;
+
+  if not exists (
+    select 1 from public.broadcast_settings bs where bs.id = true and bs.enabled = true
+  ) or not exists (
+    select 1 from public.delivery_pipeline_settings dps
+     where dps.pipeline = 'whatsapp_channel' and dps.enabled = true and dps.paused = false
+  ) then
+    return;
+  end if;
+
+  return query
+  select
+    b.id,
+    b.kind,
+    b.phase,
+    b.severity,
+    b.hazard,
+    b.source_key,
+    b.metadata,
+    b.commune_codes,
+    b.created_at,
+    b.onm_vigilance_id,
+    b.official_incident_id,
+    b.earthquake_id,
+    b.cluster_id,
+    v.msg_type as onm_msg_type,
+    v.cancelled_at as onm_cancelled_at,
+    v.superseded_by as onm_superseded_by,
+    v.onset as onm_onset,
+    v.expires as onm_expires,
+    v.sent as onm_sent,
+    v.area_desc as onm_area_desc,
+    v.title as onm_title,
+    v.headline_fr as onm_headline_fr,
+    v.event as onm_event,
+    o.status as incident_status,
+    o.unlisted_at as incident_unlisted_at,
+    o.kind as incident_kind,
+    ts.key as incident_source_key,
+    ts.label as incident_source_label,
+    o.authority_tier as incident_authority_tier,
+    o.evidence as incident_evidence,
+    o.place_text as incident_place_text,
+    o.as_of as incident_as_of,
+    coalesce(
+      nullif(o.place_text, ''),
+      case _clean_locale
+        when 'ar' then o_au.name_ar
+        when 'en' then o_au.name_en
+        when 'kab' then coalesce(o_au.name_kab, o_au.name_fr)
+        else o_au.name_fr
+      end
+    ) as incident_area_label,
+    e.magnitude::double precision as quake_magnitude,
+    e.occurred_at as quake_occurred_at,
+    e.region as quake_region,
+    e.network as quake_network,
+    fc.short_id as fire_short_id,
+    fc.state as fire_state,
+    fc.confirmed_at as fire_confirmed_at,
+    fc.detection_count as fire_detection_count,
+    fc.sources as fire_sources,
+    fc.suspected_persistent_source as fire_suspected_persistent,
+    fc.last_detected_at as fire_last_detected_at,
+    case _clean_locale
+      when 'ar' then fc_au.name_ar
+      when 'en' then fc_au.name_en
+      when 'kab' then coalesce(fc_au.name_kab, fc_au.name_fr)
+      else fc_au.name_fr
+    end as fire_area_label,
+    case when pg_catalog.jsonb_typeof(ca.info) = 'array' then
+      coalesce(
+        (
+          select elem->>'headline'
+          from pg_catalog.jsonb_array_elements(ca.info) elem
+          where elem->>'language' = _clean_locale
+          limit 1
+        ),
+        ca.info->0->>'headline'
+      )
+    else null end as cap_headline,
+    case when pg_catalog.jsonb_typeof(ca.info) = 'array' then
+      coalesce(
+        (
+          select elem->>'description'
+          from pg_catalog.jsonb_array_elements(ca.info) elem
+          where elem->>'language' = _clean_locale
+          limit 1
+        ),
+        ca.info->0->>'description'
+      )
+    else null end as cap_description,
+    case when pg_catalog.jsonb_typeof(ca.info) = 'array' then
+      coalesce(
+        (
+          select elem->'area'->0->>'areaDesc'
+          from pg_catalog.jsonb_array_elements(ca.info) elem
+          where elem->>'language' = _clean_locale
+          limit 1
+        ),
+        ca.info->0->'area'->0->>'areaDesc'
+      )
+    else null end as cap_area_desc,
+    ca.sent as cap_sent,
+    case when pg_catalog.jsonb_typeof(ca.info) = 'array' then
+      coalesce(
+        (
+          select elem->>'expires'
+          from pg_catalog.jsonb_array_elements(ca.info) elem
+          where elem->>'language' = _clean_locale
+          limit 1
+        ),
+        ca.info->0->>'expires'
+      )
+    else null end as cap_expires
+  from public.broadcasts b
+  left join public.onm_vigilance v on v.id = b.onm_vigilance_id
+  left join public.official_incidents o on o.id = b.official_incident_id
+  left join public.incident_mentions im on im.id = o.latest_mention_id
+  left join public.text_sources ts on ts.id = im.text_source_id
+  left join public.admin_units o_au on o_au.id = coalesce(o.commune_id, o.wilaya_id)
+  left join public.earthquakes e on e.id = b.earthquake_id
+  left join public.fire_clusters fc on fc.id = b.cluster_id
+  left join public.admin_units fc_au on fc_au.id = coalesce(fc.commune_id, fc.wilaya_id)
+  left join public.cap_alerts ca on ca.id = b.cap_alert_id
+  where b.created_at >= now() - interval '24 hours'
+    and b.kind in ('onm', 'official', 'earthquake', 'fire')
+    and (
+      b.kind <> 'onm'
+      or v.id is null
+      or (
+        v.cancelled_at is null
+        and v.superseded_by is null
+        and v.msg_type <> 'Cancel'
+        and (v.expires is null or v.expires > now())
+      )
+    )
+    and not exists (
+      select 1
+      from public.whatsapp_channel_deliveries d
+      where d.broadcast_id = b.id
+        and d.channel_target = _clean_target
+        and d.locale = _clean_locale
+    )
+  order by b.created_at asc, b.id asc
+  limit _limit;
+end;
+$$;
+
 -- 6.1 enqueue_whatsapp_broadcast
 create function public.enqueue_whatsapp_broadcast(
   _broadcast_id uuid,
@@ -275,9 +497,11 @@ begin
   end if;
 
   if _broadcast.kind = 'official'
-     and _broadcast.phase = 'initial'
      and _broadcast.official_incident_id is not null then
-    select (o.status in ('cleared', 'extinguished') or o.unlisted_at is not null)
+    select (
+      o.unlisted_at is not null
+      or (_broadcast.phase <> 'end' and o.status in ('cleared', 'extinguished'))
+    )
       into _invalidated
     from public.official_incidents o
     where o.id = _broadcast.official_incident_id;
@@ -305,19 +529,6 @@ begin
   on conflict do nothing
   returning id into _id;
 
-  if _id is null then
-    select d.id
-      into _id
-    from public.whatsapp_channel_deliveries d
-    where d.dedupe_key = btrim(_dedupe_key)
-       or (
-         d.broadcast_id = _broadcast_id
-         and d.channel_target = btrim(_channel_target)
-         and d.locale = _locale
-       )
-    limit 1;
-  end if;
-
   return _id;
 end;
 $$;
@@ -335,10 +546,10 @@ begin
   end if;
 
   if not exists (
-    select 1 from public.broadcast_settings where id = true and enabled = true
+    select 1 from public.broadcast_settings bs where bs.id = true and bs.enabled = true
   ) or not exists (
-    select 1 from public.delivery_pipeline_settings
-     where pipeline = 'whatsapp_channel' and enabled = true and paused = false
+    select 1 from public.delivery_pipeline_settings dps
+     where dps.pipeline = 'whatsapp_channel' and dps.enabled = true and dps.paused = false
   ) then
     return;
   end if;
@@ -418,18 +629,29 @@ begin
     return false;
   end if;
 
-  if not _delivered and (
-    _row.last_error in ('cap_cancelled', 'official_cleared')
-    or _error in ('cap_cancelled', 'official_cleared')
-  ) then
+  -- Unconditional mid-flight CAP Cancel / official cleared guard (NEVER overwrite to delivered)
+  if _row.state = 'cancelled'
+     or _row.last_error in ('cap_cancelled', 'official_cleared') then
     update public.whatsapp_channel_deliveries
        set state = 'cancelled',
            lease_token = null,
            lease_until = null,
            last_error = case
              when _row.last_error in ('cap_cancelled', 'official_cleared') then _row.last_error
-             else _error
+             when _error in ('cap_cancelled', 'official_cleared') then _error
+             else 'cap_cancelled'
            end,
+           updated_at = now()
+     where id = _row.id;
+    return false;
+  end if;
+
+  if not _delivered and _error in ('cap_cancelled', 'official_cleared') then
+    update public.whatsapp_channel_deliveries
+       set state = 'cancelled',
+           lease_token = null,
+           lease_until = null,
+           last_error = _error,
            updated_at = now()
      where id = _row.id;
     return true;
@@ -503,7 +725,10 @@ end;
 $$;
 
 -- 6.4 list_pending_email_digest_users
-create function public.list_pending_email_digest_users(_limit integer default 100)
+create function public.list_pending_email_digest_users(
+  _limit integer default 100,
+  _after_user_id uuid default null
+)
 returns table (
   user_id uuid,
   email text,
@@ -546,6 +771,7 @@ begin
       from public.email_digest_deliveries d
       where d.user_id = p.id
         and d.state = 'sent'
+        and d.digest_kind = p.email_digest_frequency
     ) as last_sent_at
   from public.profiles p
   join auth.users u on u.id = p.id
@@ -554,6 +780,7 @@ begin
     and u.email_confirmed_at is not null
     and p.alert_email = true
     and p.email_digest_frequency <> 'off'
+    and (_after_user_id is null or p.id > _after_user_id)
     and not exists (
       select 1 from public.email_digest_suppressions s where s.user_id = p.id
     )
@@ -563,7 +790,7 @@ begin
          and a.delivered_email = false
     )
   order by p.id asc
-  limit _limit;
+  limit greatest(1, least(coalesce(_limit, 100), 500));
 end;
 $$;
 
@@ -656,6 +883,17 @@ begin
     return next;
     return;
   end if;
+
+  -- Sweep expired attempt-5 leases to terminal failed before attempting claim
+  update public.email_digest_deliveries d
+     set state = 'failed',
+         lease_token = null,
+         lease_until = null,
+         last_error = coalesce(d.last_error, 'max_attempts_exceeded'),
+         updated_at = now()
+   where d.state = 'leased'
+     and d.lease_until <= now()
+     and d.attempts >= 5;
 
   return query
   with candidate as (
@@ -849,6 +1087,11 @@ revoke all on function public.invalidate_cleared_official_whatsapp_deliveries()
   from public, anon, authenticated, service_role;
 
 -- service_role-only RPCs
+revoke all on function public.list_pending_whatsapp_broadcasts(text, text, integer)
+  from public, anon, authenticated, service_role;
+grant execute on function public.list_pending_whatsapp_broadcasts(text, text, integer)
+  to service_role;
+
 revoke all on function public.enqueue_whatsapp_broadcast(uuid, text, text, text, jsonb, timestamptz)
   from public, anon, authenticated, service_role;
 grant execute on function public.enqueue_whatsapp_broadcast(uuid, text, text, text, jsonb, timestamptz)
@@ -864,9 +1107,9 @@ revoke all on function public.finish_whatsapp_delivery(uuid, uuid, boolean, text
 grant execute on function public.finish_whatsapp_delivery(uuid, uuid, boolean, text, text, boolean, integer)
   to service_role;
 
-revoke all on function public.list_pending_email_digest_users(integer)
+revoke all on function public.list_pending_email_digest_users(integer, uuid)
   from public, anon, authenticated, service_role;
-grant execute on function public.list_pending_email_digest_users(integer)
+grant execute on function public.list_pending_email_digest_users(integer, uuid)
   to service_role;
 
 revoke all on function public.claim_email_digest_delivery(uuid, text, text, text, text, uuid[], boolean, text)
