@@ -13,6 +13,7 @@ import {
   MTG_FCI_PUSH_ATTRIBUTION,
   MTG_FCI_PUSH_FALLBACK_CONTRACT,
   MTG_FCI_PUSH_SOURCE_KEY,
+  parseEumetsatFciCapXml,
   parseMtgFciPushPayload,
   type MtgFciPushDeliveryAudit,
   type MtgFciPushDetectionRow,
@@ -52,9 +53,87 @@ function resolveSlotIso(
   return new Date(floored).toISOString();
 }
 
+const EUMETSAT_TOKEN_URL = "https://api.eumetsat.int/token";
+const EUMETSAT_FCI_CAP_SEARCH_URL =
+  "https://api.eumetsat.int/data/search-products/1.0.0/os?pi=EO%3AEUM%3ADAT%3A0801&format=json&c=1&sort=start,time,0";
+
+async function fetchLatestEumetsatFciCap(
+  consumerKey: string,
+  consumerSecret: string,
+  receivedAt: string,
+): Promise<ReturnType<typeof parseEumetsatFciCapXml>> {
+  const basic = btoa(`${consumerKey}:${consumerSecret}`);
+  const tokRes = await fetch(EUMETSAT_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${basic}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: "grant_type=client_credentials",
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!tokRes.ok) {
+    throw new Error(`EUMETSAT token HTTP ${tokRes.status}`);
+  }
+  const tokJson = (await tokRes.json()) as { access_token?: string };
+  if (!tokJson.access_token) {
+    throw new Error("EUMETSAT token response missing access_token");
+  }
+  const authHeaders = { Authorization: `Bearer ${tokJson.access_token}` };
+  const searchRes = await fetch(EUMETSAT_FCI_CAP_SEARCH_URL, {
+    headers: authHeaders,
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!searchRes.ok) {
+    throw new Error(`EUMETSAT Data Store search HTTP ${searchRes.status}`);
+  }
+  const searchJson = (await searchRes.json()) as {
+    features?: {
+      id?: string;
+      properties?: {
+        links?: {
+          "sip-entries"?: { href?: string; title?: string }[];
+        };
+      };
+    }[];
+  };
+  const latest = searchJson.features?.[0];
+  const productId = latest?.id;
+  const entries = latest?.properties?.links?.["sip-entries"] ?? [];
+  const capEntry = entries.find(
+    (e) =>
+      typeof e.href === "string" &&
+      typeof e.title === "string" &&
+      e.title.includes("FCI-2-FIR") &&
+      e.title.endsWith(".xml"),
+  );
+  if (!productId || !capEntry?.href) {
+    throw new Error(
+      "MTG FCI push schema invalid: no EO:EUM:DAT:0801 CAP XML entry found",
+    );
+  }
+  const xmlRes = await archivedFetch(
+    MTG_FCI_PUSH_SOURCE_KEY,
+    "mtg_fci_l2_fir_cap",
+    capEntry.href,
+    { headers: authHeaders, signal: AbortSignal.timeout(20_000) },
+    { requestParams: { product: "EO:EUM:DAT:0801", id: productId } },
+  );
+  if (!xmlRes.ok) {
+    throw new Error(`MTG FCI push upstream HTTP ${xmlRes.status}`);
+  }
+  return parseEumetsatFciCapXml(await xmlRes.text(), {
+    productId: `EO:EUM:DAT:0801:${productId}`,
+    receivedAt,
+  });
+}
+
 const defaultStore = {
   feedUrl: () => readEnv("MTG_FCI_PUSH_URL") ?? null,
   pushToken: () => readEnv("EUMETSAT_PUSH_TOKEN") ?? null,
+  eumetsatKey: () => readEnv("EUMETSAT_CONSUMER_KEY") ?? null,
+  eumetsatSecret: () => readEnv("EUMETSAT_CONSUMER_SECRET") ?? null,
+  fetchEumetsatCap: fetchLatestEumetsatFciCap,
   fetch: (
     url: string,
     slotIso: string,
@@ -131,6 +210,69 @@ export async function ingestMtgFciPush(
   const baseUrl = deps.feedUrl();
 
   if (!baseUrl) {
+    const key = deps.eumetsatKey();
+    const secret = deps.eumetsatSecret();
+    if (key && secret) {
+      const receivedAt = new Date(nowMs).toISOString();
+      try {
+        const parsed = await deps.fetchEumetsatCap(key, secret, receivedAt);
+        const boundedRows = interval
+          ? parsed.rows.filter((row) => {
+              const ms = Date.parse(row.detected_at);
+              return (
+                ms >= Date.parse(interval.dataFrom) &&
+                ms <= Date.parse(interval.dataThrough)
+              );
+            })
+          : parsed.rows;
+        const stored = boundedRows.length
+          ? await deps.upsertDetections(boundedRows)
+          : 0;
+        await deps.recordDelivery({
+          productId: parsed.productId,
+          slotTime: parsed.slotTime,
+          publishedAt: parsed.upstreamPublishedAt,
+          receivedAt: parsed.receivedAt,
+          latencySeconds: parsed.latencySeconds,
+          pixelsSeen: parsed.pixelsSeen,
+          pixelsStored: stored,
+          pixelsFiltered:
+            parsed.pixelsOutsideWatchBox + parsed.pixelsFilteredWatchArea,
+          fallbackContractKey: MTG_FCI_PUSH_FALLBACK_CONTRACT,
+          qualityState: parsed.qualityState,
+          attribution: MTG_FCI_PUSH_ATTRIBUTION,
+        });
+        return {
+          fetched: parsed.pixelsSeen,
+          stored,
+          outside: parsed.pixelsOutsideWatchBox,
+          filtered: parsed.pixelsFilteredWatchArea,
+          emptySlot: boundedRows.length === 0,
+          productId: parsed.productId,
+          slotTime: parsed.slotTime,
+          upstreamPublishedAt: parsed.upstreamPublishedAt,
+          latencySeconds: parsed.latencySeconds,
+          dataFrom:
+            interval?.dataFrom ??
+            new Date(Date.parse(parsed.slotTime) - 10 * 60_000).toISOString(),
+          dataThrough: interval?.dataThrough ?? parsed.slotTime,
+        };
+      } catch (error) {
+        if (error instanceof ArchiveFailure) throw error;
+        return {
+          fetched: 0,
+          stored: 0,
+          outside: 0,
+          filtered: 0,
+          emptySlot: false,
+          productId: null,
+          slotTime: null,
+          upstreamPublishedAt: null,
+          latencySeconds: null,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }
     return {
       fetched: 0,
       stored: 0,

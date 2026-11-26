@@ -1,15 +1,16 @@
-name: Source jobs (manual fallback)
+name: Source jobs (GitHub egress + manual fallback)
 
-# Automatic GitHub Actions triggers (repository_dispatch and schedule — previously
-# 720 runs/day for ita_facebook) are retired. The standalone always-on EU backend
-# worker (worker/) now consumes ita_facebook, ita_website, dgpc_telegram, local_fwi,
-# and effis directly from Postgres source_jobs.
-# This workflow remains strictly as a manual emergency fallback via workflow_dispatch.
+# Facebook-scraped national sources (ita_facebook, tariki_facebook) run on
+# GitHub Actions runners via repository_dispatch for a fresh egress IP per slot.
+# All other worker contracts (ita_website, dgpc_telegram, local_fwi, effis,
+# craag_earthquakes, scientific layers) run continuously on the EU worker.
 on:
+  repository_dispatch:
+    types: [source-job]
   workflow_dispatch:
     inputs:
       contract:
-        description: Source contract key (local_fwi, effis, ita_facebook, ita_website, dgpc_telegram)
+        description: Source contract key (ita_facebook, tariki_facebook, local_fwi, effis, ita_website, dgpc_telegram)
         required: true
         type: string
       target:
@@ -33,15 +34,21 @@ jobs:
     steps:
       - id: pick
         env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_CONTRACT: ${{ github.event.client_payload.contract }}
           MANUAL: ${{ inputs.contract }}
           TARGET: ${{ inputs.target || 'worker' }}
         run: |
-          if [ -n "$MANUAL" ]; then
+          if [ "$EVENT_NAME" = "repository_dispatch" ]; then
+            echo "contracts=$(jq -nc --arg c "$DISPATCH_CONTRACT" '[$c]')" >> "$GITHUB_OUTPUT"
+            echo "target=github" >> "$GITHUB_OUTPUT"
+          elif [ -n "$MANUAL" ]; then
             echo "contracts=$(jq -nc --arg c "$MANUAL" '[$c]')" >> "$GITHUB_OUTPUT"
+            echo "target=${TARGET}" >> "$GITHUB_OUTPUT"
           else
-            echo 'contracts=["local_fwi","effis","ita_facebook","ita_website","dgpc_telegram"]' >> "$GITHUB_OUTPUT"
+            echo 'contracts=["ita_facebook","tariki_facebook"]' >> "$GITHUB_OUTPUT"
+            echo "target=github" >> "$GITHUB_OUTPUT"
           fi
-          echo "target=${TARGET}" >> "$GITHUB_OUTPUT"
 
   consume:
     needs: plan
@@ -70,18 +77,18 @@ jobs:
           CONTRACT: ${{ matrix.contract }}
           TARGET: ${{ needs.plan.outputs.target }}
           # model calls go to the home gateway (gpt-6-luna on the ChatGPT plan), behind Cloudflare Access
-          NADHIR_GATEWAY_URL: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.NADHIR_GATEWAY_URL || '' }}
-          NADHIR_GATEWAY_ACCESS_CLIENT_ID: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.NADHIR_GATEWAY_ACCESS_CLIENT_ID || '' }}
-          NADHIR_GATEWAY_ACCESS_CLIENT_SECRET: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.NADHIR_GATEWAY_ACCESS_CLIENT_SECRET || '' }}
+          NADHIR_GATEWAY_URL: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram' || matrix.contract == 'tariki_facebook') && secrets.NADHIR_GATEWAY_URL || '' }}
+          NADHIR_GATEWAY_ACCESS_CLIENT_ID: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram' || matrix.contract == 'tariki_facebook') && secrets.NADHIR_GATEWAY_ACCESS_CLIENT_ID || '' }}
+          NADHIR_GATEWAY_ACCESS_CLIENT_SECRET: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram' || matrix.contract == 'tariki_facebook') && secrets.NADHIR_GATEWAY_ACCESS_CLIENT_SECRET || '' }}
           # optional automatic EU/cloud LLM API fallback when the home gateway is unavailable
-          LLM_FALLBACK_PROVIDER: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_PROVIDER || '' }}
-          LLM_FALLBACK_API_URL: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_API_URL || '' }}
-          LLM_FALLBACK_API_KEY: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_API_KEY || '' }}
-          LLM_FALLBACK_MODEL: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_MODEL || '' }}
-          LLM_FALLBACK_CHAIN: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_CHAIN || '' }}
-          LLM_FALLBACK_HEADERS: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_HEADERS || '' }}
-          LLM_FALLBACK_TIMEOUT_MS: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_TIMEOUT_MS || '' }}
-          LLM_FALLBACK_MAX_RETRIES: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram') && secrets.LLM_FALLBACK_MAX_RETRIES || '' }}
+          LLM_FALLBACK_PROVIDER: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram' || matrix.contract == 'tariki_facebook') && secrets.LLM_FALLBACK_PROVIDER || '' }}
+          LLM_FALLBACK_API_URL: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram' || matrix.contract == 'tariki_facebook') && secrets.LLM_FALLBACK_API_URL || '' }}
+          LLM_FALLBACK_API_KEY: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram' || matrix.contract == 'tariki_facebook') && secrets.LLM_FALLBACK_API_KEY || '' }}
+          LLM_FALLBACK_MODEL: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram' || matrix.contract == 'tariki_facebook') && secrets.LLM_FALLBACK_MODEL || '' }}
+          LLM_FALLBACK_CHAIN: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram' || matrix.contract == 'tariki_facebook') && secrets.LLM_FALLBACK_CHAIN || '' }}
+          LLM_FALLBACK_HEADERS: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram' || matrix.contract == 'tariki_facebook') && secrets.LLM_FALLBACK_HEADERS || '' }}
+          LLM_FALLBACK_TIMEOUT_MS: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram' || matrix.contract == 'tariki_facebook') && secrets.LLM_FALLBACK_TIMEOUT_MS || '' }}
+          LLM_FALLBACK_MAX_RETRIES: ${{ (matrix.contract == 'ita_website' || matrix.contract == 'dgpc_telegram' || matrix.contract == 'tariki_facebook') && secrets.LLM_FALLBACK_MAX_RETRIES || '' }}
         run: |
           deadline=$((SECONDS + 1740))
           while true; do
@@ -96,7 +103,7 @@ jobs:
             fi
             if [ "$status" -eq 76 ]; then continue; fi
             if [ "$status" -ne 75 ]; then exit "$status"; fi
-            # Facebook walls by IP: the retry is the next 2-minute slot on a fresh runner, not this one
-            if [ "$CONTRACT" = "ita_facebook" ]; then exit 0; fi
+            # Facebook walls by IP: the retry is the next slot on a fresh runner, not this one
+            if [ "$CONTRACT" = "ita_facebook" ] || [ "$CONTRACT" = "tariki_facebook" ]; then exit 0; fi
             sleep 60
           done

@@ -4,7 +4,7 @@ set local search_path = public, extensions;
 
 select no_plan();
 
--- 1. All 5 migrated heavy/egress contracts target the standalone EU worker.
+-- 1. Four heavy/egress contracts target the standalone EU worker (ita_facebook stays on github for IP rotation).
 select is(
   (
     select array_agg(key order by key)
@@ -12,8 +12,8 @@ select is(
     where execution_target = 'worker'
       and key in ('dgpc_telegram', 'effis', 'ita_facebook', 'ita_website', 'local_fwi')
   ),
-  array['dgpc_telegram', 'effis', 'ita_facebook', 'ita_website', 'local_fwi'],
-  'five heavy/egress contracts migrated to execution_target worker'
+  array['dgpc_telegram', 'effis', 'ita_website', 'local_fwi'],
+  'four heavy/egress contracts run on execution_target worker'
 );
 
 -- 2. CHECK constraints accept worker/cloudflare/github and reject invalid targets.
@@ -65,11 +65,11 @@ select ok(
   exists(
     select 1
     from public.source_jobs
-    where contract_key = 'ita_facebook'
+    where contract_key = 'craag_earthquakes'
       and execution_target = 'worker'
       and 'worker' = any(enqueued_by)
   ),
-  'ita_facebook scheduled job records execution_target worker and enqueued_by worker'
+  'craag_earthquakes scheduled job records execution_target worker and enqueued_by worker'
 );
 
 -- 4. claim_source_job validates execution target and claims only matching target.
@@ -89,11 +89,11 @@ select is(
 select
   set_config('eu.job', id::text, true),
   set_config('eu.attempt', attempt_count::text, true)
-from public.claim_source_job('eu-worker-1', 'worker', 'ita_facebook', '2026-11-24T12:00:05Z');
+from public.claim_source_job('eu-worker-1', 'worker', 'craag_earthquakes', '2026-11-24T12:00:05Z');
 
 select ok(
   current_setting('eu.job', true) is not null,
-  'worker target claims ita_facebook job'
+  'worker target claims craag_earthquakes job'
 );
 
 select set_config(

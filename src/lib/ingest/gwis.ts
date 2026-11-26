@@ -218,11 +218,76 @@ function validateAndComputeCentroid(geom: unknown): {
   };
 }
 
+function normalizeEffisRestToFeatureCollection(
+  obj: Record<string, unknown>,
+): Record<string, unknown> | null {
+  if (!Array.isArray(obj["results"]) || typeof obj["count"] !== "number") {
+    return null;
+  }
+  const results = obj["results"] as unknown[];
+  let latestUpdate: string | null = null;
+  const features: Record<string, unknown>[] = [];
+  for (const item of results) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const rec = item as Record<string, unknown>;
+    const startRaw =
+      typeof rec["firedate"] === "string" ? rec["firedate"] : null;
+    const endRaw =
+      typeof rec["lastfiredate"] === "string"
+        ? rec["lastfiredate"]
+        : typeof rec["lastupdate"] === "string"
+          ? rec["lastupdate"]
+          : startRaw;
+    const pubRaw =
+      typeof rec["lastupdate"] === "string" ? rec["lastupdate"] : endRaw;
+    if (
+      pubRaw &&
+      (!latestUpdate || Date.parse(pubRaw) > Date.parse(latestUpdate))
+    ) {
+      latestUpdate = pubRaw;
+    }
+    const shape = rec["shape"];
+    if (!shape || typeof shape !== "object" || Array.isArray(shape)) continue;
+    const areaVal = Number(rec["area_ha"]);
+    if (!Number.isFinite(areaVal) || areaVal <= 0) continue;
+    const startDate = startRaw ? startRaw.slice(0, 10) : null;
+    const endDate = endRaw ? endRaw.slice(0, 10) : startDate;
+    const clampedEnd =
+      startDate && endDate && endDate < startDate ? startDate : endDate;
+    features.push({
+      type: "Feature",
+      id: rec["id"],
+      geometry: shape,
+      properties: {
+        id: rec["id"],
+        product_layer: "nrt.ba",
+        initialdate: startDate,
+        finaldate: clampedEnd,
+        area_ha: areaVal,
+        published_at: pubRaw
+          ? new Date(Date.parse(pubRaw)).toISOString()
+          : undefined,
+        licence: GWIS_LICENCE,
+      },
+    });
+  }
+  return {
+    type: "FeatureCollection",
+    licence: GWIS_LICENCE,
+    product_layer: "nrt.ba",
+    published_at: latestUpdate
+      ? new Date(Date.parse(latestUpdate)).toISOString()
+      : new Date().toISOString(),
+    features,
+  };
+}
+
 export function parseGwisGeoJson(payload: unknown): GwisParseResult {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new Error("GWIS schema invalid: expected GeoJSON FeatureCollection");
   }
-  const obj = payload as Record<string, unknown>;
+  const rawObj = payload as Record<string, unknown>;
+  const obj = normalizeEffisRestToFeatureCollection(rawObj) ?? rawObj;
   assertCcBy4Licence(obj["licence"] ?? obj["license"]);
   assertNoProhibitedFields(obj);
 

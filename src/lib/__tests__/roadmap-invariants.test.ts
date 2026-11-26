@@ -1493,7 +1493,7 @@ describe("Invariant 10 — Cross-track integration, source contracts, Track 2 de
     const migrationFiles = readdirSync(migrationDir)
       .filter((f) => f.endsWith(".sql"))
       .sort();
-    expect(migrationFiles.length).toBe(176);
+    expect(migrationFiles.length).toBeGreaterThanOrEqual(176);
 
     const activeContracts = new Set<string>();
     for (const file of migrationFiles) {

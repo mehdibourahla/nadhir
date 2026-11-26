@@ -1,4 +1,10 @@
-import { parseIsoTimestamp, validateCoordinates } from "./imerg";
+import { fromArrayBuffer } from "geotiff";
+
+import {
+  isTiffMagicBytes,
+  parseIsoTimestamp,
+  validateCoordinates,
+} from "./imerg";
 import { assertNotScientificUpstreamErrorBody } from "./mtg-fci-push";
 
 export const MTG_LIGHTNING_SOURCE_KEY = "mtg_lightning" as const;
@@ -316,4 +322,93 @@ export function parseMtgLightningPayload(
   }
 
   return parseMtgLightningJson(payload);
+}
+
+export async function parseMtgLightningWmsGeoTiff(
+  buffer: ArrayBuffer,
+  options: {
+    observedAt: string;
+    publishedAt?: string;
+    contentType?: string | null;
+  },
+): Promise<MtgLightningParseResult> {
+  assertNotScientificUpstreamErrorBody(
+    buffer,
+    options.contentType,
+    "MTG Lightning",
+    "MTG LI L2 GeoTIFF",
+  );
+  if (!isTiffMagicBytes(new Uint8Array(buffer))) {
+    throw new Error("MTG Lightning schema invalid: expected GeoTIFF binary");
+  }
+  const observedAt = parseIsoTimestamp(
+    options.observedAt,
+    "observed_at",
+    "MTG Lightning",
+  );
+  const upstreamPublishedAt = parseIsoTimestamp(
+    options.publishedAt ?? observedAt,
+    "published_at",
+    "MTG Lightning",
+  );
+
+  const tiff = await fromArrayBuffer(buffer);
+  const image = await tiff.getImage();
+  const width = image.getWidth();
+  const height = image.getHeight();
+  const bbox = image.getBoundingBox();
+  const west = bbox[0]!;
+  const south = bbox[1]!;
+  const east = bbox[2]!;
+  const north = bbox[3]!;
+  const rasters = await image.readRasters({ interleave: false });
+  const alpha = rasters[3];
+  if (!alpha || typeof alpha === "number" || alpha.length !== width * height) {
+    throw new Error("MTG Lightning schema invalid: expected RGBA GeoTIFF");
+  }
+
+  const lonStep = (east - west) / width;
+  const latStep = (north - south) / height;
+  const observations: LightningObservation[] = [];
+  let flashesSeen = 0;
+  let flashesOutsideAlgeria = 0;
+
+  for (let row = 0; row < height; row++) {
+    const lat = Math.round((north - (row + 0.5) * latStep) * 10_000) / 10_000;
+    for (let col = 0; col < width; col++) {
+      if (Number(alpha[row * width + col]) <= 127) continue;
+      const lon = Math.round((west + (col + 0.5) * lonStep) * 10_000) / 10_000;
+      flashesSeen += 1;
+      if (!isInAlgeriaLightningBbox(lat, lon)) {
+        flashesOutsideAlgeria += 1;
+        continue;
+      }
+      observations.push({
+        sourceKey: MTG_LIGHTNING_SOURCE_KEY,
+        observationKind: "lightning_observation",
+        isWildfire: false,
+        productType: "L2-AF",
+        flashId: `li-afa:${observedAt}:${row}:${col}`,
+        observedAt,
+        publishedAt: upstreamPublishedAt,
+        lat,
+        lon,
+        radianceUjM2: null,
+        durationMs: null,
+        groupCount: null,
+        qualityState: "valid",
+        attribution: MTG_LIGHTNING_ATTRIBUTION,
+      });
+    }
+  }
+
+  return {
+    sourceKey: MTG_LIGHTNING_SOURCE_KEY,
+    upstreamPublishedAt,
+    flashesSeen,
+    flashesInAlgeria: observations.length,
+    flashesOutsideAlgeria,
+    quietSlot: observations.length === 0,
+    observations,
+  };
 }

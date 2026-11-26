@@ -188,6 +188,7 @@ export function sanitizeOnmCapUrl(rawHref: string): string | null {
   if (
     host.endsWith(".") ||
     host.includes("..") ||
+    host.includes("pprod") ||
     (host !== "ametvigilance.meteo.dz" &&
       (!host.endsWith(".meteo.dz") || host === ".meteo.dz"))
   ) {
@@ -278,10 +279,16 @@ export function normalizeName(name: string): string {
     .replace(/[^A-Z0-9]+/g, "");
 }
 
+const ONM_WILAYA_ALIASES: Record<string, string> = {
+  ELMEGHAIER: "ELMGHAIR",
+  TAMENGHASSET: "TAMANRASSET",
+};
+
 export function matchWilaya<
   T extends { name_fr: string; name_en?: string | null },
 >(areaDesc: string, wilayas: T[]): T | null {
-  const target = normalizeName(areaDesc);
+  const raw = normalizeName(areaDesc);
+  const target = ONM_WILAYA_ALIASES[raw] ?? raw;
   // ONM's romanisation follows the English column for some wilayas (TIMIMOUN vs
   // the French Timimoune), and one silent mismatch degrades the whole run
   return (
