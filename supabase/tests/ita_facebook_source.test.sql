@@ -1,9 +1,9 @@
 begin;
 set local search_path = public, extensions;
 select plan(14);
-select is((select cadence_minutes from source_contracts where key='ita_facebook'),2,'two-minute schedule on EU worker');
+select is((select cadence_minutes from source_contracts where key='ita_facebook'),2,'two-minute schedule on GitHub runner');
 select is((select replay_capability from source_contracts where key='ita_facebook'),'none','no gap replay');
-select is((select array_agg(key order by key) from source_contracts where execution_target='worker' and key in ('dgpc_telegram','ita_website','ita_facebook')),array['dgpc_telegram','ita_facebook','ita_website'],'model-reading text sources run on EU worker');
+select is((select array_agg(key order by key) from source_contracts where execution_target='worker' and key in ('dgpc_telegram','ita_website')),array['dgpc_telegram','ita_website'],'non-Facebook text sources run on EU worker');
 set local role authenticated;
 select throws_ok($$select save_ita_facebook_posts(gen_random_uuid(),1,'[]')$$,'42501',null,'users cannot invoke the collector');
 reset role;
@@ -12,7 +12,7 @@ select throws_ok($$select save_ita_facebook_posts(gen_random_uuid(),1,'[]')$$,'5
 reset role;
 select public.enqueue_due_source_jobs(now(),'database');
 select set_config('fb.job',id::text,true),set_config('fb.attempt',attempt_count::text,true)
- from public.claim_source_job('ita-fb-test','worker','ita_facebook');
+ from public.claim_source_job('ita-fb-test','github','ita_facebook');
 select set_config('web.job',id::text,true),set_config('web.attempt',attempt_count::text,true)
  from public.claim_source_job('ita-web-test','worker','ita_website');
 set local role service_role;

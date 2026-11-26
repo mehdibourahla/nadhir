@@ -2,14 +2,18 @@ begin;
 set local search_path = public, extensions;
 select plan(36);
 
--- 1. Four new M4A source_contracts registered on execution_target = 'worker' with zero em dashes
+-- 1. Four new M4A source_contracts registered with zero em dashes (tariki_facebook on github for IP rotation, others on worker)
 select is(
   (select count(*)::integer from source_contracts
-   where key in ('imerg_rainfall', 'hsaf_rainfall', 'tariki_facebook', 'craag_earthquakes')
+   where key in ('imerg_rainfall', 'hsaf_rainfall', 'craag_earthquakes')
      and execution_target = 'worker'
-     and enabled = true),
+     and enabled = true)
+  + (select count(*)::integer from source_contracts
+     where key = 'tariki_facebook'
+       and execution_target = 'github'
+       and enabled = true),
   4,
-  'all 4 M4A source contracts exist on execution_target = worker'
+  'all 4 M4A source contracts exist on their assigned targets'
 );
 
 select is(

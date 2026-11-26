@@ -10,12 +10,16 @@ import {
 import { publicReasonForError, sourceRunOutcome } from "@/lib/source-runs";
 
 import {
+  buildCraagParseResultFromResolved,
   CRAAG_ATTRIBUTION,
   CRAAG_DEFAULT_URL,
   CRAAG_SOURCE_KEY,
   matchCraagToEmsc,
   parseCraagBulletins,
+  parseCraagMapCoordinates,
+  parseCraagSummaryTable,
   type CraagBulletin,
+  type CraagParseResult,
   type EmscMatchCandidate,
 } from "./craag";
 
@@ -72,8 +76,22 @@ const defaultStore = {
       CRAAG_SOURCE_KEY,
       "official_bulletins",
       url,
-      { signal: AbortSignal.timeout(20_000) },
+      {
+        signal: AbortSignal.timeout(20_000),
+        headers: { "User-Agent": "Nadhir/1.1 (+https://nadhir.app)" },
+      },
       { requestParams: { format: "html_or_json" } },
+    ),
+  fetchMap: (url: string) =>
+    archivedFetch(
+      CRAAG_SOURCE_KEY,
+      "bulletin_map",
+      url,
+      {
+        signal: AbortSignal.timeout(15_000),
+        headers: { "User-Agent": "Nadhir/1.1 (+https://nadhir.app)" },
+      },
+      { requestParams: { page: "map" } },
     ),
   recentEmscEvents: async (sinceIso: string): Promise<EmscMatchCandidate[]> => {
     const { data, error } = await supabaseAdmin
@@ -179,10 +197,66 @@ export async function ingestCraag(
 
   try {
     const body = await response.text();
-    const parsed = parseCraagBulletins(body, {
-      contentType: response.headers.get("content-type"),
-      baseUrl: url,
-    });
+    let parsed: CraagParseResult;
+    try {
+      parsed = parseCraagBulletins(body, {
+        contentType: response.headers.get("content-type"),
+        baseUrl: url,
+      });
+    } catch (primaryError) {
+      const summaryRows = parseCraagSummaryTable(body, url);
+      if (!summaryRows) throw primaryError;
+      const recentCutoffMs = now() - 60 * 86_400_000;
+      const candidateRows = summaryRows
+        .filter((r) => Date.parse(r.observedAt) >= recentCutoffMs)
+        .slice(0, 10);
+      const resolved: {
+        summary: (typeof summaryRows)[number];
+        lat: number;
+        lon: number;
+      }[] = [];
+      let mapFetchFailures = 0;
+      for (const row of candidateRows) {
+        if (!row.sourceUrl) continue;
+        try {
+          const mapRes = await deps.fetchMap(row.sourceUrl);
+          if (!mapRes.ok) {
+            mapFetchFailures += 1;
+            continue;
+          }
+          const coords = parseCraagMapCoordinates(await mapRes.text());
+          if (coords) {
+            resolved.push({ summary: row, lat: coords.lat, lon: coords.lon });
+          } else {
+            mapFetchFailures += 1;
+          }
+        } catch (mapErr) {
+          if (mapErr instanceof ArchiveFailure) throw mapErr;
+          mapFetchFailures += 1;
+        }
+      }
+      if (
+        candidateRows.length > 0 &&
+        resolved.length === 0 &&
+        mapFetchFailures > 0
+      ) {
+        throw new Error(
+          `CRAAG map coordinate resolution failed for all ${mapFetchFailures} eligible summary rows`,
+          { cause: primaryError },
+        );
+      }
+      parsed = buildCraagParseResultFromResolved(resolved);
+      if (parsed.bulletins.length === 0 && summaryRows.length > 0) {
+        parsed.emptyPage = resolved.length === 0;
+        let maxIso = parsed.upstreamPublishedAt;
+        for (const r of summaryRows) {
+          if (!maxIso || Date.parse(r.observedAt) > Date.parse(maxIso)) {
+            maxIso = r.observedAt;
+          }
+        }
+        parsed.upstreamPublishedAt = maxIso;
+      }
+    }
 
     if (!parsed.bulletins.length) {
       return {

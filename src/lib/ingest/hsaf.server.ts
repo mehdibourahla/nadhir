@@ -11,7 +11,12 @@ import {
 } from "@/lib/source-jobs";
 import { publicReasonForError, sourceRunOutcome } from "@/lib/source-runs";
 
-import { HSAF_SOURCE_KEY, parseHsafPayload, type HsafValueUnit } from "./hsaf";
+import {
+  HSAF_SOURCE_KEY,
+  parseHsafPayload,
+  parseHsafWmsGeoTiff,
+  type HsafValueUnit,
+} from "./hsaf";
 import type { RainfallObservation } from "./imerg";
 import type { RainfallCommuneRef } from "./imerg.server";
 
@@ -101,8 +106,61 @@ function readEnv(key: string): string | undefined {
   return undefined;
 }
 
+const EUMETSAT_H60B_CAPS_URL =
+  "https://view.eumetsat.int/geoserver/msg_fes/wms?service=WMS&version=1.3.0&request=GetCapabilities";
+
+function buildHsafWmsMapUrl(timeIso: string): string {
+  return (
+    "https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.3.0&request=GetMap" +
+    "&layers=msg_fes:h60b&styles=&crs=EPSG:4326&bbox=18.9,-8.7,37.6,12.0" +
+    `&width=207&height=187&transparent=true&format=image/geotiff&time=${encodeURIComponent(timeIso)}`
+  );
+}
+
+async function fetchLatestHsafWms(
+  fallbackSlotIso: string,
+  isReplay = false,
+): Promise<Awaited<ReturnType<typeof parseHsafWmsGeoTiff>>> {
+  let timeIso = fallbackSlotIso;
+  if (!isReplay) {
+    try {
+      const capRes = await fetch(EUMETSAT_H60B_CAPS_URL, {
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (capRes.ok) {
+        const capXml = await capRes.text();
+        const idx = capXml.indexOf("<Name>h60b</Name>");
+        if (idx !== -1) {
+          const m = capXml
+            .slice(idx, idx + 2500)
+            .match(/<Dimension[^>]*name="time"[^>]*default="([^"]+)"/i);
+          if (m?.[1]) timeIso = m[1];
+        }
+      }
+    } catch {
+      // Fall back to floored slot time
+    }
+  }
+  const res = await archivedFetch(
+    HSAF_SOURCE_KEY,
+    "hsaf_h60b_wms_geotiff",
+    buildHsafWmsMapUrl(timeIso),
+    { signal: AbortSignal.timeout(30_000) },
+    { requestParams: { layer: "msg_fes:h60b", time: timeIso } },
+  );
+  if (!res.ok) {
+    throw new Error(`H-SAF upstream HTTP ${res.status}`);
+  }
+  return parseHsafWmsGeoTiff(await res.arrayBuffer(), {
+    validTime: timeIso,
+    publishedTime: timeIso,
+    contentType: res.headers.get("content-type"),
+  });
+}
+
 const defaultStore = {
   feedUrl: () => readEnv("HSAF_FEED_URL") ?? null,
+  fetchDefaultWms: fetchLatestHsafWms,
   fetch: (url: string, slotIso: string) =>
     archivedFetch(
       HSAF_SOURCE_KEY,
@@ -151,17 +209,39 @@ export async function ingestHsaf(
   const baseUrl = deps.feedUrl();
 
   if (!baseUrl) {
-    return {
-      fetched: 0,
-      stored: 0,
-      outside: 0,
-      dry: 0,
-      nodata: 0,
-      drySlot: false,
-      validTime: null,
-      upstreamPublishedAt: null,
-      error: "H-SAF feed URL not configured (HSAF_FEED_URL missing)",
-    };
+    try {
+      const parsed = await deps.fetchDefaultWms(slotIso, Boolean(interval));
+      const communes = parsed.observations.length ? await deps.communes() : [];
+      const rows = toDbRows(parsed.observations, communes);
+      const stored = rows.length ? await deps.upsert(rows) : 0;
+      return {
+        fetched: parsed.cellsSeen,
+        stored,
+        outside: parsed.cellsOutsideAlgeria,
+        dry: parsed.cellsDry,
+        nodata: parsed.cellsNodata,
+        drySlot: parsed.drySlot,
+        validTime: parsed.validTime,
+        upstreamPublishedAt: parsed.upstreamPublishedAt,
+        dataFrom:
+          interval?.dataFrom ??
+          new Date(Date.parse(parsed.validTime) - 30 * 60_000).toISOString(),
+        dataThrough: interval?.dataThrough ?? parsed.validTime,
+      };
+    } catch (error) {
+      if (error instanceof ArchiveFailure) throw error;
+      return {
+        fetched: 0,
+        stored: 0,
+        outside: 0,
+        dry: 0,
+        nodata: 0,
+        drySlot: false,
+        validTime: null,
+        upstreamPublishedAt: null,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   let requestUrl: URL;

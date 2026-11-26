@@ -21,6 +21,148 @@ export const HSAF_SOURCE_KEY = "hsaf_rainfall" as const;
 export const HSAF_ATTRIBUTION =
   "EUMETSAT H-SAF (satellite observed rainfall)" as const;
 
+// Official EUMETSAT H-SAF H60B discrete legend bands (mm/hr), read from msg_fes:h60b GetLegendGraphic
+const HSAF_H60B_PALETTE: readonly {
+  rgb: readonly [number, number, number];
+  rateMmH: number;
+}[] = [
+  { rgb: [227, 244, 192], rateMmH: 0.5 },
+  { rgb: [198, 232, 179], rateMmH: 1.5 },
+  { rgb: [162, 218, 183], rateMmH: 2.5 },
+  { rgb: [126, 204, 186], rateMmH: 4.0 },
+  { rgb: [96, 194, 191], rateMmH: 6.0 },
+  { rgb: [65, 183, 196], rateMmH: 8.5 },
+  { rgb: [47, 164, 194], rateMmH: 12.5 },
+  { rgb: [29, 145, 191], rateMmH: 17.5 },
+  { rgb: [32, 120, 180], rateMmH: 25.0 },
+  { rgb: [34, 94, 168], rateMmH: 40.0 },
+  { rgb: [12, 44, 133], rateMmH: 55.0 },
+];
+
+export async function parseHsafWmsGeoTiff(
+  buffer: ArrayBuffer,
+  options: {
+    validTime: string;
+    publishedTime?: string;
+    contentType?: string | null;
+  },
+): Promise<RainfallParseResult> {
+  assertNotUpstreamErrorBody(buffer, options.contentType, "H-SAF");
+  if (!isTiffMagicBytes(new Uint8Array(buffer))) {
+    throw new Error("H-SAF schema invalid: expected WMS GeoTIFF binary");
+  }
+  const validTime = parseIsoTimestamp(options.validTime, "valid_time", "H-SAF");
+  const upstreamPublishedAt = parseIsoTimestamp(
+    options.publishedTime ?? validTime,
+    "published_time",
+    "H-SAF",
+  );
+  const tiff = await fromArrayBuffer(buffer);
+  const image = await tiff.getImage();
+  const width = image.getWidth();
+  const height = image.getHeight();
+  const [west, south, east, north] = validateBbox(
+    image.getBoundingBox(),
+    "H-SAF",
+  );
+  const rasters = await image.readRasters({ interleave: false });
+  const rBand = rasters[0];
+  const gBand = rasters[1];
+  const bBand = rasters[2];
+  const aBand = rasters[3];
+  if (
+    !rBand ||
+    !gBand ||
+    !bBand ||
+    !aBand ||
+    typeof rBand === "number" ||
+    typeof gBand === "number" ||
+    typeof bBand === "number" ||
+    typeof aBand === "number" ||
+    aBand.length !== width * height
+  ) {
+    throw new Error("H-SAF schema invalid: expected 4-band RGBA GeoTIFF");
+  }
+
+  const lonStep = (east - west) / width;
+  const latStep = (north - south) / height;
+  const byCell = new Map<string, RainfallObservation>();
+  let cellsSeen = 0;
+  let cellsInAlgeria = 0;
+  let cellsOutsideAlgeria = 0;
+  let cellsDry = 0;
+
+  for (let row = 0; row < height; row++) {
+    const lat = Math.round((north - (row + 0.5) * latStep) * 1000) / 1000;
+    for (let col = 0; col < width; col++) {
+      const idx = row * width + col;
+      const lon = Math.round((west + (col + 0.5) * lonStep) * 1000) / 1000;
+      cellsSeen += 1;
+      if (!isInAlgeriaRainfallBbox(lat, lon)) {
+        cellsOutsideAlgeria += 1;
+        continue;
+      }
+      cellsInAlgeria += 1;
+      if (Number(aBand[idx]) <= 127) {
+        cellsDry += 1;
+        continue;
+      }
+      const r = Number(rBand[idx]);
+      const g = Number(gBand[idx]);
+      const b = Number(bBand[idx]);
+      let bestRate = HSAF_H60B_PALETTE[0]!.rateMmH;
+      let bestDist = Number.POSITIVE_INFINITY;
+      for (const entry of HSAF_H60B_PALETTE) {
+        const d =
+          (r - entry.rgb[0]) ** 2 +
+          (g - entry.rgb[1]) ** 2 +
+          (b - entry.rgb[2]) ** 2;
+        if (d < bestDist) {
+          bestDist = d;
+          bestRate = entry.rateMmH;
+        }
+      }
+      const { rateMmH, accumMm30m } = validateRateAndAccum(
+        bestRate,
+        round2(bestRate * 0.5),
+        "H-SAF",
+      );
+      const key = gridCellKey("hsaf", lat, lon);
+      byCell.set(key, {
+        sourceKey: HSAF_SOURCE_KEY,
+        observationKind: "satellite_observed",
+        isModel: false,
+        validTime,
+        publishedTime: upstreamPublishedAt,
+        windowMinutes: RAINFALL_WINDOW_MINUTES,
+        gridCellKey: key,
+        lat,
+        lon,
+        rateMmH,
+        accumMm30m,
+        snapshotId: `h60b:${validTime}`,
+        qualityState: "valid",
+        attribution: HSAF_ATTRIBUTION,
+      });
+    }
+  }
+
+  const observations = [...byCell.values()];
+  return {
+    sourceKey: HSAF_SOURCE_KEY,
+    validTime,
+    upstreamPublishedAt,
+    snapshotId: `h60b:${validTime}`,
+    cellsSeen,
+    cellsInAlgeria,
+    cellsOutsideAlgeria,
+    cellsDry,
+    cellsNodata: 0,
+    drySlot: observations.length === 0,
+    observations,
+  };
+}
+
 const HSAF_NODATA = new Set([-9999, 9999, 29999, 65535, -999, -9999.0]);
 
 export type HsafValueUnit = "mm_h" | "mm_30m";

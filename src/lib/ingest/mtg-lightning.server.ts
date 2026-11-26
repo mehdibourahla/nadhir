@@ -14,6 +14,7 @@ import { publicReasonForError, sourceRunOutcome } from "@/lib/source-runs";
 import {
   MTG_LIGHTNING_SOURCE_KEY,
   parseMtgLightningPayload,
+  parseMtgLightningWmsGeoTiff,
   type LightningObservation,
 } from "./mtg-lightning";
 
@@ -107,9 +108,62 @@ function resolveSlotIso(
   return new Date(floored).toISOString();
 }
 
+const EUMETSAT_LI_CAPS_URL =
+  "https://view.eumetsat.int/geoserver/mtg_fd/wms?service=WMS&version=1.3.0&request=GetCapabilities";
+
+function buildLiWmsMapUrl(timeIso: string): string {
+  return (
+    "https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.3.0&request=GetMap" +
+    "&layers=mtg_fd:li_afa&styles=&crs=EPSG:4326&bbox=18.0,-9.5,38.5,13.0" +
+    `&width=180&height=160&transparent=true&format=image/geotiff&time=${encodeURIComponent(timeIso)}`
+  );
+}
+
+async function fetchLatestLiWms(
+  fallbackSlotIso: string,
+  isReplay = false,
+): Promise<Awaited<ReturnType<typeof parseMtgLightningWmsGeoTiff>>> {
+  let timeIso = fallbackSlotIso;
+  if (!isReplay) {
+    try {
+      const capRes = await fetch(EUMETSAT_LI_CAPS_URL, {
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (capRes.ok) {
+        const capXml = await capRes.text();
+        const idx = capXml.indexOf("<Name>li_afa</Name>");
+        if (idx !== -1) {
+          const m = capXml
+            .slice(idx, idx + 3500)
+            .match(/<Dimension[^>]*name="time"[^>]*default="([^"]+)"/i);
+          if (m?.[1]) timeIso = m[1];
+        }
+      }
+    } catch {
+      // Fall back to floored slot time
+    }
+  }
+  const res = await archivedFetch(
+    MTG_LIGHTNING_SOURCE_KEY,
+    "mtg_li_afa_wms_geotiff",
+    buildLiWmsMapUrl(timeIso),
+    { signal: AbortSignal.timeout(25_000) },
+    { requestParams: { layer: "mtg_fd:li_afa", time: timeIso } },
+  );
+  if (!res.ok) {
+    throw new Error(`MTG Lightning upstream HTTP ${res.status}`);
+  }
+  return parseMtgLightningWmsGeoTiff(await res.arrayBuffer(), {
+    observedAt: timeIso,
+    publishedAt: timeIso,
+    contentType: res.headers.get("content-type"),
+  });
+}
+
 const defaultStore = {
   feedUrl: () => readEnv("MTG_LIGHTNING_URL") ?? null,
   pushToken: () => readEnv("EUMETSAT_PUSH_TOKEN") ?? null,
+  fetchDefaultWms: fetchLatestLiWms,
   fetch: (
     url: string,
     slotIso: string,
@@ -171,14 +225,44 @@ export async function ingestMtgLightning(
   const baseUrl = deps.feedUrl();
 
   if (!baseUrl) {
-    return {
-      fetched: 0,
-      stored: 0,
-      outside: 0,
-      quietSlot: false,
-      upstreamPublishedAt: null,
-      error: "MTG Lightning URL not configured (MTG_LIGHTNING_URL missing)",
-    };
+    try {
+      const parsed = await deps.fetchDefaultWms(slotIso, Boolean(interval));
+      const bounded = interval
+        ? parsed.observations.filter((obs) => {
+            const ms = Date.parse(obs.observedAt);
+            return (
+              ms >= Date.parse(interval.dataFrom) &&
+              ms <= Date.parse(interval.dataThrough)
+            );
+          })
+        : parsed.observations;
+      const communes = bounded.length ? await deps.communes() : [];
+      const rows = toDbRows(bounded, communes);
+      const stored = rows.length ? await deps.upsert(rows) : 0;
+      return {
+        fetched: parsed.flashesSeen,
+        stored,
+        outside: parsed.flashesOutsideAlgeria,
+        quietSlot: bounded.length === 0,
+        upstreamPublishedAt: parsed.upstreamPublishedAt,
+        dataFrom: interval?.dataFrom ?? parsed.upstreamPublishedAt,
+        dataThrough:
+          interval?.dataThrough ??
+          new Date(
+            Date.parse(parsed.upstreamPublishedAt) + 5 * 60_000,
+          ).toISOString(),
+      };
+    } catch (error) {
+      if (error instanceof ArchiveFailure) throw error;
+      return {
+        fetched: 0,
+        stored: 0,
+        outside: 0,
+        quietSlot: false,
+        upstreamPublishedAt: null,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   let requestUrl: URL;

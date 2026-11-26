@@ -13,7 +13,10 @@ import { publicReasonForError, sourceRunOutcome } from "@/lib/source-runs";
 
 import {
   IMERG_SOURCE_KEY,
+  parseGibsRainColormapXml,
+  parseImergGibsTiff,
   parseImergPayload,
+  type GibsColormapEntry,
   type RainfallObservation,
 } from "./imerg";
 
@@ -111,8 +114,92 @@ function readEnv(key: string): string | undefined {
   return undefined;
 }
 
+const GIBS_IMERG_CAPS_URL =
+  "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?service=WMS&version=1.3.0&request=GetCapabilities";
+const GIBS_IMERG_COLORMAP_URL =
+  "https://gibs.earthdata.nasa.gov/colormaps/v1.3/GPM_Precipitation_Rate.xml";
+
+let cachedGibsColormap: GibsColormapEntry[] | null = null;
+
+function buildGibsImergUrl(timeIso: string): string {
+  return (
+    "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi" +
+    "?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=IMERG_Precipitation_Rate_30min" +
+    "&CRS=EPSG:4326&BBOX=18.9,-8.7,37.6,12.0&WIDTH=207&HEIGHT=187" +
+    `&FORMAT=image/tiff&TRANSPARENT=true&TIME=${encodeURIComponent(timeIso)}`
+  );
+}
+
+async function fetchLatestImergGibs(
+  nowMs: number,
+  replaySlotIso?: string,
+): Promise<Awaited<ReturnType<typeof parseImergGibsTiff>>> {
+  let timeIso: string;
+  if (replaySlotIso) {
+    timeIso = replaySlotIso;
+  } else {
+    // IMERG Early latency is ~4-6 hours; discover exact latest slot from GIBS GetCapabilities
+    const fallbackMs =
+      Math.floor((nowMs - 6 * 3_600_000) / (30 * 60_000)) * (30 * 60_000);
+    timeIso = new Date(fallbackMs).toISOString();
+    try {
+      const capRes = await fetch(GIBS_IMERG_CAPS_URL, {
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (capRes.ok) {
+        const capXml = await capRes.text();
+        const idx = capXml.indexOf(
+          "<Name>IMERG_Precipitation_Rate_30min</Name>",
+        );
+        if (idx !== -1) {
+          const m = capXml
+            .slice(idx, idx + 2500)
+            .match(/<Dimension[^>]*name="time"[^>]*default="([^"]+)"/i);
+          if (m?.[1]) timeIso = m[1];
+        }
+      }
+    } catch {
+      // Use 6-hour-lagged 30-min slot fallback
+    }
+  }
+
+  if (!cachedGibsColormap) {
+    const cmRes = await fetch(GIBS_IMERG_COLORMAP_URL, {
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!cmRes.ok) {
+      throw new Error(`IMERG GIBS colormap HTTP ${cmRes.status}`);
+    }
+    const parsedColormap = parseGibsRainColormapXml(await cmRes.text());
+    if (!parsedColormap.length) {
+      throw new Error("IMERG GIBS colormap XML returned zero entries");
+    }
+    cachedGibsColormap = parsedColormap;
+  }
+
+  const res = await archivedFetch(
+    IMERG_SOURCE_KEY,
+    "imerg_gibs_30m_tiff",
+    buildGibsImergUrl(timeIso),
+    { signal: AbortSignal.timeout(30_000) },
+    {
+      requestParams: { layer: "IMERG_Precipitation_Rate_30min", time: timeIso },
+    },
+  );
+  if (!res.ok) {
+    throw new Error(`IMERG upstream HTTP ${res.status}`);
+  }
+  return parseImergGibsTiff(await res.arrayBuffer(), cachedGibsColormap, {
+    validTime: timeIso,
+    publishedTime: timeIso,
+    contentType: res.headers.get("content-type"),
+    bbox: [-8.7, 18.9, 12.0, 37.6],
+  });
+}
+
 const defaultStore = {
   feedUrl: () => readEnv("IMERG_FEED_URL") ?? null,
+  fetchDefaultGibs: fetchLatestImergGibs,
   fetch: (url: string, slotIso: string) =>
     archivedFetch(
       IMERG_SOURCE_KEY,
@@ -161,17 +248,42 @@ export async function ingestImerg(
   const baseUrl = deps.feedUrl();
 
   if (!baseUrl) {
-    return {
-      fetched: 0,
-      stored: 0,
-      outside: 0,
-      dry: 0,
-      nodata: 0,
-      drySlot: false,
-      validTime: null,
-      upstreamPublishedAt: null,
-      error: "IMERG feed URL not configured (IMERG_FEED_URL missing)",
-    };
+    try {
+      const parsed = await deps.fetchDefaultGibs(
+        now(),
+        interval ? slotIso : undefined,
+      );
+      const communes = parsed.observations.length ? await deps.communes() : [];
+      const rows = toDbRows(parsed.observations, communes);
+      const stored = rows.length ? await deps.upsert(rows) : 0;
+      return {
+        fetched: parsed.cellsSeen,
+        stored,
+        outside: parsed.cellsOutsideAlgeria,
+        dry: parsed.cellsDry,
+        nodata: parsed.cellsNodata,
+        drySlot: parsed.drySlot,
+        validTime: parsed.validTime,
+        upstreamPublishedAt: parsed.upstreamPublishedAt,
+        dataFrom:
+          interval?.dataFrom ??
+          new Date(Date.parse(parsed.validTime) - 30 * 60_000).toISOString(),
+        dataThrough: interval?.dataThrough ?? parsed.validTime,
+      };
+    } catch (error) {
+      if (error instanceof ArchiveFailure) throw error;
+      return {
+        fetched: 0,
+        stored: 0,
+        outside: 0,
+        dry: 0,
+        nodata: 0,
+        drySlot: false,
+        validTime: null,
+        upstreamPublishedAt: null,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   let requestUrl: URL;

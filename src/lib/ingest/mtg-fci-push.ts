@@ -596,3 +596,124 @@ export function parseMtgFciPushPayload(
 
   return parseMtgFciPushJson(payload, { receivedAt: options.receivedAt });
 }
+
+export function parseEumetsatFciCapXml(
+  xml: string,
+  options: { productId: string; receivedAt?: string },
+): MtgFciPushParseResult {
+  const trimmed = xml.trim();
+  if (
+    !trimmed.includes("<alert") ||
+    !trimmed.includes("urn:oasis:names:tc:emergency:cap:")
+  ) {
+    throw new Error(
+      "MTG FCI push schema invalid: expected EUMETSAT CAP XML fire detection alert",
+    );
+  }
+  const receivedAt = parseIsoTimestamp(
+    options.receivedAt ?? new Date().toISOString(),
+    "received_at",
+    "MTG FCI push",
+  );
+  const sentMatch = trimmed.match(/<sent>([^<]+)<\/sent>/i);
+  const effectiveMatch = trimmed.match(/<effective>([^<]+)<\/effective>/i);
+  const slotTime = parseIsoTimestamp(
+    effectiveMatch?.[1] ?? sentMatch?.[1],
+    "slot_time",
+    "MTG FCI push",
+  );
+  const upstreamPublishedAt = parseIsoTimestamp(
+    sentMatch?.[1] ?? slotTime,
+    "published_at",
+    "MTG FCI push",
+  );
+
+  const byKey = new Map<string, MtgFciPushDetectionRow>();
+  let pixelsSeen = 0;
+  let pixelsOutsideWatchBox = 0;
+  let pixelsFilteredWatchArea = 0;
+
+  for (const infoMatch of trimmed.matchAll(
+    /<info\b[^>]*>([\s\S]*?)<\/info>/gi,
+  )) {
+    const infoBlock = infoMatch[1] ?? "";
+    const certainty = (
+      infoBlock.match(/<certainty>([^<]+)<\/certainty>/i)?.[1] ?? ""
+    )
+      .trim()
+      .toLowerCase();
+    const confidenceRaw =
+      certainty === "observed" ? 0.95 : certainty === "likely" ? 0.85 : 0.6;
+    const infoEff = infoBlock.match(/<effective>([^<]+)<\/effective>/i)?.[1];
+    const detectedAt = infoEff
+      ? parseIsoTimestamp(infoEff, "detected_at", "MTG FCI push")
+      : slotTime;
+
+    for (const circleMatch of infoBlock.matchAll(
+      /<circle>([^<]+)<\/circle>/gi,
+    )) {
+      const pair = (circleMatch[1] ?? "").trim().split(/\s+/)[0] ?? "";
+      const [latStr, lonStr] = pair.split(",");
+      const lat = Number(latStr);
+      const lon = Number(lonStr);
+      if (
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lon) ||
+        lat < -90 ||
+        lat > 90 ||
+        lon < -180 ||
+        lon > 180
+      ) {
+        continue;
+      }
+      pixelsSeen += 1;
+      if (!isInMtgFciPushWatchBbox(lat, lon)) {
+        pixelsOutsideWatchBox += 1;
+        continue;
+      }
+      if (!isInWatchArea(lat, lon)) {
+        pixelsFilteredWatchArea += 1;
+        continue;
+      }
+      const naturalKey = buildCanonicalFciNaturalKey(lat, lon, detectedAt);
+      const existing = byKey.get(naturalKey);
+      if (!existing || confidenceRaw > existing.confidence_raw) {
+        byKey.set(naturalKey, {
+          source: "fci",
+          sensor: "FCI",
+          detected_at: detectedAt,
+          lat: Math.round(lat * 100_000) / 100_000,
+          lon: Math.round(lon * 100_000) / 100_000,
+          confidence_raw: confidenceRaw,
+          frp_mw: null,
+          daynight: null,
+          natural_key: naturalKey,
+          intake_channel: "push",
+          push_product_id: options.productId,
+          push_received_at: receivedAt,
+        });
+      }
+    }
+  }
+
+  const rows = [...byKey.values()];
+  const latencySeconds = Math.max(
+    0,
+    Math.round((Date.parse(receivedAt) - Date.parse(slotTime)) / 1000),
+  );
+
+  return {
+    sourceKey: MTG_FCI_PUSH_SOURCE_KEY,
+    productId: options.productId,
+    slotTime,
+    upstreamPublishedAt,
+    receivedAt,
+    latencySeconds,
+    qualityState: "valid",
+    pixelsSeen,
+    pixelsOutsideWatchBox,
+    pixelsFilteredWatchArea,
+    emptySlot: rows.length === 0,
+    rows,
+  };
+}

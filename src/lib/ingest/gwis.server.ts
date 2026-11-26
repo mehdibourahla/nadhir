@@ -98,8 +98,11 @@ function readEnv(key: string): string | undefined {
   return undefined;
 }
 
+export const GWIS_DEFAULT_URL =
+  "https://api.effis.emergency.copernicus.eu/rest/2/burntareas/current/?country=DZ&ordering=-lastupdate&limit=100" as const;
+
 const defaultStore = {
-  feedUrl: () => readEnv("GWIS_BURNED_AREAS_URL") ?? null,
+  feedUrl: () => readEnv("GWIS_BURNED_AREAS_URL") ?? GWIS_DEFAULT_URL,
   fetch: (url: string, replay: boolean, windowEndIso: string) =>
     archivedFetch(
       GWIS_SOURCE_KEY,

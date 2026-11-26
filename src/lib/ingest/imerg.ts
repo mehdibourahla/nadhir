@@ -3,6 +3,179 @@ import { fromArrayBuffer } from "geotiff";
 export const IMERG_SOURCE_KEY = "imerg_rainfall" as const;
 export const IMERG_ATTRIBUTION =
   "NASA GPM IMERG Early (satellite observed rainfall)" as const;
+
+export type GibsColormapEntry = {
+  rgb: readonly [number, number, number];
+  rateMmH: number;
+};
+
+export function parseGibsRainColormapXml(xml: string): GibsColormapEntry[] {
+  const entries: GibsColormapEntry[] = [];
+  for (const m of xml.matchAll(
+    /<ColorMapEntry\s+[^>]*rgb="(\d+),(\d+),(\d+)"[^>]*transparent="false"[^>]*value="\[([0-9.]+),([0-9.+INF]+)\)"/gi,
+  )) {
+    const r = Number(m[1]);
+    const g = Number(m[2]);
+    const b = Number(m[3]);
+    const lo = Number(m[4]);
+    const hiRaw = m[5]!;
+    const hi = hiRaw.includes("INF") ? lo * 1.05 : Number(hiRaw);
+    if (
+      Number.isFinite(r) &&
+      Number.isFinite(g) &&
+      Number.isFinite(b) &&
+      Number.isFinite(lo) &&
+      Number.isFinite(hi) &&
+      lo >= RAINFALL_MIN_STORE_RATE_MM_H
+    ) {
+      entries.push({ rgb: [r, g, b], rateMmH: round2((lo + hi) / 2) });
+    }
+  }
+  return entries;
+}
+
+export async function parseImergGibsTiff(
+  buffer: ArrayBuffer,
+  colormap: readonly GibsColormapEntry[],
+  options: {
+    validTime: string;
+    publishedTime?: string;
+    contentType?: string | null;
+    bbox?: readonly [number, number, number, number];
+  },
+): Promise<RainfallParseResult> {
+  assertNotUpstreamErrorBody(buffer, options.contentType, "IMERG");
+  if (!isTiffMagicBytes(new Uint8Array(buffer))) {
+    throw new Error("IMERG schema invalid: expected GIBS TIFF binary");
+  }
+  if (!colormap.length) {
+    throw new Error("IMERG schema invalid: empty NASA GIBS colormap");
+  }
+  const validTime = parseIsoTimestamp(options.validTime, "valid_time", "IMERG");
+  const upstreamPublishedAt = parseIsoTimestamp(
+    options.publishedTime ?? validTime,
+    "published_time",
+    "IMERG",
+  );
+  const tiff = await fromArrayBuffer(buffer);
+  const image = await tiff.getImage();
+  const width = image.getWidth();
+  const height = image.getHeight();
+  let west: number;
+  let south: number;
+  let east: number;
+  let north: number;
+  if (options.bbox) {
+    [west, south, east, north] = options.bbox;
+  } else {
+    [west, south, east, north] = validateBbox(image.getBoundingBox(), "IMERG");
+  }
+  const rasters = await image.readRasters({ interleave: false });
+  const rBand = rasters[0];
+  const gBand = rasters[1];
+  const bBand = rasters[2];
+  const aBand = rasters[3];
+  if (
+    !rBand ||
+    !gBand ||
+    !bBand ||
+    !aBand ||
+    typeof rBand === "number" ||
+    typeof gBand === "number" ||
+    typeof bBand === "number" ||
+    typeof aBand === "number" ||
+    aBand.length !== width * height
+  ) {
+    throw new Error("IMERG schema invalid: expected 4-band RGBA TIFF");
+  }
+
+  const exactLookup = new Map<string, number>();
+  for (const e of colormap) {
+    exactLookup.set(`${e.rgb[0]},${e.rgb[1]},${e.rgb[2]}`, e.rateMmH);
+  }
+
+  const lonStep = (east - west) / width;
+  const latStep = (north - south) / height;
+  const byCell = new Map<string, RainfallObservation>();
+  let cellsSeen = 0;
+  let cellsInAlgeria = 0;
+  let cellsOutsideAlgeria = 0;
+  let cellsDry = 0;
+
+  for (let row = 0; row < height; row++) {
+    const lat = Math.round((north - (row + 0.5) * latStep) * 1000) / 1000;
+    for (let col = 0; col < width; col++) {
+      const idx = row * width + col;
+      const lon = Math.round((west + (col + 0.5) * lonStep) * 1000) / 1000;
+      cellsSeen += 1;
+      if (!isInAlgeriaRainfallBbox(lat, lon)) {
+        cellsOutsideAlgeria += 1;
+        continue;
+      }
+      cellsInAlgeria += 1;
+      if (Number(aBand[idx]) <= 127) {
+        cellsDry += 1;
+        continue;
+      }
+      const r = Number(rBand[idx]);
+      const g = Number(gBand[idx]);
+      const b = Number(bBand[idx]);
+      let rate = exactLookup.get(`${r},${g},${b}`);
+      if (rate === undefined) {
+        let bestDist = Number.POSITIVE_INFINITY;
+        let bestRate = colormap[0]!.rateMmH;
+        for (const entry of colormap) {
+          const d =
+            (r - entry.rgb[0]) ** 2 +
+            (g - entry.rgb[1]) ** 2 +
+            (b - entry.rgb[2]) ** 2;
+          if (d < bestDist) {
+            bestDist = d;
+            bestRate = entry.rateMmH;
+          }
+        }
+        rate = bestRate;
+      }
+      const { rateMmH, accumMm30m } = validateRateAndAccum(
+        rate,
+        round2(rate * 0.5),
+        "IMERG",
+      );
+      const key = gridCellKey("imerg", lat, lon);
+      byCell.set(key, {
+        sourceKey: IMERG_SOURCE_KEY,
+        observationKind: "satellite_observed",
+        isModel: false,
+        validTime,
+        publishedTime: upstreamPublishedAt,
+        windowMinutes: RAINFALL_WINDOW_MINUTES,
+        gridCellKey: key,
+        lat,
+        lon,
+        rateMmH,
+        accumMm30m,
+        snapshotId: `gibs-imerg:${validTime}`,
+        qualityState: "valid",
+        attribution: IMERG_ATTRIBUTION,
+      });
+    }
+  }
+
+  const observations = [...byCell.values()];
+  return {
+    sourceKey: IMERG_SOURCE_KEY,
+    validTime,
+    upstreamPublishedAt,
+    snapshotId: `gibs-imerg:${validTime}`,
+    cellsSeen,
+    cellsInAlgeria,
+    cellsOutsideAlgeria,
+    cellsDry,
+    cellsNodata: 0,
+    drySlot: observations.length === 0,
+    observations,
+  };
+}
 export const IMERG_SCALE_FACTOR = 0.1;
 export const RAINFALL_WINDOW_MINUTES = 30 as const;
 export const RAINFALL_MAX_RATE_MM_H = 500;

@@ -5,7 +5,7 @@ import { parseIsoTimestamp } from "./imerg";
 
 export const CRAAG_SOURCE_KEY = "craag_earthquakes" as const;
 export const CRAAG_DEFAULT_URL =
-  "https://www.craag.dz/sismologie/derniers_seismes.php" as const;
+  "https://www.craag.dz/index.php/derniers-seismes/" as const;
 export const CRAAG_ATTRIBUTION =
   "CRAAG (Centre de Recherche en Astronomie, Astrophysique et Geophysique)" as const;
 
@@ -726,6 +726,172 @@ function parseHtmlTables(
   }
 
   return finalizeBulletins(bulletins, minMagnitude);
+}
+
+export type CraagSummaryRow = {
+  explicitId: string | null;
+  observedAt: string;
+  magnitude: number;
+  rawMagnitude: number;
+  magnitudeType: string | null;
+  place: string;
+  sourceUrl: string | null;
+};
+
+export function parseCraagMapCoordinates(
+  html: string,
+): { lat: number; lon: number } | null {
+  const patterns = [
+    /L\.marker\(\s*\[\s*([+-]?\d+(?:\.\d+)?)\s*,\s*([+-]?\d+(?:\.\d+)?)\s*\]/i,
+    /\.setView\(\s*\[\s*([+-]?\d+(?:\.\d+)?)\s*,\s*([+-]?\d+(?:\.\d+)?)\s*\]/i,
+  ];
+  for (const re of patterns) {
+    const m = html.match(re);
+    if (!m?.[1] || !m?.[2]) continue;
+    const lat = Number(m[1]);
+    const lon = Number(m[2]);
+    if (
+      Number.isFinite(lat) &&
+      Number.isFinite(lon) &&
+      lat >= -90 &&
+      lat <= 90 &&
+      lon >= -180 &&
+      lon <= 180
+    ) {
+      return {
+        lat: Math.round(lat * 10_000) / 10_000,
+        lon: Math.round(lon * 10_000) / 10_000,
+      };
+    }
+  }
+  return null;
+}
+
+export function parseCraagSummaryTable(
+  html: string,
+  baseUrl: string = CRAAG_DEFAULT_URL,
+): CraagSummaryRow[] | null {
+  if (isCraagUpstreamErrorHtml(html)) {
+    throw new Error(
+      "CRAAG upstream returned maintenance, error, or challenge HTML page (HTTP 200)",
+    );
+  }
+  const tableMatches = [
+    ...html.matchAll(/<table\b[^>]*>([\s\S]*?)<\/table>/gi),
+  ];
+  for (const tableMatch of tableMatches) {
+    const tableHtml = tableMatch[1] ?? "";
+    const rowMatches = [...tableHtml.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)];
+    if (!rowMatches.length) continue;
+
+    let dateCol: number | undefined;
+    let timeCol: number | undefined;
+    let magCol: number | undefined;
+    let placeCol: number | undefined;
+    let linkCol: number | undefined;
+    let defaultOffset: "+01:00" | "Z" = "+01:00";
+    let matched = false;
+    const rows: CraagSummaryRow[] = [];
+
+    for (const rowMatch of rowMatches) {
+      const rowHtml = rowMatch[1] ?? "";
+      const thCells = [
+        ...rowHtml.matchAll(/<th\b[^>]*>([\s\S]*?)<\/th>/gi),
+      ].map((m) => stripTags(m[1] ?? ""));
+      if (thCells.length >= 4 && !matched) {
+        thCells.forEach((rawH, idx) => {
+          const h = rawH.toLowerCase();
+          if (
+            !/(?:utc|gmt|tu)\s*[+-]\s*\d/i.test(h) &&
+            /(?:\b(?:utc|gmt|tu)\b)|غرينتش|عالمي/i.test(h)
+          ) {
+            defaultOffset = "Z";
+          }
+          if (/date|تاريخ/i.test(h)) dateCol = idx;
+          else if (/heure|time|الساعة|الوقت/i.test(h)) timeCol = idx;
+          else if (/mag|القدر|الشدة/i.test(h)) magCol = idx;
+          else if (/local|lieu|place|r[ée]gion|wilaya|المنطقة|الولاية/i.test(h))
+            placeCol = idx;
+          else if (/carte|map|bulletin|d[ée]tail|lien|رابط/i.test(h))
+            linkCol = idx;
+        });
+        if (
+          dateCol !== undefined &&
+          magCol !== undefined &&
+          placeCol !== undefined &&
+          linkCol !== undefined
+        ) {
+          matched = true;
+        }
+        continue;
+      }
+      if (!matched) continue;
+
+      const tdMatches = [...rowHtml.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)];
+      if (tdMatches.length < 4) continue;
+      const tdHtmls = tdMatches.map((m) => m[1] ?? "");
+      const tdTexts = tdHtmls.map((c) => stripTags(c));
+      const rawTime = [
+        tdTexts[dateCol!] ?? "",
+        timeCol !== undefined ? (tdTexts[timeCol] ?? "") : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const observedAt = parseCraagTimestamp(rawTime, defaultOffset);
+      const { rawMagnitude, magnitude, magnitudeType } =
+        parseCraagMagnitudeDetailed(tdTexts[magCol!] ?? "");
+      const place = (tdTexts[placeCol!] ?? "").trim() || "Algeria";
+      const href =
+        extractHrefFromHtml(tdHtmls[linkCol!] ?? "") ??
+        tdHtmls.map(extractHrefFromHtml).find((u) => u !== null) ??
+        null;
+      const sourceUrl = resolveUrl(href, baseUrl);
+      const idMatch = sourceUrl?.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      rows.push({
+        explicitId: idMatch?.[1] ?? null,
+        observedAt,
+        magnitude,
+        rawMagnitude,
+        magnitudeType,
+        place,
+        sourceUrl,
+      });
+    }
+    if (matched) return rows;
+  }
+  return null;
+}
+
+export function buildCraagParseResultFromResolved(
+  rows: readonly {
+    summary: CraagSummaryRow;
+    lat: number;
+    lon: number;
+  }[],
+  minMagnitude: number = EMSC_MIN_MAGNITUDE,
+): CraagParseResult {
+  const parsed: ParsedCraagBulletin[] = rows.map(({ summary, lat, lon }) => ({
+    rawMagnitude: summary.rawMagnitude,
+    bulletin: {
+      bulletinId: makeDeterministicBulletinId(
+        summary.explicitId,
+        summary.observedAt,
+        lat,
+        lon,
+        summary.magnitude,
+      ),
+      observedAt: summary.observedAt,
+      lat,
+      lon,
+      depthKm: null,
+      magnitude: summary.magnitude,
+      magnitudeType: summary.magnitudeType,
+      place: summary.place,
+      sourceUrl: summary.sourceUrl,
+      attribution: CRAAG_ATTRIBUTION,
+    },
+  }));
+  return finalizeBulletins(parsed, minMagnitude);
 }
 
 export function parseCraagBulletins(
