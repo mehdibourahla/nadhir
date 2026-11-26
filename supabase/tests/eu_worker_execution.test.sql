@@ -108,7 +108,7 @@ select ok(
     current_setting('eu.job')::uuid,
     'eu-worker-1',
     current_setting('eu.attempt')::integer,
-    150,
+    240,
     '2026-11-24T12:00:30Z'::timestamptz
   ) > current_setting('eu.initial_expiry')::timestamptz,
   'renew_source_job_lease extends active lease for matching worker and attempt'
@@ -228,7 +228,7 @@ select ok(
 
 -- 6. public.requeue_expired_source_jobs recovers expired worker lease into retry_wait.
 select is(
-  public.requeue_expired_source_jobs('2026-11-24T12:03:10Z'::timestamptz),
+  public.requeue_expired_source_jobs('2026-11-24T12:04:40Z'::timestamptz),
   1,
   'requeue_expired_source_jobs recovers expired worker lease'
 );
