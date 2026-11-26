@@ -44,11 +44,14 @@ const reportInput = {
   observed_at: "2026-09-01T00:00:00.000Z",
 };
 
+const jpegBytes = new Uint8Array([
+  0xff, 0xd8, 0xff, 0xda, 0x00, 0x04, 0x00, 0x01, 0x12, 0x34, 0xff, 0xd9,
+]);
 const jpeg = {
   name: "evidence.jpg",
-  size: 4,
+  size: jpegBytes.byteLength,
   type: "image/jpeg",
-  arrayBuffer: async () => new Uint8Array([0xff, 0xd8, 0xff, 0xd9]).buffer,
+  arrayBuffer: async () => jpegBytes.slice().buffer,
 } as File;
 const uploadDraft = { file: jpeg, objectId: photoId };
 
@@ -198,10 +201,16 @@ describe("report photo draft lifecycle", () => {
 });
 
 describe("report creation photo cleanup", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     vi.resetAllMocks();
     getUserMock.mockResolvedValue({
       data: { user: { id: ownerId } },
+      error: null,
+    });
+    getSessionMock.mockResolvedValue({
+      data: { session: { access_token: "test-access-token" } },
       error: null,
     });
     storageFromMock.mockReturnValue({
@@ -209,29 +218,43 @@ describe("report creation photo cleanup", () => {
       remove: removeMock,
       upload: uploadMock,
     });
-    uploadMock.mockResolvedValue({ data: { path: photoPath }, error: null });
+    fetchMock = vi.fn(async () =>
+      Response.json({
+        path: photoPath,
+        mimeType: "image/jpeg",
+        byteLength: 4,
+        stripped: true,
+        strippedBytes: 0,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
   });
 
-  it("creates reports without photos without touching Storage", async () => {
+  it("creates reports without photos without touching Storage or upload API", async () => {
     const table = reportTable({ insert: { data: null, error: null } });
     fromMock.mockReturnValue(table);
 
     await reports.createReport(reportInput);
 
     expect(uploadMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(table.insert).toHaveBeenCalledWith(
       expect.objectContaining({ user_id: ownerId, photo_url: null }),
     );
   });
 
-  it("uploads only as part of submission and stores the returned private key", async () => {
+  it("uploads via /api/private/report-photo (never direct Storage) and stores the returned private key", async () => {
     const table = reportTable({ insert: { data: null, error: null } });
     fromMock.mockReturnValue(table);
     await reports.createReport(reportInput, uploadDraft);
 
-    expect(uploadMock).toHaveBeenCalledOnce();
-    expect(uploadMock.mock.calls[0]?.[1]).toBeInstanceOf(Blob);
-    expect(uploadMock.mock.calls[0]?.[1]).not.toBe(jpeg);
+    expect(uploadMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/api/private/report-photo");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBeInstanceOf(FormData);
+    expect((init.body as FormData).get("objectId")).toBe(photoId);
     expect(table.insert).toHaveBeenCalledWith(
       expect.objectContaining({ user_id: ownerId, photo_url: photoPath }),
     );
@@ -239,9 +262,15 @@ describe("report creation photo cleanup", () => {
 
   it("removes an uploaded object when report creation fails", async () => {
     const events: string[] = [];
-    uploadMock.mockImplementation(async () => {
+    fetchMock.mockImplementation(async () => {
       events.push("photo-upload");
-      return { data: { path: photoPath }, error: null };
+      return Response.json({
+        path: photoPath,
+        mimeType: "image/jpeg",
+        byteLength: 4,
+        stripped: true,
+        strippedBytes: 0,
+      });
     });
     removeMock.mockImplementation(async () => {
       events.push("photo-remove");
@@ -314,12 +343,28 @@ describe("report creation photo cleanup", () => {
   });
 
   it("maps an upload transport rejection to safe guidance", async () => {
-    uploadMock.mockRejectedValue(new Error("private upload transport detail"));
+    fetchMock.mockRejectedValue(new Error("private upload transport detail"));
     fromMock.mockReturnValue(reportTable({}));
     await expect(
       reports.createReport(reportInput, uploadDraft),
     ).rejects.toMatchObject({ message: "reports.photoFailed" });
     expect(fromMock).not.toHaveBeenCalled();
+  });
+
+  it("maps HTTP 413 and 415 upload rejections to localized error keys", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ error: "too_large" }, { status: 413 }),
+    );
+    await expect(
+      reports.createReport(reportInput, uploadDraft),
+    ).rejects.toMatchObject({ message: "reports.photoTooLarge" });
+
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ error: "unsupported_type" }, { status: 415 }),
+    );
+    await expect(
+      reports.createReport(reportInput, uploadDraft),
+    ).rejects.toMatchObject({ message: "reports.photoBadType" });
   });
 
   it("reuses one object key across retry after cleanup failure", async () => {
@@ -338,12 +383,13 @@ describe("report creation photo cleanup", () => {
     await reports.createReport(reportInput, uploadDraft).catch(() => undefined);
     await reports.createReport(reportInput, uploadDraft).catch(() => undefined);
 
-    expect(uploadMock).toHaveBeenCalledTimes(2);
-    expect(uploadMock.mock.calls.map(([path]) => path)).toEqual([
-      photoPath,
-      photoPath,
-    ]);
-    expect(uploadMock.mock.calls[0]?.[2]).toMatchObject({ upsert: true });
+    expect(uploadMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(
+      fetchMock.mock.calls.map(([, init]) =>
+        ((init as RequestInit).body as FormData).get("objectId"),
+      ),
+    ).toEqual([photoId, photoId]);
     expect(removeMock).toHaveBeenNthCalledWith(1, [photoPath]);
     expect(removeMock).toHaveBeenNthCalledWith(2, [photoPath]);
   });

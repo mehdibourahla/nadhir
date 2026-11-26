@@ -8,6 +8,7 @@ import {
   normalizeName,
   parseCapDetail,
   parseOnmFeed,
+  sanitizeOnmCapUrl,
 } from "@/lib/ingest/onm.server";
 
 const xml = readFileSync(
@@ -108,5 +109,143 @@ describe("parseCapDetail", () => {
 
   it("returns null for a non-CAP body", () => {
     expect(parseCapDetail("<html>404</html>")).toBeNull();
+  });
+
+  it("extracts CDATA-wrapped headline and instruction cleanly without ReDoS", () => {
+    const cdataCap = `<?xml version="1.0" encoding="UTF-8"?>
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+  <msgType>Alert</msgType>
+  <info>
+    <headline><![CDATA[Pluies torrentielles & vents forts]]></headline>
+    <instruction><![CDATA[Évitez les oueds & passages inondés]]></instruction>
+  </info>
+</alert>`;
+    const detail = parseCapDetail(cdataCap);
+    expect(detail).not.toBeNull();
+    expect(detail!.headline_fr).toBe("Pluies torrentielles & vents forts");
+    expect(detail!.instruction_fr).toBe("Évitez les oueds & passages inondés");
+  });
+});
+
+describe("Tier 5 ONM feed & CAP URL hardening (T5-02)", () => {
+  const CAP_NS = "urn:oasis:names:tc:emergency:cap:1.2";
+
+  it("rejects SSRF CAP URLs and resolves relative /CAPs/*.xml against ametvigilance.meteo.dz", () => {
+    expect(
+      sanitizeOnmCapUrl("http://169.254.169.254/CAPs/imds.xml"),
+    ).toBeNull();
+    expect(
+      sanitizeOnmCapUrl("https://169.254.169.254/CAPs/imds.xml"),
+    ).toBeNull();
+    expect(sanitizeOnmCapUrl("https://evil.example/CAPs/spoof.xml")).toBeNull();
+    expect(
+      sanitizeOnmCapUrl("https://user:pass@ametvigilance.meteo.dz/CAPs/a.xml"),
+    ).toBeNull();
+    expect(
+      sanitizeOnmCapUrl("https://ametvigilance.meteo.dz:8443/CAPs/a.xml"),
+    ).toBeNull();
+    expect(
+      sanitizeOnmCapUrl("https://ametvigilance.meteo.dz/CAPs/../secret.xml"),
+    ).toBeNull();
+    expect(
+      sanitizeOnmCapUrl(
+        "https://ametvigilance.meteo.dz/CAPs/a.xml?redirect=http://169.254.169.254",
+      ),
+    ).toBeNull();
+    expect(
+      sanitizeOnmCapUrl("https://ametvigilance.meteo.dz/CAPs/a.xml#frag"),
+    ).toBeNull();
+    expect(
+      sanitizeOnmCapUrl("https://ametvigilance.meteo.dz/CAPs/a.xml?"),
+    ).toBeNull();
+    expect(
+      sanitizeOnmCapUrl("https://ametvigilance.meteo.dz/CAPs/a.xml#"),
+    ).toBeNull();
+    expect(
+      sanitizeOnmCapUrl(
+        "https://ametvigilance.meteo.dz/CAPs/a%3fredirect=1.xml",
+      ),
+    ).toBeNull();
+    expect(
+      sanitizeOnmCapUrl("https://ametvigilance.meteo.dz/CAPs/a%23frag.xml"),
+    ).toBeNull();
+    expect(
+      sanitizeOnmCapUrl(
+        "https://ametvigilance.meteo.dz/CAPs/..%2fetc%2fpasswd.xml",
+      ),
+    ).toBeNull();
+    expect(
+      sanitizeOnmCapUrl("https://ametvigilance.meteo.dz/CAPs/a%5cb.xml"),
+    ).toBeNull();
+    expect(
+      sanitizeOnmCapUrl(
+        "https://ametvigilance.meteo.dz/CAPs/a%2Fb%3Fc%23d%5Ce.xml",
+      ),
+    ).toBeNull();
+    expect(sanitizeOnmCapUrl("/CAPs/relative.xml")).toBe(
+      "https://ametvigilance.meteo.dz/CAPs/relative.xml",
+    );
+    expect(sanitizeOnmCapUrl("https://vigilance.meteo.dz/CAPs/2026.xml")).toBe(
+      "https://vigilance.meteo.dz/CAPs/2026.xml",
+    );
+
+    const feed = `<feed xmlns:cap="${CAP_NS}">
+      <entry>
+        <id>urn:oid:ssrf.1</id>
+        <title>Rain Severe warning</title>
+        <cap:sent>2026-11-25T10:00:00Z</cap:sent>
+        <cap:areaDesc>ALGER</cap:areaDesc>
+        <link href="http://169.254.169.254/CAPs/imds.xml"/>
+      </entry>
+      <entry>
+        <id>urn:oid:rel.2</id>
+        <title>Wind Moderate warning</title>
+        <cap:sent>2026-11-25T10:05:00Z</cap:sent>
+        <cap:areaDesc>ORAN</cap:areaDesc>
+        <link href="/CAPs/relative.xml"/>
+      </entry>
+    </feed>`;
+
+    const entries = parseOnmFeed(feed);
+    expect(entries).toHaveLength(2);
+    expect(entries[0]!.cap_url).toBeNull();
+    expect(entries[1]!.cap_url).toBe(
+      "https://ametvigilance.meteo.dz/CAPs/relative.xml",
+    );
+  });
+
+  it("skips feed entries with invalid or impossible calendar timestamps in cap:sent, cap:onset, or cap:expires", () => {
+    const feed = `<feed xmlns:cap="${CAP_NS}">
+      <entry>
+        <id>urn:oid:bad.sent</id>
+        <title>Rain Severe warning</title>
+        <cap:sent>not-a-date</cap:sent>
+        <cap:areaDesc>ALGER</cap:areaDesc>
+      </entry>
+      <entry>
+        <id>urn:oid:feb30.sent</id>
+        <title>Rain Severe warning</title>
+        <cap:sent>2026-02-30T10:00:00Z</cap:sent>
+        <cap:areaDesc>ALGER</cap:areaDesc>
+      </entry>
+      <entry>
+        <id>urn:oid:bad.expires</id>
+        <title>Rain Severe warning</title>
+        <cap:sent>2026-11-25T10:00:00Z</cap:sent>
+        <cap:expires>not-a-date</cap:expires>
+        <cap:areaDesc>ALGER</cap:areaDesc>
+      </entry>
+      <entry>
+        <id>urn:oid:valid.1</id>
+        <title>Rain Severe warning</title>
+        <cap:sent>2026-11-25T10:00:00Z</cap:sent>
+        <cap:onset>2026-11-25T12:00:00Z</cap:onset>
+        <cap:expires>2026-11-25T20:00:00Z</cap:expires>
+        <cap:areaDesc>ALGER</cap:areaDesc>
+      </entry>
+    </feed>`;
+
+    const entries = parseOnmFeed(feed);
+    expect(entries.map((e) => e.cap_id)).toEqual(["urn:oid:valid.1"]);
   });
 });

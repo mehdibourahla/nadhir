@@ -1,21 +1,46 @@
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Flame, Megaphone } from "lucide-react";
+import {
+  Activity,
+  CloudLightning,
+  Flame,
+  Info,
+  Megaphone,
+  OctagonAlert,
+  Route as Road,
+  TriangleAlert,
+  Waves,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { AlertProvenance } from "@/components/nadhir/AlertProvenance";
+import { riskInk, riskTint } from "@/components/nadhir/risk-visuals";
 import { type AnyLocale } from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
+import { provenanceForBroadcast } from "@/lib/alert-provenance";
 import { firePhase } from "@/lib/incident-lifecycle";
-import { relativeTime } from "@/lib/nadhir";
+import { algiersTime, relativeTime } from "@/lib/nadhir";
 import { readSubscription } from "@/lib/push";
+
+type CapInfoEntry = {
+  language: string;
+  headline?: string;
+  parameter?: { valueName: string; value: string }[];
+  area?: { areaDesc?: string }[];
+};
 
 type BannerRow = {
   id: string;
   kind: string;
   phase: string;
   severity: string;
+  hazard?: string | null;
+  source_key?: string | null;
+  metadata?: Record<string, unknown> | null;
   commune_codes: string[];
   cluster_id: string | null;
+  official_incident_id?: string | null;
+  earthquake_id?: string | null;
   created_at: string;
   cap_alerts: { info: unknown } | null;
   fire_clusters: {
@@ -28,6 +53,11 @@ type BannerRow = {
     title: string;
     headline_fr: string | null;
     expires: string | null;
+    msg_type?: string | null;
+    cancelled_at?: string | null;
+    superseded_by?: string | null;
+    sent?: string | null;
+    area_desc?: string | null;
   } | null;
   authority_warnings: { source: string; body: string } | null;
 };
@@ -39,7 +69,7 @@ const bannersQuery = queryOptions({
     const { data, error } = await supabase
       .from("broadcasts")
       .select(
-        "id, kind, phase, severity, commune_codes, cluster_id, created_at, cap_alerts(info), fire_clusters(short_id, state, last_detected_at, resolved_at), onm_vigilance(title, headline_fr, expires), authority_warnings(source, body)",
+        "id, kind, phase, severity, hazard, source_key, metadata, commune_codes, cluster_id, official_incident_id, earthquake_id, created_at, cap_alerts(info), fire_clusters(short_id, state, last_detected_at, resolved_at), onm_vigilance(title, headline_fr, expires, msg_type, cancelled_at, superseded_by, sent, area_desc), authority_warnings(source, body)",
       )
       .gte("created_at", since)
       .order("created_at", { ascending: false });
@@ -49,17 +79,143 @@ const bannersQuery = queryOptions({
   staleTime: 60_000,
 });
 
+function capEntries(row: BannerRow): CapInfoEntry[] {
+  return Array.isArray(row.cap_alerts?.info)
+    ? (row.cap_alerts.info as CapInfoEntry[])
+    : [];
+}
+
+function capParam(entries: CapInfoEntry[], name: string): string | null {
+  const first = entries[0];
+  if (!first?.parameter?.length) return null;
+  return first.parameter.find((p) => p.valueName === name)?.value ?? null;
+}
+
 function headlineFor(row: BannerRow, locale: AnyLocale): string | null {
   if (row.kind === "authority") return row.authority_warnings?.body ?? null;
   if (row.kind === "onm")
     return row.onm_vigilance?.headline_fr ?? row.onm_vigilance?.title ?? null;
-  const info = row.cap_alerts?.info as
-    { language: string; headline: string }[] | undefined;
-  if (!info?.length) return null;
+  const info = capEntries(row);
+  if (!info.length) return null;
   return (
     (info.find((i) => i.language.split("-")[0] === locale) ?? info[0])!
       .headline ?? null
   );
+}
+
+function bannerMeta(row: BannerRow, hazard: string | null) {
+  if (row.kind === "onm") {
+    return { Icon: Megaphone, labelKey: "push.bannerOnm", rawLabel: null };
+  }
+  if (row.kind === "authority") {
+    return {
+      Icon: Megaphone,
+      labelKey: "push.bannerOnm",
+      rawLabel: row.authority_warnings?.source ?? null,
+    };
+  }
+  if (row.kind === "earthquake") {
+    return { Icon: Activity, labelKey: "civilMap.earthquake", rawLabel: null };
+  }
+  if (row.kind === "official") {
+    const normalized = hazard?.trim().toLowerCase() ?? "";
+    if (normalized === "flood" || normalized === "flooding") {
+      return {
+        Icon: Waves,
+        labelKey: "civilMap.sourceOfficial",
+        rawLabel: null,
+      };
+    }
+    if (normalized === "storm") {
+      return {
+        Icon: CloudLightning,
+        labelKey: "civilMap.sourceOfficial",
+        rawLabel: null,
+      };
+    }
+    if (normalized === "road") {
+      return {
+        Icon: Road,
+        labelKey: "civilMap.sourceOfficial",
+        rawLabel: null,
+      };
+    }
+    if (normalized === "structure" || normalized === "other") {
+      return {
+        Icon: TriangleAlert,
+        labelKey: "civilMap.sourceOfficial",
+        rawLabel: null,
+      };
+    }
+    return { Icon: Flame, labelKey: "civilMap.sourceOfficial", rawLabel: null };
+  }
+  return { Icon: Flame, labelKey: "push.bannerLive", rawLabel: null };
+}
+
+function provenanceForBanner(row: BannerRow, hazard: string | null) {
+  const entries = capEntries(row);
+  const rawMag = capParam(entries, "magnitude");
+  const parsedMag =
+    rawMag !== null &&
+    rawMag.trim().length > 0 &&
+    Number.isFinite(Number(rawMag))
+      ? Number(rawMag)
+      : null;
+  const areaLabel =
+    row.kind === "onm"
+      ? (row.onm_vigilance?.area_desc ?? null)
+      : (capParam(entries, "area_label") ??
+        entries[0]?.area?.[0]?.areaDesc ??
+        null);
+  const observedAt =
+    row.kind === "onm"
+      ? (row.onm_vigilance?.sent ?? row.created_at)
+      : row.kind === "fire"
+        ? (row.fire_clusters?.last_detected_at ?? row.created_at)
+        : (capParam(entries, "observed_at") ?? row.created_at);
+  const sourceAttribution =
+    row.kind === "onm"
+      ? "ONM · Météo Algérie"
+      : row.kind === "authority"
+        ? (row.authority_warnings?.source ?? "Official authority")
+        : capParam(entries, "source_attribution");
+
+  return provenanceForBroadcast({
+    kind: row.kind,
+    severity: row.severity,
+    hazard,
+    magnitude: parsedMag,
+    sourceKey: row.source_key ?? capParam(entries, "source_key"),
+    sourceAttribution,
+    areaLabel,
+    observedAt,
+  });
+}
+
+function severityBadge(severity: string) {
+  const normalized = severity.trim().toLowerCase();
+  if (normalized === "extreme") {
+    return {
+      Icon: OctagonAlert,
+      tint: "var(--emergency-surface)",
+      ink: "var(--emergency-ink)",
+      key: "cap.severity.Extreme",
+    };
+  }
+  if (normalized === "severe") {
+    return {
+      Icon: TriangleAlert,
+      tint: riskTint(3),
+      ink: riskInk(3),
+      key: "cap.severity.Severe",
+    };
+  }
+  return {
+    Icon: Info,
+    tint: riskTint(2),
+    ink: riskInk(2),
+    key: "cap.severity.Moderate",
+  };
 }
 
 export function BroadcastBanner() {
@@ -75,7 +231,8 @@ export function BroadcastBanner() {
   const seen = new Set<string>();
   const relevant = data.filter((row) => {
     if (!row.commune_codes.some((code) => mine.has(code))) return false;
-    const thread = row.cluster_id ?? row.id;
+    const thread =
+      row.cluster_id ?? row.official_incident_id ?? row.earthquake_id ?? row.id;
     if (seen.has(thread)) return false;
     seen.add(thread);
     return true;
@@ -86,8 +243,12 @@ export function BroadcastBanner() {
       row.phase !== "end" &&
       row.phase !== "cancel" &&
       (!row.fire_clusters || firePhase(row.fire_clusters, now) === "live") &&
-      (!row.onm_vigilance?.expires ||
-        Date.parse(row.onm_vigilance.expires) > now),
+      (!row.onm_vigilance ||
+        (!row.onm_vigilance.cancelled_at &&
+          !row.onm_vigilance.superseded_by &&
+          row.onm_vigilance.msg_type !== "Cancel" &&
+          (!row.onm_vigilance.expires ||
+            Date.parse(row.onm_vigilance.expires) > now))),
   );
   if (!live.length) return null;
 
@@ -99,10 +260,18 @@ export function BroadcastBanner() {
         if (!headline) return null;
         const fire = row.kind === "fire" && row.fire_clusters?.short_id;
         const emergency = row.severity === "Extreme";
+        const entries = capEntries(row);
+        const hazard = row.hazard ?? capParam(entries, "hazard_kind");
+        const { Icon, labelKey, rawLabel } = bannerMeta(row, hazard);
+        const provenance = provenanceForBanner(row, hazard);
+        const sev = severityBadge(row.severity);
+        const SevIcon = sev.Icon;
+        const observedIso = provenance.observedAt || row.created_at;
+        const observedClock = algiersTime(observedIso);
         return (
           <div
             key={row.id}
-            className="rounded-xl border p-3"
+            className="rounded-xl border p-3 text-start"
             style={
               emergency
                 ? {
@@ -115,31 +284,55 @@ export function BroadcastBanner() {
                   }
             }
           >
-            <p className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              {row.kind === "onm" ? (
-                <Megaphone aria-hidden className="size-3.5" />
-              ) : (
-                <Flame aria-hidden className="size-3.5" />
-              )}
-              {row.kind === "onm"
-                ? t("push.bannerOnm")
-                : row.kind === "authority"
-                  ? (row.authority_warnings?.source ?? t("push.bannerOnm"))
-                  : t("push.bannerLive")}
-              <span className="ms-auto">
-                {relativeTime(row.created_at, locale)}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-current/20 px-2 py-0.5 font-semibold"
+                style={{ backgroundColor: sev.tint, color: sev.ink }}
+              >
+                <SevIcon aria-hidden className="size-3.5 shrink-0" />
+                <span>{t(sev.key, { defaultValue: row.severity })}</span>
               </span>
+              <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                <Icon aria-hidden className="size-3.5 shrink-0" />
+                <span>{rawLabel ?? t(labelKey)}</span>
+              </span>
+              <time
+                dateTime={observedIso}
+                className="ms-auto tabular-nums text-muted-foreground"
+              >
+                {observedClock ? `${observedClock} · ` : ""}
+                {relativeTime(observedIso, locale, now)}
+              </time>
+            </div>
+            <p dir="auto" className="mt-1.5 text-sm font-semibold leading-snug">
+              {headline}
             </p>
-            <p className="mt-1 text-sm font-semibold">{headline}</p>
+            <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+              <span dir="auto" className="font-medium text-foreground">
+                {provenance.sourceAttribution}
+              </span>
+              {provenance.areaLabel ? (
+                <>
+                  <span aria-hidden>·</span>
+                  <span dir="auto">{provenance.areaLabel}</span>
+                </>
+              ) : null}
+            </p>
             {fire ? (
               <Link
                 to="/fire/$id"
                 params={{ id: row.fire_clusters!.short_id }}
-                className="mt-1.5 inline-block text-xs font-medium underline underline-offset-2"
+                className="mt-1 inline-flex min-h-11 items-center gap-1.5 text-sm font-medium underline underline-offset-2"
               >
                 {t("push.bannerOpen")}
               </Link>
             ) : null}
+            <AlertProvenance
+              provenance={provenance}
+              compact
+              now={now}
+              className="mt-2"
+            />
           </div>
         );
       })}

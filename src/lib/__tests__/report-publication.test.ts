@@ -285,4 +285,85 @@ describe("publishWaitingReports", () => {
     expect(logged[0]!.reason).toBe("invalid_output");
     expect(raw).not.toContain("Benali");
   });
+
+  it("holds reports for users who withdrew citizen_reports consent without invoking the LLM and fails closed on DB error (T5-R2-01)", async () => {
+    const saved: [string, Record<string, unknown>][] = [];
+    const complete = vi.fn(async () => JSON.stringify(ok));
+    const place = vi.fn(async () => "Alger");
+    const tally = await publishWaitingReports(undefined, {
+      store: {
+        waiting: async () => [
+          {
+            id: "r-withdrawn",
+            user_id: "u-withdrawn",
+            kind: "flooding",
+            note: "water on road",
+            commune_id: "c1",
+          },
+          {
+            id: "r-granted",
+            user_id: "u-granted",
+            kind: "flooding",
+            note: "bridge flooded",
+            commune_id: "c1",
+          },
+        ],
+        withdrawnCitizenReportConsent: async () => new Set(["u-withdrawn"]),
+        place,
+        save: async (id, patch) => {
+          saved.push([id, patch as Record<string, unknown>]);
+        },
+      },
+      classifier: { model: "test-model", complete },
+      now,
+    });
+
+    expect(tally).toEqual({ published: 1, held: 1, waiting: 0 });
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(place).toHaveBeenCalledTimes(1);
+    expect(saved[0]).toEqual([
+      "r-withdrawn",
+      expect.objectContaining({
+        publish_state: "held",
+        summary: null,
+        classifier: "consent_withdrawn",
+      }),
+    ]);
+    expect(saved[0]![1]).not.toHaveProperty("expires_at");
+    expect(saved[1]).toEqual([
+      "r-granted",
+      expect.objectContaining({
+        publish_state: "published",
+        classifier: "test-model",
+      }),
+    ]);
+
+    // Fail-closed: DB error on consent lookup must throw without calling LLM or saving
+    const failComplete = vi.fn(async () => JSON.stringify(ok));
+    const failSave = vi.fn();
+    await expect(
+      publishWaitingReports(undefined, {
+        store: {
+          waiting: async () => [
+            {
+              id: "r-err",
+              user_id: "u-err",
+              kind: "flooding",
+              note: "water",
+              commune_id: null,
+            },
+          ],
+          withdrawnCitizenReportConsent: async () => {
+            throw new Error("privacy_consents unavailable");
+          },
+          place: async () => null,
+          save: failSave,
+        },
+        classifier: { model: "test-model", complete: failComplete },
+        now,
+      }),
+    ).rejects.toThrow("privacy_consents unavailable");
+    expect(failComplete).not.toHaveBeenCalled();
+    expect(failSave).not.toHaveBeenCalled();
+  });
 });

@@ -1,0 +1,26 @@
+{
+  "product_type": "L2-LFL",
+  "observation_kind": "lightning_observation",
+  "is_wildfire": false,
+  "published_at": "2026-09-18T05:05:00Z",
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [18.2500, 43.1000]
+      },
+      "properties": {
+        "flash_id": "MTG-LI-20260918-0901",
+        "product_type": "L2-LFL",
+        "observed_at": "2026-09-18T05:03:11Z",
+        "published_at": "2026-09-18T05:05:00Z",
+        "radiance_uj_m2": 50.0,
+        "duration_ms": 18,
+        "group_count": 1,
+        "quality_state": "valid"
+      }
+    }
+  ]
+}

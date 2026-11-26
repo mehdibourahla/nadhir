@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   broadcastTexts,
+  earthquakeTexts,
+  officialHazardTexts,
   officialTexts,
   type BroadcastVars,
 } from "@/lib/broadcast-copy";
+import { BANNED_STATUS_LABELS } from "@/lib/alert-provenance";
+import { NON_FIRE_BROADCAST_KINDS } from "@/lib/broadcast-rules";
 import type { BroadcastPhase } from "@/lib/cap";
 
 const vars: BroadcastVars = {
@@ -164,5 +168,83 @@ describe("officialTexts", () => {
     expect(unseen.description).toContain("Aucun point chaud satellite");
     const seen = officialTexts(vars, true).find((t) => t.language === "fr-DZ")!;
     expect(seen.description).not.toContain("Aucun point chaud");
+  });
+});
+
+function assertHonestNonFireCopy(text: {
+  headline: string;
+  description: string;
+  instruction: string;
+}) {
+  const combined = `${text.headline}\n${text.description}\n${text.instruction}`;
+  expect(combined).not.toContain("{{");
+  expect(combined).not.toContain("\u2014");
+  expect(text.instruction).toBe("");
+  const lower = combined.toLowerCase();
+  for (const banned of BANNED_STATUS_LABELS) {
+    expect(lower).not.toContain(banned.toLowerCase());
+  }
+  expect(lower).not.toContain("satellite");
+  expect(lower).not.toContain("point chaud");
+  expect(combined).not.toContain("نقطة حرارية");
+}
+
+describe("officialHazardTexts (F8)", () => {
+  it("renders all 4 non-fire hazards across initial and end in all 4 locales with zero em dashes, zero banned labels, and empty instruction", () => {
+    for (const kind of NON_FIRE_BROADCAST_KINDS) {
+      for (const phase of ["initial", "end"] as const) {
+        const texts = officialHazardTexts({
+          kind,
+          phase,
+          commune: "Bab El Oued",
+          wilaya: "Alger",
+          place: "Place des Martyrs",
+          source: "DGPC",
+          asOf: "24/11 10:15",
+          evidence: "Intervention en cours suite à la montée des eaux.",
+        });
+        expect(texts.map((t) => t.language)).toEqual([
+          "ar-DZ",
+          "fr-DZ",
+          "en",
+          "kab",
+        ]);
+        for (const text of texts) {
+          assertHonestNonFireCopy(text);
+          expect(text.headline).toContain("Bab El Oued");
+          expect(text.description).toContain("24/11 10:15");
+          expect(text.description).toContain("DGPC");
+        }
+      }
+    }
+  });
+});
+
+describe("earthquakeTexts (F9)", () => {
+  it("renders onshore and offshore M4+ earthquakes in all 4 locales with zero em dashes, zero safe labels, and empty instruction", () => {
+    for (const offshore of [false, true]) {
+      const texts = earthquakeTexts({
+        magnitude: 4.6,
+        place: "Béjaïa",
+        wilaya: "Béjaïa",
+        depthKm: 10,
+        network: "EMSC",
+        asOf: "24/11 11:20",
+        offshore,
+      });
+      expect(texts.map((t) => t.language)).toEqual([
+        "ar-DZ",
+        "fr-DZ",
+        "en",
+        "kab",
+      ]);
+      for (const text of texts) {
+        assertHonestNonFireCopy(text);
+        expect(text.headline).toContain("4.6");
+        expect(text.headline).toContain("EMSC");
+        expect(text.description).toContain("24/11 11:20");
+        expect(text.description).toContain("10");
+      }
+    }
   });
 });

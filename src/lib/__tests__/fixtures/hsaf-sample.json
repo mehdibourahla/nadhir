@@ -1,0 +1,14 @@
+{
+  "valid_time": "2026-11-24T12:00:00Z",
+  "published_time": "2026-11-24T12:18:00Z",
+  "window_minutes": 30,
+  "unit": "mm/30m",
+  "snapshot_id": "HSAF-H60B-20261124T1200Z",
+  "cells": [
+    { "lat": 36.75, "lon": 3.05, "value": 14.2 },
+    { "lat": 32.49, "lon": 3.67, "value": 8.5 },
+    { "lat": 35.7, "lon": -0.63, "value": -9999 },
+    { "lat": 36.19, "lon": 5.41, "value": 0 },
+    { "lat": 43.3, "lon": 5.37, "value": 12.0 }
+  ]
+}

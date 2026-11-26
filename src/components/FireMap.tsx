@@ -719,6 +719,9 @@ export default function FireMap({
       .civil-map-page .maplibregl-ctrl-bottom-left { top: 220px; bottom: auto; left: auto; right: 12px; }
       .civil-map-page .maplibregl-ctrl-bottom-left .maplibregl-ctrl { margin: 0; }
       [dir="rtl"] .civil-map-page .maplibregl-ctrl-bottom-left { right: auto; left: 12px; }
+      [dir="rtl"] .civil-map-page .maplibregl-ctrl-bottom-right { right: auto; left: 0; }
+      [dir="rtl"] .civil-map-page .maplibregl-ctrl-bottom-right .maplibregl-ctrl { float: left; margin: 0 0 10px 10px; }
+      [dir="rtl"] .civil-map-page .maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib { direction: ltr; }
       @media (min-width: 1024px) {
         .civil-map-page .maplibregl-ctrl-bottom-left { top: 224px; right: 16px; }
         [dir="rtl"] .civil-map-page .maplibregl-ctrl-bottom-left { right: auto; left: 16px; }

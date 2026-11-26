@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   airCells,
   algiersDate,
+  classifyOnmEvent,
   defaultCommune,
   fireCells,
   nationalRanking,
@@ -10,7 +11,13 @@ import {
   outlookDays,
   weatherCells,
 } from "@/lib/forecast-outlook";
-import type { AdminUnit, OnmVigilance, RiskForecast } from "@/lib/nadhir";
+import type { Earthquake } from "@/lib/earthquakes";
+import type {
+  AdminUnit,
+  OfficialIncident,
+  OnmVigilance,
+  RiskForecast,
+} from "@/lib/nadhir";
 
 const DAYS = [
   "2026-09-25",
@@ -239,5 +246,217 @@ describe("default commune", () => {
   it("shows nobody's place rather than an arbitrary one", () => {
     expect(defaultCommune(communes, undefined, [], null)).toBeNull();
     expect(defaultCommune(communes, "9999", zones, "c3")).toBeNull();
+  });
+});
+
+describe("M3B winter multi-hazard & finite guards", () => {
+  it("classifies winter ONM hazards (snow, cold, flood, wind, waves, fog) in EN/FR/AR", () => {
+    expect(classifyOnmEvent("Snow")).toBe("snow");
+    expect(classifyOnmEvent("Other", "Chutes de neige sur les reliefs")).toBe(
+      "snow",
+    );
+    expect(classifyOnmEvent("Other", "تساقط ثلوج")).toBe("snow");
+    expect(classifyOnmEvent("Cold", "Vague de froid")).toBe("cold");
+    expect(classifyOnmEvent("Flood", "Inondations locales")).toBe("flood");
+    expect(classifyOnmEvent("Other", "سيول وفيضانات")).toBe("flood");
+    expect(classifyOnmEvent("Waves", "Mer forte et vagues")).toBe("waves");
+    expect(classifyOnmEvent("Fog", "Brouillard dense")).toBe("fog");
+    expect(classifyOnmEvent("Wind", "Vents violents")).toBe("wind");
+    expect(classifyOnmEvent("UnknownEvent")).toBe("other");
+  });
+
+  it("rejects NaN and Infinity in fireCells and weatherCells instead of rendering broken values", () => {
+    const badWeather = forecast({
+      forecast_date: DAYS[0]!,
+      components: { temp_c: Number.NaN, wind_kmh: 15, rain_mm: 2 },
+    });
+    const infWeather = forecast({
+      forecast_date: DAYS[1]!,
+      components: {
+        temp_c: 20,
+        wind_kmh: Number.POSITIVE_INFINITY,
+        rain_mm: 0,
+      },
+    });
+    expect(weatherCells([badWeather, infWeather], DAYS)[0]).toBeNull();
+    expect(weatherCells([badWeather, infWeather], DAYS)[1]).toBeNull();
+
+    const badFire = forecast({
+      forecast_date: DAYS[0]!,
+      fwi: Number.NaN,
+      danger_level: 4,
+    });
+    expect(fireCells([badFire], DAYS)[0]).toBeNull();
+  });
+
+  it("includes active official DGPC flood/road incidents and M4+ earthquakes in nationalRanking", () => {
+    const nowMs = Date.parse("2026-09-25T12:00:00Z");
+    const units = [
+      unit({
+        id: "w-alger",
+        level: "wilaya",
+        code: "16",
+        lat: 36.7,
+        lon: 3.03,
+      }),
+      unit({
+        id: "w-bejaia",
+        level: "wilaya",
+        code: "06",
+        lat: 36.75,
+        lon: 5.06,
+      }),
+      unit({ id: "c-alger", parent_id: "w-alger", population: 500 }),
+      unit({ id: "c-bejaia", parent_id: "w-bejaia", population: 400 }),
+    ];
+
+    const floodIncident: OfficialIncident = {
+      id: "inc-flood",
+      wilaya_id: "w-alger",
+      commune_id: "c-alger",
+      kind: "flood",
+      status: "ongoing",
+      precision: "commune",
+      authority_tier: "national",
+      place_text: "Bab El Oued",
+      first_reported_at: "2026-09-25T10:00:00Z",
+      last_reported_at: "2026-09-25T11:00:00Z",
+      as_of: "2026-09-25T11:00:00Z",
+      updated_at: "2026-09-25T11:00:00Z",
+      unlisted_at: null,
+      mention_count: 1,
+      evidence: "DGPC flood intervention",
+      commune: null,
+      wilaya: {
+        name_ar: "الجزائر",
+        name_fr: "Alger",
+        name_en: "Algiers",
+        name_kab: "Dzayer",
+        lat: 36.7,
+        lon: 3.03,
+      },
+      latest_mention: null,
+    };
+
+    const m5Quake: Earthquake = {
+      id: "q-5",
+      occurred_at: "2026-09-25T09:00:00Z",
+      lat: 36.75,
+      lon: 5.06,
+      depth_km: 10,
+      magnitude: 5.2,
+      magnitude_type: "ML",
+      region: "Bejaia",
+      network: "CRAAG",
+      commune_id: "c-bejaia",
+      offshore: false,
+    };
+
+    const rows = nationalRanking(
+      units,
+      [],
+      [],
+      DAYS,
+      [floodIncident],
+      [m5Quake],
+      nowMs,
+    );
+    expect(
+      rows.map((r) => [
+        r.wilaya.code,
+        r.level,
+        r.incidents,
+        r.quake?.magnitude ?? null,
+      ]),
+    ).toEqual([
+      ["06", 5, 0, 5.2],
+      ["16", 4, 1, null],
+    ]);
+  });
+
+  it("keeps ONM warnings active even when model weather reports 0 mm rain (ADR-0002)", () => {
+    const cells = onmCells(
+      [warning({ event: "Snow", severity: "Extreme", wilaya_id: "w-batna" })],
+      "w-batna",
+      DAYS,
+    );
+    const wCells = weatherCells(
+      [
+        forecast({
+          forecast_date: DAYS[0]!,
+          components: { temp_c: 10, wind_kmh: 5, rain_mm: 0 },
+        }),
+      ],
+      DAYS,
+    );
+    expect(cells[0]).toEqual({ state: "warning", level: 4, events: ["snow"] });
+    expect(wCells[0]).toEqual({ tempC: 10, windKmh: 5, rainMm: 0 });
+  });
+
+  it("fails closed on invalid ONM expires or onset timestamps across all 6 outlook days", () => {
+    const badExpires = onmCells(
+      [warning({ expires: "not-a-valid-date", severity: "Severe" })],
+      "w-batna",
+      DAYS,
+    );
+    expect(badExpires.some((c) => c.state === "warning")).toBe(false);
+    expect(badExpires.slice(0, 2)).toEqual([
+      { state: "none" },
+      { state: "none" },
+    ]);
+    expect(badExpires.slice(2).every((c) => c.state === "not_issued")).toBe(
+      true,
+    );
+
+    const badOnset = onmCells(
+      [warning({ onset: "not-a-valid-date", severity: "Extreme" })],
+      "w-batna",
+      DAYS,
+    );
+    expect(badOnset.some((c) => c.state === "warning")).toBe(false);
+
+    const badSentFallback = onmCells(
+      [
+        warning({
+          onset: null,
+          sent: "not-a-valid-date",
+          severity: "Extreme",
+        }),
+      ],
+      "w-batna",
+      DAYS,
+    );
+    expect(badSentFallback.some((c) => c.state === "warning")).toBe(false);
+  });
+
+  it("fails closed on invalid earthquake occurred_at timestamps in nationalRanking", () => {
+    const nowMs = Date.parse("2026-09-25T12:00:00Z");
+    const units = [
+      unit({
+        id: "w-alger",
+        level: "wilaya",
+        code: "16",
+        lat: 36.7,
+        lon: 3.03,
+      }),
+      unit({ id: "c-alger", parent_id: "w-alger", population: 500 }),
+    ];
+    const invalidDateQuake: Earthquake = {
+      id: "q-bad-date",
+      occurred_at: "not-a-date",
+      lat: 36.7,
+      lon: 3.03,
+      depth_km: 10,
+      magnitude: 5.5,
+      magnitude_type: "ML",
+      region: "Algiers",
+      network: "EMSC",
+      commune_id: "c-alger",
+      offshore: false,
+    };
+
+    expect(
+      nationalRanking(units, [], [], DAYS, [], [invalidDateQuake], nowMs),
+    ).toEqual([]);
   });
 });

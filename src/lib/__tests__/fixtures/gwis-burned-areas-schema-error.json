@@ -1,0 +1,21 @@
+{
+  "type": "FeatureCollection",
+  "licence": "CC BY 4.0",
+  "published_at": "2026-08-18T18:00:00Z",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [4.72, 36.68]
+      },
+      "properties": {
+        "event_id": "gwis-bad-circle-1",
+        "burn_start_at": "2026-08-15",
+        "burn_end_at": "2026-08-18",
+        "area_ha": 50.0,
+        "burn_circle_m": 1200
+      }
+    }
+  ]
+}

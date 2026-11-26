@@ -18,6 +18,7 @@ import { Route as DevelopersRouteImport } from './routes/developers'
 import { Route as ForecastRouteImport } from './routes/forecast'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as StatusRouteImport } from './routes/status'
 import { Route as SurvivalRouteRouteImport } from './routes/survival/route'
 import { Route as TermsRouteImport } from './routes/terms'
@@ -33,6 +34,7 @@ import { Route as SurvivalIndexRouteImport } from './routes/survival/index'
 import { Route as SurvivalAreasRouteImport } from './routes/survival/areas'
 import { Route as SurvivalCheckinRouteImport } from './routes/survival/checkin'
 import { Route as SurvivalSosRouteImport } from './routes/survival/sos'
+import { Route as WilayaSlugRouteImport } from './routes/wilaya.$slug'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAuditRouteImport } from './routes/_authenticated/admin/audit'
 import { Route as AuthenticatedAdminBroadcastsRouteImport } from './routes/_authenticated/admin/broadcasts'
@@ -50,7 +52,10 @@ import { Route as AuthenticatedAdminTranslationsRouteImport } from './routes/_au
 import { Route as ApiPrivateAccountRouteImport } from './routes/api/private/account'
 import { Route as ApiPrivateAlertCheckRouteImport } from './routes/api/private/alert-check'
 import { Route as ApiPrivateEnsembleRouteImport } from './routes/api/private/ensemble'
+import { Route as ApiPrivatePrivacyConsentRouteImport } from './routes/api/private/privacy-consent'
+import { Route as ApiPrivatePrivacyExportRouteImport } from './routes/api/private/privacy-export'
 import { Route as ApiPrivatePushTestRouteImport } from './routes/api/private/push-test'
+import { Route as ApiPrivateReportPhotoRouteImport } from './routes/api/private/report-photo'
 import { Route as ApiPrivateReportPublishRouteImport } from './routes/api/private/report-publish'
 import { Route as ApiPrivateUserPushRouteImport } from './routes/api/private/user-push'
 import { Route as ApiPublicPushReceiptRouteImport } from './routes/api/public/push-receipt'
@@ -61,9 +66,11 @@ import { Route as ApiPublicContributeIdeaRouteImport } from './routes/api/public
 import { Route as ApiPublicContributeMyTranslationsRouteImport } from './routes/api/public/contribute/my-translations'
 import { Route as ApiPublicContributeTranslationRouteImport } from './routes/api/public/contribute/translation'
 import { Route as ApiPublicContributeVoteRouteImport } from './routes/api/public/contribute/vote'
+import { Route as ApiPublicShareSplatRouteImport } from './routes/api/public/share/$'
 import { Route as ApiPublicV1IndexRouteImport } from './routes/api/public/v1/index'
 import { Route as ApiPublicV1CivilRouteImport } from './routes/api/public/v1/civil'
 import { Route as ApiPublicV1FiresRouteImport } from './routes/api/public/v1/fires'
+import { Route as ApiPublicV1PushTestRouteImport } from './routes/api/public/v1/push-test'
 import { Route as ApiPublicV1RiskRouteImport } from './routes/api/public/v1/risk'
 import { Route as ApiPublicV1SourcesRouteImport } from './routes/api/public/v1/sources'
 import { Route as ApiPublicV1StatsRouteImport } from './routes/api/public/v1/stats'
@@ -114,6 +121,11 @@ const HistoryRoute = HistoryRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StatusRoute = StatusRouteImport.update({
@@ -190,6 +202,11 @@ const SurvivalSosRoute = SurvivalSosRouteImport.update({
   id: '/sos',
   path: '/sos',
   getParentRoute: () => SurvivalRouteRoute,
+} as any)
+const WilayaSlugRoute = WilayaSlugRouteImport.update({
+  id: '/wilaya/$slug',
+  path: '/wilaya/$slug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
@@ -283,9 +300,25 @@ const ApiPrivateEnsembleRoute = ApiPrivateEnsembleRouteImport.update({
   path: '/api/private/ensemble',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPrivatePrivacyConsentRoute =
+  ApiPrivatePrivacyConsentRouteImport.update({
+    id: '/api/private/privacy-consent',
+    path: '/api/private/privacy-consent',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPrivatePrivacyExportRoute = ApiPrivatePrivacyExportRouteImport.update({
+  id: '/api/private/privacy-export',
+  path: '/api/private/privacy-export',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPrivatePushTestRoute = ApiPrivatePushTestRouteImport.update({
   id: '/api/private/push-test',
   path: '/api/private/push-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPrivateReportPhotoRoute = ApiPrivateReportPhotoRouteImport.update({
+  id: '/api/private/report-photo',
+  path: '/api/private/report-photo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPrivateReportPublishRoute = ApiPrivateReportPublishRouteImport.update({
@@ -342,6 +375,11 @@ const ApiPublicContributeVoteRoute = ApiPublicContributeVoteRouteImport.update({
   path: '/api/public/contribute/vote',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicShareSplatRoute = ApiPublicShareSplatRouteImport.update({
+  id: '/api/public/share/$',
+  path: '/api/public/share/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicV1IndexRoute = ApiPublicV1IndexRouteImport.update({
   id: '/api/public/v1/',
   path: '/api/public/v1/',
@@ -355,6 +393,11 @@ const ApiPublicV1CivilRoute = ApiPublicV1CivilRouteImport.update({
 const ApiPublicV1FiresRoute = ApiPublicV1FiresRouteImport.update({
   id: '/api/public/v1/fires',
   path: '/api/public/v1/fires',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicV1PushTestRoute = ApiPublicV1PushTestRouteImport.update({
+  id: '/api/public/v1/push-test',
+  path: '/api/public/v1/push-test',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicV1RiskRoute = ApiPublicV1RiskRouteImport.update({
@@ -404,6 +447,7 @@ export interface FileRoutesByFullPath {
   '/forecast': typeof ForecastRoute
   '/history': typeof HistoryRoute
   '/privacy': typeof PrivacyRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/status': typeof StatusRoute
   '/terms': typeof TermsRoute
   '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
@@ -417,6 +461,7 @@ export interface FileRoutesByFullPath {
   '/survival/areas': typeof SurvivalAreasRoute
   '/survival/checkin': typeof SurvivalCheckinRoute
   '/survival/sos': typeof SurvivalSosRoute
+  '/wilaya/$slug': typeof WilayaSlugRoute
   '/survival/': typeof SurvivalIndexRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/broadcasts': typeof AuthenticatedAdminBroadcastsRoute
@@ -434,7 +479,10 @@ export interface FileRoutesByFullPath {
   '/api/private/account': typeof ApiPrivateAccountRoute
   '/api/private/alert-check': typeof ApiPrivateAlertCheckRoute
   '/api/private/ensemble': typeof ApiPrivateEnsembleRoute
+  '/api/private/privacy-consent': typeof ApiPrivatePrivacyConsentRoute
+  '/api/private/privacy-export': typeof ApiPrivatePrivacyExportRoute
   '/api/private/push-test': typeof ApiPrivatePushTestRoute
+  '/api/private/report-photo': typeof ApiPrivateReportPhotoRoute
   '/api/private/report-publish': typeof ApiPrivateReportPublishRoute
   '/api/private/user-push': typeof ApiPrivateUserPushRoute
   '/api/public/push-receipt': typeof ApiPublicPushReceiptRoute
@@ -446,8 +494,10 @@ export interface FileRoutesByFullPath {
   '/api/public/contribute/my-translations': typeof ApiPublicContributeMyTranslationsRoute
   '/api/public/contribute/translation': typeof ApiPublicContributeTranslationRoute
   '/api/public/contribute/vote': typeof ApiPublicContributeVoteRoute
+  '/api/public/share/$': typeof ApiPublicShareSplatRoute
   '/api/public/v1/civil': typeof ApiPublicV1CivilRoute
   '/api/public/v1/fires': typeof ApiPublicV1FiresRoute
+  '/api/public/v1/push-test': typeof ApiPublicV1PushTestRoute
   '/api/public/v1/risk': typeof ApiPublicV1RiskRoute
   '/api/public/v1/sources': typeof ApiPublicV1SourcesRoute
   '/api/public/v1/stats': typeof ApiPublicV1StatsRoute
@@ -466,6 +516,7 @@ export interface FileRoutesByTo {
   '/forecast': typeof ForecastRoute
   '/history': typeof HistoryRoute
   '/privacy': typeof PrivacyRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/status': typeof StatusRoute
   '/terms': typeof TermsRoute
   '/alerts': typeof AuthenticatedAlertsRoute
@@ -478,6 +529,7 @@ export interface FileRoutesByTo {
   '/survival/areas': typeof SurvivalAreasRoute
   '/survival/checkin': typeof SurvivalCheckinRoute
   '/survival/sos': typeof SurvivalSosRoute
+  '/wilaya/$slug': typeof WilayaSlugRoute
   '/survival': typeof SurvivalIndexRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/broadcasts': typeof AuthenticatedAdminBroadcastsRoute
@@ -495,7 +547,10 @@ export interface FileRoutesByTo {
   '/api/private/account': typeof ApiPrivateAccountRoute
   '/api/private/alert-check': typeof ApiPrivateAlertCheckRoute
   '/api/private/ensemble': typeof ApiPrivateEnsembleRoute
+  '/api/private/privacy-consent': typeof ApiPrivatePrivacyConsentRoute
+  '/api/private/privacy-export': typeof ApiPrivatePrivacyExportRoute
   '/api/private/push-test': typeof ApiPrivatePushTestRoute
+  '/api/private/report-photo': typeof ApiPrivateReportPhotoRoute
   '/api/private/report-publish': typeof ApiPrivateReportPublishRoute
   '/api/private/user-push': typeof ApiPrivateUserPushRoute
   '/api/public/push-receipt': typeof ApiPublicPushReceiptRoute
@@ -507,8 +562,10 @@ export interface FileRoutesByTo {
   '/api/public/contribute/my-translations': typeof ApiPublicContributeMyTranslationsRoute
   '/api/public/contribute/translation': typeof ApiPublicContributeTranslationRoute
   '/api/public/contribute/vote': typeof ApiPublicContributeVoteRoute
+  '/api/public/share/$': typeof ApiPublicShareSplatRoute
   '/api/public/v1/civil': typeof ApiPublicV1CivilRoute
   '/api/public/v1/fires': typeof ApiPublicV1FiresRoute
+  '/api/public/v1/push-test': typeof ApiPublicV1PushTestRoute
   '/api/public/v1/risk': typeof ApiPublicV1RiskRoute
   '/api/public/v1/sources': typeof ApiPublicV1SourcesRoute
   '/api/public/v1/stats': typeof ApiPublicV1StatsRoute
@@ -530,6 +587,7 @@ export interface FileRoutesById {
   '/forecast': typeof ForecastRoute
   '/history': typeof HistoryRoute
   '/privacy': typeof PrivacyRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/status': typeof StatusRoute
   '/terms': typeof TermsRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteRouteWithChildren
@@ -543,6 +601,7 @@ export interface FileRoutesById {
   '/survival/areas': typeof SurvivalAreasRoute
   '/survival/checkin': typeof SurvivalCheckinRoute
   '/survival/sos': typeof SurvivalSosRoute
+  '/wilaya/$slug': typeof WilayaSlugRoute
   '/survival/': typeof SurvivalIndexRoute
   '/_authenticated/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/_authenticated/admin/broadcasts': typeof AuthenticatedAdminBroadcastsRoute
@@ -560,7 +619,10 @@ export interface FileRoutesById {
   '/api/private/account': typeof ApiPrivateAccountRoute
   '/api/private/alert-check': typeof ApiPrivateAlertCheckRoute
   '/api/private/ensemble': typeof ApiPrivateEnsembleRoute
+  '/api/private/privacy-consent': typeof ApiPrivatePrivacyConsentRoute
+  '/api/private/privacy-export': typeof ApiPrivatePrivacyExportRoute
   '/api/private/push-test': typeof ApiPrivatePushTestRoute
+  '/api/private/report-photo': typeof ApiPrivateReportPhotoRoute
   '/api/private/report-publish': typeof ApiPrivateReportPublishRoute
   '/api/private/user-push': typeof ApiPrivateUserPushRoute
   '/api/public/push-receipt': typeof ApiPublicPushReceiptRoute
@@ -572,8 +634,10 @@ export interface FileRoutesById {
   '/api/public/contribute/my-translations': typeof ApiPublicContributeMyTranslationsRoute
   '/api/public/contribute/translation': typeof ApiPublicContributeTranslationRoute
   '/api/public/contribute/vote': typeof ApiPublicContributeVoteRoute
+  '/api/public/share/$': typeof ApiPublicShareSplatRoute
   '/api/public/v1/civil': typeof ApiPublicV1CivilRoute
   '/api/public/v1/fires': typeof ApiPublicV1FiresRoute
+  '/api/public/v1/push-test': typeof ApiPublicV1PushTestRoute
   '/api/public/v1/risk': typeof ApiPublicV1RiskRoute
   '/api/public/v1/sources': typeof ApiPublicV1SourcesRoute
   '/api/public/v1/stats': typeof ApiPublicV1StatsRoute
@@ -595,6 +659,7 @@ export interface FileRouteTypes {
     | '/forecast'
     | '/history'
     | '/privacy'
+    | '/sitemap.xml'
     | '/status'
     | '/terms'
     | '/admin'
@@ -608,6 +673,7 @@ export interface FileRouteTypes {
     | '/survival/areas'
     | '/survival/checkin'
     | '/survival/sos'
+    | '/wilaya/$slug'
     | '/survival/'
     | '/admin/audit'
     | '/admin/broadcasts'
@@ -625,7 +691,10 @@ export interface FileRouteTypes {
     | '/api/private/account'
     | '/api/private/alert-check'
     | '/api/private/ensemble'
+    | '/api/private/privacy-consent'
+    | '/api/private/privacy-export'
     | '/api/private/push-test'
+    | '/api/private/report-photo'
     | '/api/private/report-publish'
     | '/api/private/user-push'
     | '/api/public/push-receipt'
@@ -637,8 +706,10 @@ export interface FileRouteTypes {
     | '/api/public/contribute/my-translations'
     | '/api/public/contribute/translation'
     | '/api/public/contribute/vote'
+    | '/api/public/share/$'
     | '/api/public/v1/civil'
     | '/api/public/v1/fires'
+    | '/api/public/v1/push-test'
     | '/api/public/v1/risk'
     | '/api/public/v1/sources'
     | '/api/public/v1/stats'
@@ -657,6 +728,7 @@ export interface FileRouteTypes {
     | '/forecast'
     | '/history'
     | '/privacy'
+    | '/sitemap.xml'
     | '/status'
     | '/terms'
     | '/alerts'
@@ -669,6 +741,7 @@ export interface FileRouteTypes {
     | '/survival/areas'
     | '/survival/checkin'
     | '/survival/sos'
+    | '/wilaya/$slug'
     | '/survival'
     | '/admin/audit'
     | '/admin/broadcasts'
@@ -686,7 +759,10 @@ export interface FileRouteTypes {
     | '/api/private/account'
     | '/api/private/alert-check'
     | '/api/private/ensemble'
+    | '/api/private/privacy-consent'
+    | '/api/private/privacy-export'
     | '/api/private/push-test'
+    | '/api/private/report-photo'
     | '/api/private/report-publish'
     | '/api/private/user-push'
     | '/api/public/push-receipt'
@@ -698,8 +774,10 @@ export interface FileRouteTypes {
     | '/api/public/contribute/my-translations'
     | '/api/public/contribute/translation'
     | '/api/public/contribute/vote'
+    | '/api/public/share/$'
     | '/api/public/v1/civil'
     | '/api/public/v1/fires'
+    | '/api/public/v1/push-test'
     | '/api/public/v1/risk'
     | '/api/public/v1/sources'
     | '/api/public/v1/stats'
@@ -720,6 +798,7 @@ export interface FileRouteTypes {
     | '/forecast'
     | '/history'
     | '/privacy'
+    | '/sitemap.xml'
     | '/status'
     | '/terms'
     | '/_authenticated/admin'
@@ -733,6 +812,7 @@ export interface FileRouteTypes {
     | '/survival/areas'
     | '/survival/checkin'
     | '/survival/sos'
+    | '/wilaya/$slug'
     | '/survival/'
     | '/_authenticated/admin/audit'
     | '/_authenticated/admin/broadcasts'
@@ -750,7 +830,10 @@ export interface FileRouteTypes {
     | '/api/private/account'
     | '/api/private/alert-check'
     | '/api/private/ensemble'
+    | '/api/private/privacy-consent'
+    | '/api/private/privacy-export'
     | '/api/private/push-test'
+    | '/api/private/report-photo'
     | '/api/private/report-publish'
     | '/api/private/user-push'
     | '/api/public/push-receipt'
@@ -762,8 +845,10 @@ export interface FileRouteTypes {
     | '/api/public/contribute/my-translations'
     | '/api/public/contribute/translation'
     | '/api/public/contribute/vote'
+    | '/api/public/share/$'
     | '/api/public/v1/civil'
     | '/api/public/v1/fires'
+    | '/api/public/v1/push-test'
     | '/api/public/v1/risk'
     | '/api/public/v1/sources'
     | '/api/public/v1/stats'
@@ -785,14 +870,19 @@ export interface RootRouteChildren {
   ForecastRoute: typeof ForecastRoute
   HistoryRoute: typeof HistoryRoute
   PrivacyRoute: typeof PrivacyRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   StatusRoute: typeof StatusRoute
   TermsRoute: typeof TermsRoute
   FireIdRoute: typeof FireIdRoute
   IncidentIdRoute: typeof IncidentIdRoute
+  WilayaSlugRoute: typeof WilayaSlugRoute
   ApiPrivateAccountRoute: typeof ApiPrivateAccountRoute
   ApiPrivateAlertCheckRoute: typeof ApiPrivateAlertCheckRoute
   ApiPrivateEnsembleRoute: typeof ApiPrivateEnsembleRoute
+  ApiPrivatePrivacyConsentRoute: typeof ApiPrivatePrivacyConsentRoute
+  ApiPrivatePrivacyExportRoute: typeof ApiPrivatePrivacyExportRoute
   ApiPrivatePushTestRoute: typeof ApiPrivatePushTestRoute
+  ApiPrivateReportPhotoRoute: typeof ApiPrivateReportPhotoRoute
   ApiPrivateReportPublishRoute: typeof ApiPrivateReportPublishRoute
   ApiPrivateUserPushRoute: typeof ApiPrivateUserPushRoute
   ApiPublicPushReceiptRoute: typeof ApiPublicPushReceiptRoute
@@ -803,8 +893,10 @@ export interface RootRouteChildren {
   ApiPublicContributeMyTranslationsRoute: typeof ApiPublicContributeMyTranslationsRoute
   ApiPublicContributeTranslationRoute: typeof ApiPublicContributeTranslationRoute
   ApiPublicContributeVoteRoute: typeof ApiPublicContributeVoteRoute
+  ApiPublicShareSplatRoute: typeof ApiPublicShareSplatRoute
   ApiPublicV1CivilRoute: typeof ApiPublicV1CivilRoute
   ApiPublicV1FiresRoute: typeof ApiPublicV1FiresRoute
+  ApiPublicV1PushTestRoute: typeof ApiPublicV1PushTestRoute
   ApiPublicV1RiskRoute: typeof ApiPublicV1RiskRoute
   ApiPublicV1SourcesRoute: typeof ApiPublicV1SourcesRoute
   ApiPublicV1StatsRoute: typeof ApiPublicV1StatsRoute
@@ -878,6 +970,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/status': {
@@ -984,6 +1083,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/survival/sos'
       preLoaderRoute: typeof SurvivalSosRouteImport
       parentRoute: typeof SurvivalRouteRoute
+    }
+    '/wilaya/$slug': {
+      id: '/wilaya/$slug'
+      path: '/wilaya/$slug'
+      fullPath: '/wilaya/$slug'
+      preLoaderRoute: typeof WilayaSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
@@ -1104,11 +1210,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPrivateEnsembleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/private/privacy-consent': {
+      id: '/api/private/privacy-consent'
+      path: '/api/private/privacy-consent'
+      fullPath: '/api/private/privacy-consent'
+      preLoaderRoute: typeof ApiPrivatePrivacyConsentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/private/privacy-export': {
+      id: '/api/private/privacy-export'
+      path: '/api/private/privacy-export'
+      fullPath: '/api/private/privacy-export'
+      preLoaderRoute: typeof ApiPrivatePrivacyExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/private/push-test': {
       id: '/api/private/push-test'
       path: '/api/private/push-test'
       fullPath: '/api/private/push-test'
       preLoaderRoute: typeof ApiPrivatePushTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/private/report-photo': {
+      id: '/api/private/report-photo'
+      path: '/api/private/report-photo'
+      fullPath: '/api/private/report-photo'
+      preLoaderRoute: typeof ApiPrivateReportPhotoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/private/report-publish': {
@@ -1181,6 +1308,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicContributeVoteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/share/$': {
+      id: '/api/public/share/$'
+      path: '/api/public/share/$'
+      fullPath: '/api/public/share/$'
+      preLoaderRoute: typeof ApiPublicShareSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/v1/': {
       id: '/api/public/v1/'
       path: '/api/public/v1'
@@ -1200,6 +1334,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/v1/fires'
       fullPath: '/api/public/v1/fires'
       preLoaderRoute: typeof ApiPublicV1FiresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/v1/push-test': {
+      id: '/api/public/v1/push-test'
+      path: '/api/public/v1/push-test'
+      fullPath: '/api/public/v1/push-test'
+      preLoaderRoute: typeof ApiPublicV1PushTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/v1/risk': {
@@ -1344,14 +1485,19 @@ const rootRouteChildren: RootRouteChildren = {
   ForecastRoute: ForecastRoute,
   HistoryRoute: HistoryRoute,
   PrivacyRoute: PrivacyRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   StatusRoute: StatusRoute,
   TermsRoute: TermsRoute,
   FireIdRoute: FireIdRoute,
   IncidentIdRoute: IncidentIdRoute,
+  WilayaSlugRoute: WilayaSlugRoute,
   ApiPrivateAccountRoute: ApiPrivateAccountRoute,
   ApiPrivateAlertCheckRoute: ApiPrivateAlertCheckRoute,
   ApiPrivateEnsembleRoute: ApiPrivateEnsembleRoute,
+  ApiPrivatePrivacyConsentRoute: ApiPrivatePrivacyConsentRoute,
+  ApiPrivatePrivacyExportRoute: ApiPrivatePrivacyExportRoute,
   ApiPrivatePushTestRoute: ApiPrivatePushTestRoute,
+  ApiPrivateReportPhotoRoute: ApiPrivateReportPhotoRoute,
   ApiPrivateReportPublishRoute: ApiPrivateReportPublishRoute,
   ApiPrivateUserPushRoute: ApiPrivateUserPushRoute,
   ApiPublicPushReceiptRoute: ApiPublicPushReceiptRoute,
@@ -1363,8 +1509,10 @@ const rootRouteChildren: RootRouteChildren = {
     ApiPublicContributeMyTranslationsRoute,
   ApiPublicContributeTranslationRoute: ApiPublicContributeTranslationRoute,
   ApiPublicContributeVoteRoute: ApiPublicContributeVoteRoute,
+  ApiPublicShareSplatRoute: ApiPublicShareSplatRoute,
   ApiPublicV1CivilRoute: ApiPublicV1CivilRoute,
   ApiPublicV1FiresRoute: ApiPublicV1FiresRoute,
+  ApiPublicV1PushTestRoute: ApiPublicV1PushTestRoute,
   ApiPublicV1RiskRoute: ApiPublicV1RiskRoute,
   ApiPublicV1SourcesRoute: ApiPublicV1SourcesRoute,
   ApiPublicV1StatsRoute: ApiPublicV1StatsRoute,

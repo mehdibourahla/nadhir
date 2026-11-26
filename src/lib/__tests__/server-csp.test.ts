@@ -70,4 +70,16 @@ describe("report photo content security policy", () => {
       expect(csp).toContain(directive);
     }
   });
+
+  it("permits Cloudflare Turnstile script, frame, and connect origins", () => {
+    const csp = build("https://project-ref.supabase.co");
+
+    expect(csp).toContain(
+      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
+    );
+    expect(csp).toContain("frame-src 'self' https://challenges.cloudflare.com");
+    expect(csp).toMatch(
+      /connect-src[^;]*https:\/\/challenges\.cloudflare\.com/,
+    );
+  });
 });

@@ -6,10 +6,21 @@ import type {
   SourceRunTrigger,
 } from "./source-runs";
 
-export type SourceExecutionTarget = "cloudflare" | "github";
+export const SOURCE_EXECUTION_TARGETS = [
+  "cloudflare",
+  "github",
+  "worker",
+] as const;
+export type SourceExecutionTarget = (typeof SOURCE_EXECUTION_TARGETS)[number];
 export type SourceJobState =
   "queued" | "running" | "retry_wait" | "succeeded" | "failed";
 export type RetryDisposition = "none" | "transient" | "permanent";
+
+export function isSourceExecutionTarget(
+  value: string,
+): value is SourceExecutionTarget {
+  return (SOURCE_EXECUTION_TARGETS as readonly string[]).includes(value);
+}
 
 export type SourceReplayInterval = {
   dataFrom: string;
@@ -56,7 +67,7 @@ export function retryDispositionForReason(
 }
 
 function executionTarget(value: string): SourceExecutionTarget {
-  if (value === "cloudflare" || value === "github") return value;
+  if (isSourceExecutionTarget(value)) return value;
   throw new Error("Source job has an invalid execution target");
 }
 

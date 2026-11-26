@@ -223,6 +223,61 @@ describe("independent weather evidence", () => {
     expect(html).toContain("warningsNone");
   });
 
+  it("never resurfaces cancelled, Cancel-type, or superseded_by warnings alongside an active warning in the same wilaya", () => {
+    state.onm = {
+      data: [
+        {
+          id: "active-rain",
+          wilaya_id: "wilaya",
+          event: "Rain",
+          area_desc: "Djelfa",
+          onset: "2026-09-15T08:00:00Z",
+          expires: "2026-09-15T20:00:00Z",
+          sent: "2026-09-15T08:30:00Z",
+          title: "Active rain warning",
+        },
+        {
+          id: "cancelled-wind",
+          wilaya_id: "wilaya",
+          event: "Wind",
+          area_desc: "Djelfa",
+          onset: "2026-09-15T08:00:00Z",
+          expires: "2026-09-15T20:00:00Z",
+          sent: "2026-09-15T08:45:00Z",
+          cancelled_at: "2026-09-15T08:50:00Z",
+          title: "Cancelled extreme wind warning",
+        },
+        {
+          id: "cancel-control",
+          wilaya_id: "wilaya",
+          event: "Snow",
+          area_desc: "Djelfa",
+          onset: "2026-09-15T08:00:00Z",
+          expires: "2026-09-15T20:00:00Z",
+          sent: "2026-09-15T08:55:00Z",
+          msg_type: "Cancel",
+          title: "Cancel control record",
+        },
+        {
+          id: "superseded-by-other",
+          wilaya_id: "wilaya",
+          event: "Heat",
+          area_desc: "Djelfa",
+          onset: "2026-09-15T08:00:00Z",
+          expires: "2026-09-15T20:00:00Z",
+          sent: "2026-09-15T08:15:00Z",
+          superseded_by: "newer-heat-id",
+          title: "Superseded heat warning",
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(<WeatherForecast />);
+    expect(html).toContain("Active rain warning");
+    expect(html).not.toContain("Cancelled extreme wind warning");
+    expect(html).not.toContain("Cancel control record");
+    expect(html).not.toContain("Superseded heat warning");
+  });
+
   it("groups overlapping changed validity transitively while preserving every original", () => {
     const base = {
       wilaya_id: "wilaya",

@@ -1,13 +1,14 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { ChevronLeft, Phone, TriangleAlert } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ChevronLeft, TriangleAlert } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { EmergencyDialBar } from "@/components/survival/EmergencyDialBar";
+import { PositionCardBlock } from "@/components/survival/PositionCardBlock";
 import { useSurvival } from "@/components/survival/survival-context";
 import type { Locale } from "@/i18n";
-import { haversineKm, relativeTime } from "@/lib/nadhir";
+import { relativeTime } from "@/lib/nadhir";
 import { enqueueSos, loadSosQueue, type SosEntry } from "@/lib/sos-queue";
-import { formatCoords, type PositionCard } from "@/lib/survival";
 
 export const Route = createFileRoute("/survival/sos")({
   component: SosPage,
@@ -16,7 +17,7 @@ export const Route = createFileRoute("/survival/sos")({
 function SosPage() {
   const { t, i18n } = useTranslation();
   const locale = i18n.language as Locale;
-  const { online, position, pack } = useSurvival();
+  const { online, position, positionDenied, positionCardData } = useSurvival();
   const [storageFailed, setStorageFailed] = useState(false);
 
   const [queue, setQueue] = useState<SosEntry[]>(() =>
@@ -29,44 +30,36 @@ function SosPage() {
     })(),
   );
 
-  const card = useMemo<PositionCard | null>(() => {
-    if (!position) return null;
-    const nearby =
-      pack && haversineKm(position.lat, position.lon, pack.lat, pack.lon) < 2;
-    return {
-      commune: nearby ? pack.commune : null,
-      wilaya: nearby ? pack.wilaya : null,
-      nearest: null,
-      coords: formatCoords(position.lat, position.lon),
-    };
-  }, [position, pack]);
+  const saveOfflineNote = () => {
+    try {
+      enqueueSos(localStorage, {
+        lat: position?.lat ?? null,
+        lon: position?.lon ?? null,
+        note: null,
+      });
+      setQueue(loadSosQueue(localStorage));
+    } catch {
+      setStorageFailed(true);
+    }
+  };
 
   const onCall = () => {
     if (!online) {
-      try {
-        enqueueSos(localStorage, {
-          lat: position?.lat ?? null,
-          lon: position?.lon ?? null,
-          note: null,
-        });
-        setQueue(loadSosQueue(localStorage));
-      } catch {
-        setStorageFailed(true);
-      }
+      saveOfflineNote();
     }
   };
 
   return (
     <>
       {storageFailed ? (
-        <p role="status" className="rounded bg-muted p-3 text-sm">
+        <p role="status" className="rounded-lg bg-muted p-3 text-sm">
           {t("survival.packStorageFailed")}
         </p>
       ) : null}
       <div className="flex items-center gap-2">
         <Link
           to="/survival"
-          className="rounded-md p-1.5 hover:bg-muted"
+          className="flex size-11 shrink-0 items-center justify-center rounded-md hover:bg-muted"
           aria-label={t("common.back")}
         >
           <ChevronLeft aria-hidden className="size-5 rtl:rotate-180" />
@@ -74,72 +67,22 @@ function SosPage() {
         <h1 className="font-display text-xl">{t("survival.sos")}</h1>
       </div>
 
-      <section className="card-raised">
-        <h2 className="px-4 pt-3.5 text-[11px] font-bold tracking-wider text-muted-foreground">
-          {t("survival.sosPosition").toUpperCase()}
-        </h2>
-        <dl>
-          <PositionRow
-            label={t("survival.sosCommune")}
-            value={
-              card?.commune
-                ? card.wilaya
-                  ? `${card.commune}, ${card.wilaya}`
-                  : card.commune
-                : t("common.none")
-            }
-          />
-          <PositionRow
-            label={t("survival.sosNearest")}
-            value={
-              card?.nearest
-                ? t("survival.sosNearestValue", {
-                    km: card.nearest.km.toFixed(1),
-                    place: card.nearest.name,
-                  })
-                : t("common.none")
-            }
-          />
-          <PositionRow
-            label={t("survival.sosCoords")}
-            value={card?.coords ?? t("common.none")}
-            tabular
-          />
-        </dl>
-      </section>
+      <PositionCardBlock
+        card={positionCardData}
+        online={online}
+        positionDenied={positionDenied}
+      />
 
       <section className="mt-auto flex flex-col gap-2.5">
-        <a
-          href="tel:14"
-          onClick={onCall}
-          className="flex h-[72px] items-center justify-center gap-3 rounded-2xl"
-          style={{
-            backgroundColor: "var(--emergency)",
-            color: "var(--surface)",
-          }}
+        <EmergencyDialBar onCall14={onCall} />
+
+        <button
+          type="button"
+          onClick={saveOfflineNote}
+          className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-border px-3 text-xs font-semibold text-foreground hover:bg-muted"
         >
-          <Phone aria-hidden className="size-6" />
-          <span className="flex flex-col">
-            <span className="text-lg font-bold leading-tight">
-              {t("survival.sosCall")}
-            </span>
-            <span className="text-xs opacity-85">{t("survival.sosFree")}</span>
-          </span>
-        </a>
-        <div className="flex gap-2.5">
-          <a
-            href="tel:1070"
-            className="card flex h-12 flex-1 items-center justify-center gap-1.5 text-sm font-semibold"
-          >
-            {t("emergency.forest")} <span className="tabular">1070</span>
-          </a>
-          <a
-            href="tel:112"
-            className="card flex h-12 flex-1 items-center justify-center gap-1.5 text-sm font-semibold"
-          >
-            {t("emergency.general")} <span className="tabular">112</span>
-          </a>
-        </div>
+          {t("track3.emergency.sosSaveOfflineNote")}
+        </button>
 
         {queue.filter((e) => !e.sent).length > 0 ? (
           <ul className="flex flex-col gap-1.5">
@@ -174,26 +117,5 @@ function SosPage() {
         </p>
       </section>
     </>
-  );
-}
-
-function PositionRow({
-  label,
-  value,
-  tabular = false,
-}: {
-  label: string;
-  value: string;
-  tabular?: boolean;
-}) {
-  return (
-    <div className="flex items-baseline justify-between gap-3 border-t border-border px-4 py-3">
-      <dt className="shrink-0 text-xs text-muted-foreground">{label}</dt>
-      <dd
-        className={`text-end text-base font-semibold ${tabular ? "tabular" : ""}`}
-      >
-        {value}
-      </dd>
-    </div>
   );
 }

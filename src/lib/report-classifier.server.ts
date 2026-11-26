@@ -73,13 +73,17 @@ export type ClassifierDependencies = {
 };
 
 export function defaultClassifier(): ClassifierDependencies {
-  return {
+  const deps: ClassifierDependencies = {
     model: GATEWAY_MODEL,
     complete: (request) =>
       completeWithGateway("classify_report", request, {
         timeoutMs: CLASSIFY_TIMEOUT_MS,
+        onProvenance: (provenance) => {
+          deps.model = provenance.model;
+        },
       }),
   };
+  return deps;
 }
 
 export async function classifyReport(

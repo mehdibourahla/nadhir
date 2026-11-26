@@ -27,7 +27,7 @@ export function OfficialIncidentDetail({ incident, locale, now }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+      <p className="text-xs font-medium text-muted-foreground">
         {t("official.eyebrow")}
       </p>
       <h2 className="text-lg font-semibold">{unitName(area, locale)}</h2>
@@ -84,7 +84,7 @@ export function OfficialIncidentDetail({ incident, locale, now }: Props) {
           href={post.url}
           target="_blank"
           rel="noreferrer noopener"
-          className="text-sm font-medium text-primary underline"
+          className="inline-flex min-h-11 items-center text-sm font-medium text-primary underline underline-offset-2"
         >
           {t("official.viewPost")}
         </a>
@@ -93,7 +93,9 @@ export function OfficialIncidentDetail({ incident, locale, now }: Props) {
         <IncidentShareSheet incident={incident} />
       ) : null}
       <p className="text-xs text-muted-foreground">
-        {t(fire ? "official.disclaimer" : "official.disclaimerHazard")}
+        {fire
+          ? t("official.disclaimer")
+          : t("officialSource.disclaimerWithSource", { source })}
       </p>
     </div>
   );

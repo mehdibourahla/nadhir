@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_channel_urgent_name">تنبيهات السلامة العاجلة</string>
+    <string name="notification_channel_urgent_description">تنبيهات الأرصاد الجوية القصوى وحوادث الحماية المدنية النشطة والزلازل بقوة 5 فما فوق والحرائق المحتملة.</string>
+    <string name="notification_channel_official_name">النشرات الرسمية</string>
+    <string name="notification_channel_official_description">تنبيهات الأرصاد الجوية الشديدة والتحديثات الرسمية حول الفيضانات والعواصف والطرق.</string>
+    <string name="notification_channel_earthquakes_name">الزلازل</string>
+    <string name="notification_channel_earthquakes_description">زلازل بقوة 4.0 إلى 4.9 مسجلة قرب البلديات التي تتابعها.</string>
+    <string name="notification_channel_civil_name">التحديثات المدنية والملخصات</string>
+    <string name="notification_channel_civil_description">تحديثات مدنية عامة وإشعارات الطرق وملخصات متابعة التنبيهات.</string>
+    <string name="notification_channel_test_name">اختبارات الإشعارات</string>
+    <string name="notification_channel_test_description">إشعارات تجريبية تطلبها للتحقق من وصول التنبيهات إلى هذا الجهاز.</string>
+    <string name="notification_channel_legacy_name">تنبيهات نذير</string>
+    <string name="notification_channel_legacy_description">قناة احتياطية محفوظة للتوافق مع الإصدارات السابقة من التطبيق.</string>
+</resources>

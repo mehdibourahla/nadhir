@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  isSourceExecutionTarget,
   retryDispositionForReason,
+  sourceJobFromRow,
   type ClaimedSourceJob,
   type SourceJobResult,
 } from "@/lib/source-jobs";
@@ -9,6 +11,8 @@ import {
   claimSourceJob,
   completeSourceJob,
   enqueueDueSourceJobs,
+  renewSourceJobLease,
+  requeueExpiredSourceJobs,
   sourceJobQueueHasPending,
 } from "@/lib/source-jobs.server";
 
@@ -183,5 +187,63 @@ describe("source job RPC adapters", () => {
     await expect(
       completeSourceJob({ rpc }, claimedJob, "worker-1", result),
     ).rejects.toThrow("Could not complete source job");
+  });
+
+  it("supports the standalone EU worker target, scheduler, recovery, and lease renewal", async () => {
+    expect(isSourceExecutionTarget("worker")).toBe(true);
+    expect(isSourceExecutionTarget("cloudflare")).toBe(true);
+    expect(isSourceExecutionTarget("github")).toBe(true);
+    expect(isSourceExecutionTarget("other")).toBe(false);
+
+    const workerRow = {
+      ...claimedJob,
+      execution_target: "worker",
+      enqueued_by: ["worker"],
+    };
+    expect(sourceJobFromRow(workerRow).execution_target).toBe("worker");
+
+    const enqueueRpc = vi.fn().mockResolvedValue({ data: 5, error: null });
+    await expect(
+      enqueueDueSourceJobs(
+        { rpc: enqueueRpc },
+        "2026-11-24T12:00:00Z",
+        "worker",
+      ),
+    ).resolves.toBe(5);
+    expect(enqueueRpc).toHaveBeenCalledWith("enqueue_due_source_jobs", {
+      _observed_at: "2026-11-24T12:00:00Z",
+      _enqueued_by: "worker",
+    });
+
+    const recoverRpc = vi.fn().mockResolvedValue({ data: 2, error: null });
+    await expect(
+      requeueExpiredSourceJobs({ rpc: recoverRpc }, "2026-11-24T12:05:00Z"),
+    ).resolves.toBe(2);
+    expect(recoverRpc).toHaveBeenCalledWith("requeue_expired_source_jobs", {
+      _now: "2026-11-24T12:05:00Z",
+    });
+
+    const renewRpc = vi
+      .fn()
+      .mockResolvedValue({ data: "2026-11-24T12:10:00Z", error: null });
+    await expect(
+      renewSourceJobLease(
+        { rpc: renewRpc },
+        {
+          jobId: claimedJob.id,
+          workerId: "eu-worker-1",
+          attempt: 1,
+          leaseSeconds: 180,
+          now: "2026-11-24T12:07:00Z",
+        },
+      ),
+    ).resolves.toBe("2026-11-24T12:10:00Z");
+    expect(renewRpc).toHaveBeenCalledWith("renew_source_job_lease", {
+      _job_id: claimedJob.id,
+      _worker_id: "eu-worker-1",
+      _attempt: 1,
+      _lease_seconds: 180,
+      _now: "2026-11-24T12:07:00Z",
+    });
   });
 });

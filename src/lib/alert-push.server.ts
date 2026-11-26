@@ -14,13 +14,18 @@ export type ClaimedPush = {
   payload: unknown;
   push_attempts: number;
   push_claimed_at: string;
+  severity?: number | null;
+  zone_id?: string | null;
+  source_table?: string | null;
+  created_at?: string | null;
 };
 
-type PushState = "sent" | "pending" | "failed" | "no_device";
+type PushState = "sent" | "pending" | "failed" | "no_device" | "skipped";
 
 const MAX_ATTEMPTS = 5;
 const CLAIM_LOST = "alert push claim lost";
 const DEVICE_TTL_MS = 60 * 86_400_000;
+const IN_BATCH_SIZE = 100;
 
 const store = {
   configured: fcmConfigured,
@@ -31,15 +36,41 @@ const store = {
     if (error) throw new Error(error.message);
     return (data ?? []) as ClaimedPush[];
   },
+  withdrawnPushConsent: async (userIds: string[]): Promise<Set<string>> => {
+    if (!userIds.length) return new Set();
+    const withdrawn = new Set<string>();
+    for (let i = 0; i < userIds.length; i += IN_BATCH_SIZE) {
+      const batch = userIds.slice(i, i + IN_BATCH_SIZE);
+      const { data, error } = await supabaseAdmin
+        .from("privacy_consents")
+        .select("user_id")
+        .in("user_id", batch)
+        .eq("consent_type", "push_alerts")
+        .eq("status", "withdrawn");
+      if (error) throw new Error(error.message);
+      for (const row of data ?? []) {
+        withdrawn.add(row.user_id);
+      }
+    }
+    return withdrawn;
+  },
   devices: async (userIds: string[]): Promise<Set<string>> => {
     if (!userIds.length) return new Set();
-    const { data, error } = await supabaseAdmin
-      .from("user_push_devices")
-      .select("user_id")
-      .in("user_id", userIds)
-      .gt("updated_at", new Date(Date.now() - DEVICE_TTL_MS).toISOString());
-    if (error) throw new Error(error.message);
-    return new Set((data ?? []).map((row) => row.user_id));
+    const reachable = new Set<string>();
+    const cutoff = new Date(Date.now() - DEVICE_TTL_MS).toISOString();
+    for (let i = 0; i < userIds.length; i += IN_BATCH_SIZE) {
+      const batch = userIds.slice(i, i + IN_BATCH_SIZE);
+      const { data, error } = await supabaseAdmin
+        .from("user_push_devices")
+        .select("user_id")
+        .in("user_id", batch)
+        .gt("updated_at", cutoff);
+      if (error) throw new Error(error.message);
+      for (const row of data ?? []) {
+        reachable.add(row.user_id);
+      }
+    }
+    return reachable;
   },
   send: async (row: ClaimedPush) =>
     fcmSend(fcmMessageForAlert(row, await pushReceipt(row.id))),
@@ -61,18 +92,34 @@ export async function drainAlertPushes(
 ) {
   const deps = { ...store, ...dependencies };
   if (!deps.configured())
-    return { pushed: 0, pushFailed: 0, noDevice: 0, claimsLost: 0 };
+    return {
+      pushed: 0,
+      pushFailed: 0,
+      noDevice: 0,
+      consentWithdrawn: 0,
+      claimsLost: 0,
+    };
   let pushed = 0;
   let pushFailed = 0;
   let noDevice = 0;
+  let consentWithdrawn = 0;
   let claimsLost = 0;
   const rows = await deps.claim();
-  const reachable = await deps.devices([
-    ...new Set(rows.map((row) => row.user_id)),
-  ]);
+  if (!rows.length) {
+    return { pushed, pushFailed, noDevice, consentWithdrawn, claimsLost };
+  }
+  const uniqueUserIds = [...new Set(rows.map((row) => row.user_id))];
+  // Fail-closed defense-in-depth (Law 18-07 / Law 25-11): check push_alerts
+  // consent withdrawal before querying devices or sending any FCM payload.
+  const withdrawn = await deps.withdrawnPushConsent(uniqueUserIds);
+  const eligibleUserIds = uniqueUserIds.filter((uid) => !withdrawn.has(uid));
+  const reachable = eligibleUserIds.length
+    ? await deps.devices(eligibleUserIds)
+    : new Set<string>();
   for (const row of rows) {
     let state: PushState = "sent";
-    if (!reachable.has(row.user_id)) state = "no_device";
+    if (withdrawn.has(row.user_id)) state = "skipped";
+    else if (!reachable.has(row.user_id)) state = "no_device";
     else {
       try {
         await deps.send(row);
@@ -85,11 +132,12 @@ export async function drainAlertPushes(
       await deps.finish(row, state);
       if (state === "sent") pushed++;
       if (state === "no_device") noDevice++;
+      if (state === "skipped") consentWithdrawn++;
     } catch (failure) {
       if (!(failure instanceof Error && failure.message === CLAIM_LOST))
         throw failure;
       claimsLost++;
     }
   }
-  return { pushed, pushFailed, noDevice, claimsLost };
+  return { pushed, pushFailed, noDevice, consentWithdrawn, claimsLost };
 }

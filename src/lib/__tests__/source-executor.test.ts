@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { getSourceArchiveContext } from "../source-archive-context.server";
 
 import type { ClaimedSourceJob, SourceJobResult } from "@/lib/source-jobs";
-import { executeNextSourceJob } from "@/lib/ingest/source-executor.server";
+import {
+  executeNextSourceJob,
+  runClaimedSourceJob,
+} from "@/lib/ingest/source-executor.server";
 import type { SourceRunnerRegistry } from "@/lib/ingest/source-runners.server";
 
 const claimed = (id = "job-1"): ClaimedSourceJob => ({
@@ -238,5 +241,41 @@ describe("executeNextSourceJob for registry-driven text sources", () => {
         privateDiagnostic: "No runner is registered for the claimed contract",
       }),
     );
+  });
+
+  it("runClaimedSourceJob executes a worker-targeted job with archive context and wraps throws", async () => {
+    const workerJob: ClaimedSourceJob = {
+      ...claimed("job-worker-1"),
+      execution_target: "worker",
+    };
+    const expected = success(workerJob);
+    const runner = vi.fn(async () => {
+      expect(getSourceArchiveContext()).toMatchObject({
+        jobId: workerJob.id,
+        attempt: workerJob.attempt_count,
+        parserVersion: "v2",
+      });
+      return expected;
+    });
+
+    await expect(
+      runClaimedSourceJob(workerJob, {
+        runners: registry(runner),
+        textRunner: vi.fn().mockResolvedValue(null),
+        parserVersion: vi.fn().mockResolvedValue("v2"),
+      }),
+    ).resolves.toEqual(expected);
+
+    await expect(
+      runClaimedSourceJob(workerJob, {
+        runners: registry(vi.fn().mockRejectedValue(new Error("boom"))),
+        textRunner: vi.fn().mockResolvedValue(null),
+      }),
+    ).resolves.toMatchObject({
+      outcome: "failed",
+      publicReasonCode: "internal_error",
+      privateDiagnostic: "boom",
+      retryDisposition: "transient",
+    });
   });
 });

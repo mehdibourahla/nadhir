@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { ADMIN_SECTIONS } from "../admin-access";
-import { authDestination } from "../auth-destination";
+import {
+  authDestination,
+  authRedirectSearch,
+  extractLocaleFromDestination,
+  resolveAuthLocale,
+} from "../auth-destination";
 
 describe("authentication destination", () => {
   it.each([
@@ -30,5 +35,59 @@ describe("authentication destination", () => {
     "/admin//evil",
   ])("rejects unsafe or unsupported destination %s", (path) => {
     expect(authDestination(path)).toBe("/zones");
+  });
+
+  describe("cold _authenticated redirect locale preservation", () => {
+    it.each(["ar", "fr", "en", "kab"] as const)(
+      "preserves valid ?lang=%s from location search on redirect",
+      (lang) => {
+        expect(
+          authRedirectSearch(`/alerts?lang=${lang}`, `?lang=${lang}`),
+        ).toEqual({
+          returnTo: `/alerts?lang=${lang}`,
+          lang,
+        });
+      },
+    );
+
+    it("falls back to parsing valid ?lang= from returnTo when searchStr is omitted", () => {
+      expect(authRedirectSearch("/settings?lang=fr#privacy")).toEqual({
+        returnTo: "/settings?lang=fr#privacy",
+        lang: "fr",
+      });
+      expect(extractLocaleFromDestination("/alerts?lang=kab#top")).toBe("kab");
+    });
+
+    it("omits lang when query param is missing or invalid", () => {
+      expect(authRedirectSearch("/alerts", "")).toEqual({
+        returnTo: "/alerts",
+      });
+      expect(authRedirectSearch("/alerts?lang=de", "?lang=de")).toEqual({
+        returnTo: "/alerts?lang=de",
+      });
+    });
+
+    it("resolves explicit auth lang first, then falls back to returnTo lang", () => {
+      expect(resolveAuthLocale("en", "/alerts?lang=fr")).toBe("en");
+      expect(resolveAuthLocale(undefined, "/alerts?lang=fr")).toBe("fr");
+      expect(resolveAuthLocale("invalid", "/settings?lang=kab")).toBe("kab");
+      expect(resolveAuthLocale("invalid", "/settings")).toBeUndefined();
+    });
+
+    it("ignores query-like parameters inside URL #fragments (T5-08)", () => {
+      expect(
+        extractLocaleFromDestination("/alerts#section?lang=en"),
+      ).toBeUndefined();
+      expect(authRedirectSearch("/alerts#section?lang=en")).toEqual({
+        returnTo: "/alerts#section?lang=en",
+      });
+      expect(
+        extractLocaleFromDestination("/alerts?lang=ar#section?lang=en"),
+      ).toBe("ar");
+      expect(authRedirectSearch("/alerts?lang=ar#section?lang=en")).toEqual({
+        returnTo: "/alerts?lang=ar#section?lang=en",
+        lang: "ar",
+      });
+    });
   });
 });

@@ -1,3 +1,8 @@
+import { track1En } from "../modules/track1/en";
+import { track2En } from "../modules/track2/en";
+import { track3En } from "../modules/track3/en";
+import { track4En } from "../modules/track4/en";
+
 export const en = {
   authKit: {
     localSignedOut:
@@ -81,7 +86,7 @@ export const en = {
     loading: "Loading",
     error: "Something went wrong",
     retry: "Try again",
-    none: "—",
+    none: "None",
     km: "km",
     ha: "ha",
     mw: "MW",
@@ -116,7 +121,7 @@ export const en = {
     positionUnknown: "Position unavailable",
     smokeUnavailable:
       "Local air-quality data is unavailable here. Your device position is not sent to an air-quality provider.",
-    mode: "Fire Survival Mode",
+    mode: "Survival Mode",
     online: "Online",
     offline: "Offline",
     pill: "Near a fire?",
@@ -129,7 +134,7 @@ export const en = {
     enterSaving:
       "Position found. Prepare an offline pack from your zones while online.",
     enterReady: "Position found · offline pack saved.",
-    enterYes: "Yes — enter Survival Mode",
+    enterYes: "Yes, enter Survival Mode",
     enterCancel: "Cancel",
     enterFootnote:
       "Entering costs nothing and sends nothing. You can leave at any time.",
@@ -154,7 +159,7 @@ export const en = {
     prepareNoInstruction:
       "No official instruction for your area yet. This is general guidance, written and approved in advance.",
     knows: "What Nadhir knows",
-    lastKnown: "Last known — may be outdated",
+    lastKnown: "Last known · may be outdated",
     fireObserved: "Fire observed {{km}} km {{bearing}}",
     seenAgo: "seen {{time}}",
     closer: "closer than the previous pass",
@@ -174,7 +179,7 @@ export const en = {
       severe: "severe",
     },
     smokeGuidance: {
-      low: "Little smoke measured. The model is hourly — if you see or smell smoke, trust that first.",
+      low: "Little smoke measured. The model is hourly: if you see or smell smoke, trust that first.",
       elevated:
         "Keep windows closed. Limit time outside if you have asthma or a heart condition.",
       high: "Stay indoors, windows closed. If you must go out, wear an FFP2 or N95 respirator; cloth does not filter smoke. Do not drive toward smoke.",
@@ -182,7 +187,7 @@ export const en = {
         "Dangerous smoke. Stay inside, seal door and window gaps with wet cloth. Go out only with an FFP2 or N95 respirator. Call 14 if breathing is hard.",
     },
     noFreshData:
-      "No recent observation near you. That means Nadhir has not seen anything — not that nothing is there.",
+      "No recent observation near you. That means Nadhir has not seen anything, not that nothing is there.",
     noPosition:
       "Position unknown. Allow location access so the facts and the SOS card can use it.",
     sinceCheck:
@@ -190,18 +195,18 @@ export const en = {
     sos: "SOS",
     sosCall: "Call Civil Protection 14",
     sosFree: "free call · the only monitored channel today",
-    sosPosition: "Your position — read it to the operator",
+    sosPosition: "Your position: read it to the operator",
     sosCommune: "Commune",
     sosNearest: "Nearest place",
     sosNearestValue: "{{km}} km from {{place}}",
     sosCoords: "Coordinates",
     sosQueueNote:
-      "If the call fails, your SOS is saved on this phone only. No rescue service receives or monitors it yet — keep trying 14.",
+      "If the call fails, your SOS is saved on this phone only. No rescue service receives or monitors it yet. Keep trying 14.",
     sosQueued:
-      "SOS saved {{time}} — not sent, no monitored receiver exists yet.",
+      "SOS saved {{time}}: not sent, no monitored receiver exists yet.",
     checkinTitle: "Check in",
     checkinIntro:
-      "Tell your family where you are, from your own phone. They need no app — the message arrives as a normal SMS or WhatsApp.",
+      "Tell your family where you are, from your own phone. They need no app: the message arrives as a normal SMS or WhatsApp.",
     checkinOk: "Report I'm OK",
     checkinOkSub: "sends your status and position now",
     checkinAssist: "Report I need assistance",
@@ -209,21 +214,21 @@ export const en = {
     checkinPreview: "Message preview",
     checkin: {
       msgOk:
-        "I am OK. Near {{place}}, {{time}}. Coordinates: {{coords}}. Sent from Nadhir.",
+        "Reported safe at {{time}} near {{place}}. Coordinates: {{coords}}. Sent via Nadhir.",
       msgAssist:
         "I need assistance. Near {{place}}, {{time}}. Coordinates: {{coords}}. Please call Civil Protection 14 for me. Sent from Nadhir.",
     },
     checkinSend: "Send via SMS / WhatsApp",
     checkinNote:
-      "A check-in only records that this button was tapped at that moment — nothing more.",
+      "A check-in only records that this button was tapped at that moment, nothing more.",
     areasTitle: "Open areas near you",
     areasIntro:
-      "From map data only — not verified. Nadhir cannot know their current condition. Judge with the criteria below; authorities may designate official refuges.",
-    areasUnverified: "map data — unverified",
+      "From map data only, not verified. Nadhir cannot know their current condition. Judge with the criteria below; authorities may designate official refuges.",
+    areasUnverified: "map data · unverified",
     areasCriteria: "What makes an open area safer",
     areasCriteria1: "Far from trees, brush and anything that burns",
     areasCriteria2: "Paved or bare ground, the larger the better",
-    areasCriteria3: "Low ground — fire climbs slopes fast",
+    areasCriteria3: "Low ground: fire climbs slopes fast",
     areasCriteria4: "Reachable without crossing smoke",
     areasRefugeNote:
       "Pre-approved guidance · if authorities name a refuge, it appears here first",
@@ -238,14 +243,14 @@ export const en = {
       beach: "beach",
     },
     offlineBanner:
-      "No network. Showing saved data — last verified {{time}}. The situation may have changed.",
+      "No network. Showing saved data, last verified {{time}}. The situation may have changed.",
     packSaved:
-      "Offline pack saved {{time}} — position, open areas, guidance, numbers",
+      "Offline pack saved {{time}}: position, open areas, guidance, numbers",
     report: "Report",
     reportFire: "Fire here",
     reportRoadBlocked: "Road blocked",
     reportPersonTrapped: "Person trapped",
-    zoneElsewhere: "You appear to be elsewhere — showing alerts only.",
+    zoneElsewhere: "You appear to be elsewhere: showing alerts only.",
     zoneView: "View fire",
     zoneImHere: "I am in the area",
     dir: {
@@ -709,11 +714,11 @@ export const en = {
     processingBacklog:
       "Processing: {{pending}} queued · {{quarantined}} need review",
     degradedCount:
-      "{{count}} data sources affected — current capability may be reduced.",
+      "{{count}} data sources affected: current capability may be reduced.",
     degradedCount_one:
-      "{{count}} data source affected — current capability may be reduced.",
+      "{{count}} data source affected: current capability may be reduced.",
     degradedCount_other:
-      "{{count}} data sources affected — current capability may be reduced.",
+      "{{count}} data sources affected: current capability may be reduced.",
     metaTitle: "Data source health · Nadhir",
     metaDescription:
       "Health of the satellite, weather, official warning and geodata sources used by Nadhir.",
@@ -788,7 +793,7 @@ export const en = {
     kindCitizen: "Citizen",
     kindEarthquake: "Earthquake",
     stateCurrentNotice: "Current notice",
-    stateNoticeOver: "Notice period over — this is not an all-clear",
+    stateNoticeOver: "Notice period over. This is not an all-clear.",
     openMap: "Show on the map",
     defaultPointZones:
       "One or more of your zones is still on the default point near Tizi Ouzou, so their alerts describe that area, not your place.",
@@ -801,6 +806,8 @@ export const en = {
     markRead: "Mark as read",
     markUnread: "Mark as unread",
     unread: "{{count}} unread",
+    unread_one: "{{count}} unread",
+    unread_other: "{{count}} unread",
     empty: "No alerts yet. Add a watch zone to follow available alerts.",
     manageZones: "Manage my zones",
     kindFire: "Fire",
@@ -832,7 +839,7 @@ export const en = {
     checkEmail: "Check your inbox to confirm your address.",
     errorInvalidCredentials: "That email or password is not correct.",
     errorEmailNotConfirmed:
-      "Confirm your email address first — check your inbox.",
+      "Confirm your email address first. Check your inbox.",
     errorUserExists: "An account already exists for this email. Sign in.",
     errorWeakPassword: "Choose a longer password, at least 8 characters.",
     errorRateLimited: "Too many attempts. Wait a moment and try again.",
@@ -1022,7 +1029,7 @@ export const en = {
     photoRemove: "Remove photo",
     photoFailed: "Photo upload failed. Try again.",
     photoTooLarge: "Photo is larger than 8 MB.",
-    photoBadType: "Only JPEG or PNG photos can be attached.",
+    photoBadType: "Only JPEG, PNG, or WebP photos can be attached.",
     photoUnavailable: "Photo unavailable.",
     photoAlt: "Photo attached to a citizen fire report",
     submit: "Send report",
@@ -1158,7 +1165,7 @@ export const en = {
       "Every commune now carries land cover. This deficit closed.",
     metaTitle: "Contribute to Nadhir",
     metaDescription:
-      "What is missing from Nadhir today, and how to help — verifying places, reviewing Kabyle, recording guidance, opening institutional doors, and code.",
+      "What is missing from Nadhir today, and how to help: verifying places, reviewing Kabyle, recording guidance, opening institutional doors, and code.",
     eyebrow: "Contribute",
     title: "Nadhir needs more than code.",
     lede: "Help build local hazard information for Algeria. Field checks, language review, scientific validation and official coordination remain essential alongside code.",
@@ -1168,7 +1175,7 @@ export const en = {
     statPlacesSub: "These mapped places need on-site verification.",
     statPlacesSubSome: "{{done}} checked by someone on the ground.",
     statFuel: "Communes with fuel data",
-    statFuelSub: "{{missing}} still missing — and this one is moving.",
+    statFuelSub: "{{missing}} still missing, and this one is moving.",
     statAlerts: "Delivery receipts",
     statAlertsSub:
       "Recorded delivery successes; not a count of people who read an alert.",
@@ -1195,7 +1202,7 @@ export const en = {
     audioTitle: "Record the guidance",
     audioDeficit: "0 of 4 languages recorded",
     audioBody:
-      "Standing Guidance exists as text. Anyone who cannot read it gets nothing. It has to be a human voice — synthesised speech is not acceptable here.",
+      "Standing Guidance exists as text. Anyone who cannot read it gets nothing. It has to be a human voice; synthesised speech is not acceptable here.",
     audioAsks: "a quiet room and half an hour",
     audioCta: "Record a track",
     institutionalTitle: "Open an institutional door",
@@ -1225,7 +1232,7 @@ export const en = {
     testingTitle: "Break it on a cheap phone",
     testingDeficit: "untested in the field",
     testingBody:
-      "Survival Mode has to work offline, on an old handset, somewhere with no signal. That has never been tested in a rural commune — only in a browser on a fast connection.",
+      "Survival Mode has to work offline, on an old handset, somewhere with no signal. That has never been tested in a rural commune, only in a browser on a fast connection.",
     testingAsks: "a phone that is not new, and bad reception",
     testingCta: "What to test",
     codeTitle: "If you write code",
@@ -1238,7 +1245,7 @@ export const en = {
       "Install, copy the example environment file, start the dev server. The committed values are public by design, so nothing is gated behind a secret you have to ask for.",
     codeStep2: "Pick something real",
     codeStep2Body:
-      "Issues tagged good first issue, or anything in GAPS.md — which lists what is broken, each claim with the query that proves it.",
+      "Issues tagged good first issue, or anything in GAPS.md, which lists what is broken with each claim backed by the query that proves it.",
     codeStep3: "Open a pull request",
     codeStep3Body:
       "Continuous integration runs types, tests and lint with no secrets at all, so a fork gets exactly the same green checks a maintainer does.",
@@ -1248,7 +1255,7 @@ export const en = {
     boardEyebrow: "The board",
     boardTitle: "What people have suggested",
     boardLede:
-      "A person reads every submission before it appears here. Voting is a rough signal, not a ballot — it is not tied to an account.",
+      "A person reads every submission before it appears here. Voting is a rough signal, not a ballot, and it is not tied to an account.",
     boardSorted: "Sorted by votes",
     boardEmptyTitle: "Nothing published yet",
     boardEmptyBody:
@@ -1260,7 +1267,7 @@ export const en = {
       "Votes are stored against your browser, not an account, so the count shows interest rather than a number of people.",
     boxTitle: "This list is incomplete",
     boxBody:
-      "It always will be. Project management, research, something nobody here has thought of — if you can help in a way that is not on this page, write it down.",
+      "It always will be. Project management, research, or something nobody here has thought of: if you can help in a way that is not on this page, write it down.",
     fieldLane: "Closest lane",
     fieldMessage: "What would you do?",
     fieldMessagePlaceholder:
@@ -1275,18 +1282,18 @@ export const en = {
     submitting: "Sending…",
     inboxNotice:
       "Nothing reads this inbox in real time. A person reviews what arrives and publishes what is useful. Expect days, not minutes.",
-    errTooShort: "A few more words — enough for someone to act on it.",
+    errTooShort: "A few more words, enough for someone to act on it.",
     errRateLimited: "That is several notes in a short time. Try again later.",
     errFailed: "That did not send. Nothing was saved, so try again.",
     sentTitle: "Recorded.",
     sentBody:
-      "Your note is saved in the queue. Nothing reads this inbox in real time — a person reviews what arrives and publishes what is useful to the board. Expect days, not minutes.",
+      "Your note is saved in the queue. Nothing reads this inbox in real time: a person reviews what arrives and publishes what is useful to the board. Expect days, not minutes.",
     sentNoContact:
-      "If you left no contact, you will not hear back directly — watch the board instead, which is where published notes appear.",
+      "If you left no contact, you will not hear back directly. Watch the board instead, where published notes appear.",
     sentAnother: "Write another",
     rulesTitle: "Before you change what a person is told",
     rulesBody:
-      "Nadhir states information in its own voice and relays instructions only from an authority. Every displayed fact carries its age. There is no evacuation routing, and “safe” is banned as a status label anywhere in the interface. These are not style preferences — they are the reason the project can be trusted at all.",
+      "Nadhir states information in its own voice and relays instructions only from an authority. Every displayed fact carries its age. There is no evacuation routing, and “safe” is banned as a status label anywhere in the interface. These are not style preferences: they are the reason the project can be trusted at all.",
     linkGlossary: "The glossary",
     linkAdr2: "ADR-0002 · informing authorities",
     linkAdr3: "ADR-0003 · no routing",
@@ -1343,9 +1350,9 @@ export const en = {
     errRateLimited:
       "That is a lot of batches in a short time. Try again later.",
     errFailed:
-      "That did not send. Nothing was lost — your changes are still here.",
-    group_common: "Shared words — buttons, loading, errors",
-    group_survival: "Survival Mode — shown to someone in danger",
+      "That did not send. Nothing was lost: your changes are still here.",
+    group_common: "Shared words: buttons, loading, errors",
+    group_survival: "Survival Mode: shown to someone in danger",
     group_nav: "Navigation and header",
     group_emergency: "Emergency numbers",
     group_map: "Live map",
@@ -1369,7 +1376,7 @@ export const en = {
   webhooks: {
     title: "Alert webhooks",
     subtitle:
-      "Forward your zone alerts to another system — a dispatch tool, a Slack relay or a civil-protection dashboard.",
+      "Forward your zone alerts to another system: a dispatch tool, a Slack relay or a civil-protection dashboard.",
     add: "Add an endpoint",
     label: "Name",
     url: "HTTPS URL",
@@ -1418,7 +1425,7 @@ export const en = {
     manage: "Manage my webhook endpoints",
     licence: "Licence and attribution",
     licenceBody:
-      'Data is published under CC-BY 4.0. Credit "Nadhir — NASA FIRMS, Open-Meteo". Nadhir is not an official source; do not present it as a government warning.',
+      'Data is published under CC-BY 4.0. Credit "Nadhir · NASA FIRMS, Open-Meteo". Nadhir is not an official source; do not present it as a government warning.',
   },
   legal: {
     terms: "Terms of use",
@@ -1545,10 +1552,10 @@ export const en = {
     bell: "Area alerts",
     inviteTitle: "Alerts for the places you follow",
     inviteBody:
-      "Choose communes for available fire alerts and official weather warnings — free, no account, switch off anytime.",
+      "Choose communes for available fire alerts and official weather warnings. Free, no account, switch off anytime.",
     inviteCta: "Enable area alerts",
     inviteLater: "Later",
-    inviteOnce: "Shown once — the bell above stays available.",
+    inviteOnce: "Shown once. The bell above stays available.",
     sheetTitle: "Area alerts",
     sheetBody:
       "Fire alerts and official weather warnings for your communes. No account or email is required. Delivery depends on source availability, your connection and device settings.",
@@ -1594,6 +1601,10 @@ export const en = {
     unsupported: "This browser does not support push notifications.",
     error: "Subscription failed. Check your connection and try again.",
   },
+  ...track1En,
+  ...track2En,
+  ...track3En,
+  ...track4En,
 };
 
 export type Translation = typeof en;

@@ -1,0 +1,70 @@
+{
+  "product_id": "EO:EUM:DAT:0662:MTG-I1-FCI-L2P-FRP-20260815T132000Z",
+  "product_level": "L2P_FRP",
+  "slot_time": "2026-08-15T13:20:00Z",
+  "published_at": "2026-08-15T13:22:30Z",
+  "quality_state": "valid",
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [4.05123, 36.71234]
+      },
+      "properties": {
+        "FRP": 48.6,
+        "Confidence": 86,
+        "SZA": 32.4,
+        "Satellite": "MTG-I1",
+        "Datetime": "2026-08-15 13:20:42",
+        "time": "2026-08-15T13:20:00Z"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [5.08421, 36.75211]
+      },
+      "properties": {
+        "FRP": 19.2,
+        "Confidence": 74,
+        "SZA": 31.8,
+        "Satellite": "MTG-I1",
+        "Datetime": "2026-08-15 13:21:05",
+        "time": "2026-08-15T13:20:00Z"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [5.52100, 22.79000]
+      },
+      "properties": {
+        "FRP": 92.0,
+        "Confidence": 95,
+        "SZA": 22.0,
+        "Satellite": "MTG-I1",
+        "Datetime": "2026-08-15 13:20:15",
+        "time": "2026-08-15T13:20:00Z"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [15.10000, 41.20000]
+      },
+      "properties": {
+        "FRP": 33.1,
+        "Confidence": 80,
+        "SZA": 35.0,
+        "Satellite": "MTG-I1",
+        "Datetime": "2026-08-15 13:20:50",
+        "time": "2026-08-15T13:20:00Z"
+      }
+    }
+  ]
+}

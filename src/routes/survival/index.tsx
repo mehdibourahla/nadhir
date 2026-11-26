@@ -1,47 +1,61 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import {
+  Activity,
   CheckCircle2,
   Clock,
+  CloudLightning,
   Flame,
   MapPin,
   Phone,
-  ShieldCheck,
+  Waves,
   Wind,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { EmergencyDialBar } from "@/components/survival/EmergencyDialBar";
+import { PositionCardBlock } from "@/components/survival/PositionCardBlock";
+import { StandingGuidanceCard } from "@/components/survival/StandingGuidanceCard";
+import { useSurvival } from "@/components/survival/survival-context";
+import type { Locale } from "@/i18n";
+import { earthquakesQuery } from "@/lib/earthquakes";
+import {
+  adminUnitsQuery,
+  bearingLabel,
+  clustersQuery,
+  haversineKm,
+  officialIncidentsQuery,
+  onmVigilanceQuery,
+  relativeTime,
+} from "@/lib/nadhir";
+import { hazardReportsQuery } from "@/lib/open-areas";
+import type { ReportKind } from "@/lib/reports";
+import {
+  SURVIVAL_ACTIVE_KEY,
+  SURVIVAL_LAST_CHECK_KEY,
+  nearestThreat,
+  selectEmergencyThreat,
+  type EmergencyHazardKind,
+} from "@/lib/survival";
 import {
   deviceStorage,
   persistSurvivalFlag,
   readSurvivalFlag,
 } from "@/lib/survival-pack";
-import { useSurvival } from "@/components/survival/survival-context";
-import type { Locale } from "@/i18n";
-
-import {
-  bearingLabel,
-  clustersQuery,
-  haversineKm,
-  relativeTime,
-} from "@/lib/nadhir";
-import { hazardReportsQuery } from "@/lib/open-areas";
-import {
-  SURVIVAL_ACTIVE_KEY,
-  SURVIVAL_LAST_CHECK_KEY,
-  nearestThreat,
-} from "@/lib/survival";
 
 export const Route = createFileRoute("/survival/")({
   component: SurvivalHub,
 });
 
-const REPORT_KINDS = [
+const REPORT_SHORTCUTS: ReadonlyArray<{ kind: ReportKind; key: string }> = [
   { kind: "sighting", key: "survival.reportFire" },
+  { kind: "flooding", key: "track3.emergency.report.flood" },
+  { kind: "storm_damage", key: "track3.emergency.report.storm" },
+  { kind: "earthquake", key: "track3.emergency.report.earthquake" },
   { kind: "road_blocked", key: "survival.reportRoadBlocked" },
   { kind: "person_trapped", key: "survival.reportPersonTrapped" },
-] as const;
+];
 
 function dirWord(t: (k: string) => string, deg: number) {
   return t(`survival.dir.${bearingLabel(deg).toLowerCase()}`);
@@ -50,43 +64,108 @@ function dirWord(t: (k: string) => string, deg: number) {
 function SurvivalHub() {
   const { t, i18n } = useTranslation();
   const locale = i18n.language as Locale;
-  const { online, position, positionDenied, pack } = useSurvival();
+  const {
+    online,
+    position,
+    positionDenied,
+    pack,
+    hazard,
+    setHazard,
+    offshoreM5Plus,
+    positionCardData,
+  } = useSurvival();
 
-  const [active, setActive] = useState(
-    () => readSurvivalFlag(deviceStorage, SURVIVAL_ACTIVE_KEY) !== null,
-  );
   const [lastCheck] = useState(() =>
     readSurvivalFlag(deviceStorage, SURVIVAL_LAST_CHECK_KEY),
+  );
+  const [userPickedHazard, setUserPickedHazard] = useState(
+    () => hazard !== "general",
   );
   const [storageFailed, setStorageFailed] = useState(false);
 
   const clusters = useQuery({
     ...clustersQuery,
     enabled: online,
-    retry: online ? 3 : false,
+    retry: online ? 2 : false,
+  });
+  const official = useQuery({
+    ...officialIncidentsQuery,
+    enabled: online,
+    retry: online ? 2 : false,
+  });
+  const warnings = useQuery({
+    ...onmVigilanceQuery,
+    enabled: online,
+    retry: online ? 2 : false,
+  });
+  const earthquakes = useQuery({
+    ...earthquakesQuery,
+    enabled: online,
+    retry: online ? 2 : false,
+  });
+  const units = useQuery({
+    ...adminUnitsQuery,
+    enabled: online,
+    retry: online ? 2 : false,
   });
   const hazards = useQuery({
     ...hazardReportsQuery,
     enabled: online,
-    retry: online ? 3 : false,
+    retry: online ? 2 : false,
   });
 
   useEffect(() => {
-    if (active)
-      persistSurvivalFlag(
-        deviceStorage,
-        SURVIVAL_LAST_CHECK_KEY,
-        new Date().toISOString(),
-      );
-  }, [active]);
+    const nowIso = new Date().toISOString();
+    const okActive = persistSurvivalFlag(
+      deviceStorage,
+      SURVIVAL_ACTIVE_KEY,
+      nowIso,
+    );
+    const okCheck = persistSurvivalFlag(
+      deviceStorage,
+      SURVIVAL_LAST_CHECK_KEY,
+      nowIso,
+    );
+    if (!okActive || !okCheck) setStorageFailed(true);
+  }, []);
 
-  const threat = useMemo(
+  const fireThreat = useMemo(
     () =>
       position && clusters.data
         ? nearestThreat(position.lat, position.lon, clusters.data)
         : null,
     [position, clusters.data],
   );
+
+  const detectedThreat = useMemo(
+    () =>
+      position
+        ? selectEmergencyThreat(position.lat, position.lon, {
+            fires: clusters.data ?? [],
+            official: official.data ?? [],
+            warnings: warnings.data ?? [],
+            earthquakes: earthquakes.data ?? [],
+            units: units.data ?? [],
+          })
+        : null,
+    [
+      position,
+      clusters.data,
+      official.data,
+      warnings.data,
+      earthquakes.data,
+      units.data,
+    ],
+  );
+
+  useEffect(() => {
+    if (!userPickedHazard && hazard === "general" && detectedThreat) {
+      setHazard(detectedThreat.hazard);
+    }
+  }, [userPickedHazard, hazard, detectedThreat, setHazard]);
+
+  const effectiveOffshoreM5 =
+    offshoreM5Plus || Boolean(detectedThreat?.offshoreM5Plus);
 
   const changes = useMemo(() => {
     if (!lastCheck) return null;
@@ -100,11 +179,10 @@ function SurvivalHub() {
     return { fires, reports };
   }, [lastCheck, clusters.data, hazards.data]);
 
-  // A saved threat was computed for the pack's position. Show it only when live data
-  // is unavailable and the user has not moved away from where it was measured.
+  // Saved offline fire threat is only shown when live data is unavailable and user is nearby.
   const offlineThreat = useMemo(() => {
     const saved = pack?.threats[0];
-    if (threat || !saved || clusters.data || !position) return null;
+    if (fireThreat || !saved || clusters.data || !position) return null;
     if (
       position &&
       pack &&
@@ -112,69 +190,147 @@ function SurvivalHub() {
     )
       return null;
     return saved;
-  }, [threat, pack, clusters.data, position]);
+  }, [fireThreat, pack, clusters.data, position]);
 
-  if (!active) {
-    return (
-      <EnterSheet
-        hasPosition={!!position}
-        denied={positionDenied}
-        hasPack={!!pack?.shell_ready}
-        onEnter={() => {
-          setActive(true);
-          setStorageFailed(
-            !persistSurvivalFlag(
-              deviceStorage,
-              SURVIVAL_ACTIVE_KEY,
-              new Date().toISOString(),
-            ),
-          );
-        }}
-      />
-    );
-  }
+  const handleSelectHazard = (next: EmergencyHazardKind) => {
+    setUserPickedHazard(true);
+    setHazard(next);
+  };
 
   return (
     <>
       {storageFailed ? (
-        <p role="status" className="rounded bg-muted p-3 text-sm">
+        <p role="status" className="rounded-lg bg-muted p-3 text-sm">
           {t("survival.packStorageFailed")}
         </p>
       ) : null}
-      <section className="card-raised flex flex-col gap-2.5 p-4">
-        <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-muted-foreground">
-          <ShieldCheck aria-hidden className="size-3.5" />
-          {(online
-            ? t("survival.guidanceLabel")
-            : t("survival.guidanceSaved")
-          ).toUpperCase()}
-        </span>
-        <h1 className="font-display text-3xl leading-tight">
-          {t("survival.prepareTitle")}
-        </h1>
-        <p className="text-[15px] leading-relaxed">
-          {t("survival.prepareBody")}
-        </p>
-        <p className="hairline-0 border-t border-border pt-2.5 text-[13px] leading-relaxed text-muted-foreground">
-          {t("survival.prepareNoInstruction")}
-        </p>
+
+      {/* Section 1: Universal Emergency Tools (all hazards, works offline) */}
+      <section className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1">
+          <h1 className="font-display text-2xl leading-tight">
+            {t("track3.emergency.sheetTitle")}
+          </h1>
+          <p className="text-xs font-medium text-muted-foreground">
+            {t("track3.emergency.universalSection")}
+          </p>
+        </div>
+
+        <EmergencyDialBar />
+
+        <PositionCardBlock
+          card={positionCardData}
+          online={online}
+          positionDenied={positionDenied}
+          compact
+        />
+
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+          <Link
+            to="/survival/sos"
+            className="card flex min-h-12 items-center justify-center gap-2 px-3 text-sm font-semibold hover:bg-muted"
+          >
+            <Phone aria-hidden className="size-4 shrink-0" />
+            <span>
+              {t("survival.sos")} ·{" "}
+              <span dir="ltr" className="tabular-nums">
+                14
+              </span>
+            </span>
+          </Link>
+          <Link
+            to="/survival/checkin"
+            className="flex min-h-12 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold"
+            style={{
+              backgroundColor: "var(--accent-tint)",
+              color: "var(--accent)",
+            }}
+          >
+            <CheckCircle2 aria-hidden className="size-4 shrink-0" />
+            <span>{t("survival.checkinTitle")}</span>
+          </Link>
+          <Link
+            to="/survival/areas"
+            search={hazard !== "general" ? { hazard } : {}}
+            className="card flex min-h-12 items-center justify-center gap-2 px-3 text-sm font-semibold hover:bg-muted"
+          >
+            <MapPin aria-hidden className="size-4 shrink-0" />
+            <span>{t("survival.areasTitle")}</span>
+          </Link>
+        </div>
       </section>
 
+      {/* Section 2: Hazard-Specific Standing Guidance (strictly isolated per hazard) */}
       <section className="flex flex-col gap-2">
-        <h2 className="text-[11px] font-bold tracking-wider text-muted-foreground">
-          {(online
-            ? t("survival.knows")
-            : t("survival.lastKnown")
-          ).toUpperCase()}
+        <h2 className="text-xs font-semibold text-muted-foreground">
+          {t("track3.emergency.guidanceSection")}
+        </h2>
+        <StandingGuidanceCard
+          hazard={hazard}
+          offshoreM5Plus={effectiveOffshoreM5}
+          online={online}
+          onSelectHazard={handleSelectHazard}
+        />
+      </section>
+
+      {/* Section 3: Hazard-Aware Observations with age & attribution */}
+      <section className="flex flex-col gap-2">
+        <h2 className="text-xs font-semibold text-muted-foreground">
+          {online ? t("survival.knows") : t("survival.lastKnown")}
         </h2>
 
-        {threat ? (
+        {detectedThreat && detectedThreat.hazard !== "fire" ? (
+          <FactRow
+            icon={
+              detectedThreat.hazard === "flood" ? (
+                <Waves aria-hidden className="size-4.5" />
+              ) : detectedThreat.hazard === "earthquake" ? (
+                <Activity aria-hidden className="size-4.5" />
+              ) : (
+                <CloudLightning aria-hidden className="size-4.5" />
+              )
+            }
+            tint
+            title={
+              detectedThreat.hazard === "earthquake"
+                ? t("track3.emergency.observations.quakeNear", {
+                    magnitude: (detectedThreat.magnitude ?? 4).toFixed(1),
+                    km: (detectedThreat.km ?? 0).toFixed(1),
+                  })
+                : detectedThreat.hazard === "flood" && detectedThreat.km
+                  ? t("track3.emergency.observations.floodNear", {
+                      km: detectedThreat.km.toFixed(1),
+                    })
+                  : t("track3.emergency.observations.stormNear", {
+                      area:
+                        detectedThreat.areaLabel ??
+                        positionCardData?.wilaya ??
+                        t("civilMap.national"),
+                    })
+            }
+          >
+            <span
+              className="tabular rounded-full px-2 py-0.5 text-[11px] font-semibold"
+              style={{
+                backgroundColor: "var(--risk-tint-4)",
+                color: "var(--risk-ink-4)",
+              }}
+            >
+              {t("survival.seenAgo", {
+                time: relativeTime(detectedThreat.observedAt, locale),
+              })}
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              {t(detectedThreat.sourceKey)}
+            </span>
+          </FactRow>
+        ) : fireThreat ? (
           <FactRow
             icon={<Flame aria-hidden className="size-4.5" />}
             tint
             title={t("survival.fireObserved", {
-              km: threat.km.toFixed(1),
-              bearing: dirWord(t, threat.bearing),
+              km: fireThreat.km.toFixed(1),
+              bearing: dirWord(t, fireThreat.bearing),
             })}
           >
             <span
@@ -185,12 +341,12 @@ function SurvivalHub() {
               }}
             >
               {t("survival.seenAgo", {
-                time: relativeTime(threat.cluster.last_detected_at, locale),
+                time: relativeTime(fireThreat.cluster.last_detected_at, locale),
               })}
             </span>
             <span className="text-[11px] text-muted-foreground">
               {t("survival.bySatellite")}
-              {threat.closing ? ` · ${t("survival.closer")}` : ""}
+              {fireThreat.closing ? ` · ${t("survival.closer")}` : ""}
             </span>
           </FactRow>
         ) : offlineThreat ? (
@@ -222,21 +378,22 @@ function SurvivalHub() {
           </p>
         )}
 
-        {threat?.cluster.wind_speed_kmh != null &&
-        threat.cluster.wind_dir_deg != null ? (
+        {hazard === "fire" &&
+        fireThreat?.cluster.wind_speed_kmh != null &&
+        fireThreat.cluster.wind_dir_deg != null ? (
           <FactRow
             icon={<Wind aria-hidden className="size-4.5" />}
             title={
               t("survival.wind", {
-                kmh: Math.round(threat.cluster.wind_speed_kmh),
-                bearing: dirWord(t, threat.cluster.wind_dir_deg),
+                kmh: Math.round(fireThreat.cluster.wind_speed_kmh),
+                bearing: dirWord(t, fireThreat.cluster.wind_dir_deg),
               }) +
-              (threat.cluster.wind_gust_kmh == null
+              (fireThreat.cluster.wind_gust_kmh == null
                 ? ""
-                : ` · ${t("survival.gusts", { kmh: Math.round(threat.cluster.wind_gust_kmh) })}`)
+                : ` · ${t("survival.gusts", { kmh: Math.round(fireThreat.cluster.wind_gust_kmh) })}`)
             }
           >
-            {threat.closing ? (
+            {fireThreat.closing ? (
               <span className="text-[11px] text-muted-foreground">
                 {t("survival.windToward")}
               </span>
@@ -244,9 +401,11 @@ function SurvivalHub() {
           </FactRow>
         ) : null}
 
-        <p className="text-xs text-muted-foreground">
-          {t("survival.smokeUnavailable")}
-        </p>
+        {hazard === "fire" ? (
+          <p className="text-xs text-muted-foreground">
+            {t("survival.smokeUnavailable")}
+          </p>
+        ) : null}
 
         {changes && lastCheck ? (
           <p className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
@@ -260,48 +419,18 @@ function SurvivalHub() {
         ) : null}
       </section>
 
-      <section className="mt-auto flex flex-col gap-2.5">
-        <Link
-          to="/survival/sos"
-          className="flex h-14 items-center justify-center gap-2.5 rounded-xl text-lg font-bold"
-          style={{
-            backgroundColor: "var(--emergency)",
-            color: "var(--surface)",
-          }}
-        >
-          <Phone aria-hidden className="size-5" />
-          {t("survival.sos")} — 14
-        </Link>
-        <div className="flex gap-2.5">
-          <Link
-            to="/survival/checkin"
-            className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl text-sm font-semibold"
-            style={{
-              backgroundColor: "var(--accent-tint)",
-              color: "var(--accent)",
-            }}
-          >
-            <CheckCircle2 aria-hidden className="size-4.5" />
-            {t("survival.checkinTitle")}
-          </Link>
-          <Link
-            to="/survival/areas"
-            className="card flex h-12 flex-1 items-center justify-center gap-2 text-sm font-semibold"
-          >
-            <MapPin aria-hidden className="size-4.5" />
-            {t("survival.areasTitle")}
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 overflow-x-auto">
-          <span className="shrink-0 text-[11px] font-bold tracking-wider text-muted-foreground">
-            {t("survival.report").toUpperCase()}
-          </span>
-          {REPORT_KINDS.map((c) => (
+      {/* Section 4: Report Shortcuts (>= 44px touch targets) */}
+      <section className="mt-auto flex flex-col gap-2">
+        <span className="text-xs font-semibold text-muted-foreground">
+          {t("survival.report")}
+        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {REPORT_SHORTCUTS.map((c) => (
             <Link
               key={c.kind}
               to="/report"
               search={{ kind: c.kind }}
-              className="card shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold"
+              className="card inline-flex min-h-11 shrink-0 items-center rounded-full px-3.5 text-xs font-semibold hover:bg-muted"
             >
               {t(c.key)}
             </Link>
@@ -341,63 +470,6 @@ function FactRow({
       <div className="flex min-w-0 flex-col gap-1">
         <span className="text-sm font-semibold">{title}</span>
         <span className="flex flex-wrap items-center gap-1.5">{children}</span>
-      </div>
-    </div>
-  );
-}
-
-function EnterSheet({
-  onEnter,
-  hasPosition,
-  denied,
-  hasPack,
-}: {
-  onEnter: () => void;
-  hasPosition: boolean;
-  denied: boolean;
-  hasPack: boolean;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50">
-      <div className="w-full max-w-xl rounded-t-2xl bg-surface p-5 pb-8 shadow-[var(--shadow-sheet)]">
-        <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-border" />
-        <h1 className="font-display text-2xl">{t("survival.enterTitle")}</h1>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          {t("survival.enterBody")}
-        </p>
-        <p className="mt-3 flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-          <MapPin aria-hidden className="size-3.5 shrink-0" />
-          {t(
-            denied
-              ? "survival.enterDenied"
-              : !hasPosition
-                ? "survival.enterFetching"
-                : hasPack
-                  ? "survival.enterReady"
-                  : "survival.packMissing",
-          )}
-        </p>
-        <button
-          type="button"
-          onClick={onEnter}
-          className="mt-4 flex h-14 w-full items-center justify-center gap-2 rounded-xl text-base font-bold"
-          style={{
-            backgroundColor: "var(--emergency)",
-            color: "var(--surface)",
-          }}
-        >
-          {t("survival.enterYes")}
-        </button>
-        <Link
-          to="/"
-          className="mt-2.5 flex h-12 w-full items-center justify-center rounded-xl border border-border text-sm font-semibold text-muted-foreground"
-        >
-          {t("survival.enterCancel")}
-        </Link>
-        <p className="mt-3 text-center text-xs text-muted-foreground">
-          {t("survival.enterFootnote")}
-        </p>
       </div>
     </div>
   );

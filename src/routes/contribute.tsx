@@ -25,6 +25,8 @@ import { useState, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 
 import { EmergencyNumbers } from "@/components/SiteChrome";
+import { TurnstileWidget } from "@/components/TurnstileWidget";
+import { isTurnstileSiteKeyConfigured } from "@/lib/turnstile";
 import type { Locale } from "@/i18n";
 import {
   IDEA_MAX,
@@ -333,6 +335,9 @@ function Board() {
   const qc = useQueryClient();
   const ideas = useInfiniteQuery(publishedIdeasQuery);
   const [mine, setMine] = useState<Record<string, number>>({});
+  const [voteToken, setVoteToken] = useState<string | null>(null);
+  const [voteResetKey, setVoteResetKey] = useState(0);
+  const voteCaptchaRequired = isTurnstileSiteKeyConfigured();
 
   const vote = useMutation({
     mutationFn: async ({ id, value }: { id: string; value: number }) => {
@@ -343,18 +348,25 @@ function Board() {
           ideaId: id,
           voterKey: readVoterKey(),
           value,
+          ...(voteToken ? { turnstileToken: voteToken } : {}),
         }),
       });
       if (!res.ok) throw new Error("vote failed");
       return (await res.json()) as { ok: true; score: number };
     },
     onSuccess: (_data, variables) => {
+      setVoteToken(null);
+      setVoteResetKey((prev) => prev + 1);
       setMine((prev) => ({
         ...prev,
         [variables.id]:
           prev[variables.id] === variables.value ? 0 : variables.value,
       }));
       void qc.invalidateQueries({ queryKey: ["contribution-ideas"] });
+    },
+    onError: () => {
+      setVoteToken(null);
+      setVoteResetKey((prev) => prev + 1);
     },
   });
 
@@ -390,6 +402,15 @@ function Board() {
         </div>
       ) : (
         <>
+          <TurnstileWidget
+            action="contribute_vote"
+            compact
+            resetKey={voteResetKey}
+            onVerify={(token) => setVoteToken(token)}
+            onExpire={() => setVoteToken(null)}
+            onError={() => setVoteToken(null)}
+            className="mt-4"
+          />
           <ul className="mt-6 flex flex-col gap-3">
             {rows.map((idea) => {
               const voted = mine[idea.id] ?? 0;
@@ -399,7 +420,9 @@ function Board() {
                     <button
                       type="button"
                       aria-label={t("contribute.voteUp")}
-                      disabled={vote.isPending}
+                      disabled={
+                        vote.isPending || (voteCaptchaRequired && !voteToken)
+                      }
                       onClick={() => vote.mutate({ id: idea.id, value: 1 })}
                       className="rounded-md p-1.5 text-faint transition-colors hover:bg-muted disabled:opacity-50"
                     >
@@ -417,7 +440,9 @@ function Board() {
                     <button
                       type="button"
                       aria-label={t("contribute.voteDown")}
-                      disabled={vote.isPending}
+                      disabled={
+                        vote.isPending || (voteCaptchaRequired && !voteToken)
+                      }
                       onClick={() => vote.mutate({ id: idea.id, value: -1 })}
                       className="rounded-md p-1.5 text-faint transition-colors hover:bg-muted disabled:opacity-50"
                     >
@@ -478,6 +503,9 @@ function IdeaBox({
   const [touched, setTouched] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const captchaRequired = isTurnstileSiteKeyConfigured();
 
   const submit = useMutation({
     mutationFn: async () => {
@@ -490,6 +518,7 @@ function IdeaBox({
           contact: contact || null,
           locale: i18n.language as Locale,
           website,
+          ...(turnstileToken ? { turnstileToken } : {}),
         }),
       });
       const body = (await res.json()) as {
@@ -502,12 +531,18 @@ function IdeaBox({
     onSuccess: () => {
       setSent(true);
       setError(null);
+      setTurnstileToken(null);
+      setTurnstileResetKey((prev) => prev + 1);
     },
     onError: (e: Error) => {
+      setTurnstileToken(null);
+      setTurnstileResetKey((prev) => prev + 1);
       setError(
         e.message === "rateLimited"
           ? t("contribute.errRateLimited")
-          : t("contribute.errFailed"),
+          : e.message === "captcha"
+            ? t("turnstile.failed")
+            : t("contribute.errFailed"),
       );
     },
   });
@@ -565,6 +600,7 @@ function IdeaBox({
           e.preventDefault();
           setTouched(true);
           if (short) return;
+          if (captchaRequired && !turnstileToken) return;
           submit.mutate();
         }}
       >
@@ -645,6 +681,14 @@ function IdeaBox({
           className="absolute -left-[9999px] size-0"
         />
 
+        <TurnstileWidget
+          action="contribute_idea"
+          resetKey={turnstileResetKey}
+          onVerify={(token) => setTurnstileToken(token)}
+          onExpire={() => setTurnstileToken(null)}
+          onError={() => setTurnstileToken(null)}
+        />
+
         {error ? (
           <p className="text-[13px] text-[var(--emergency)]">{error}</p>
         ) : null}
@@ -655,8 +699,8 @@ function IdeaBox({
           </span>
           <button
             type="submit"
-            disabled={submit.isPending}
-            className="inline-flex h-9 items-center rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground disabled:opacity-60"
+            disabled={submit.isPending || (captchaRequired && !turnstileToken)}
+            className="inline-flex min-h-11 items-center rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground disabled:opacity-60"
           >
             {submit.isPending
               ? t("contribute.submitting")

@@ -53,6 +53,7 @@ export function symbolFor(
     return properties["category"] === "road" ? "road" : "observation";
   if (properties["source"] === "civil") {
     const category = properties["category"];
+    if (category === "flood") return "weather";
     return category === "fire" || category === "road" || category === "weather"
       ? category
       : "observation";

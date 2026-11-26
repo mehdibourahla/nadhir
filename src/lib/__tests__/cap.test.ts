@@ -4,10 +4,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildBroadcastCap,
+  buildEarthquakeCap,
   buildFireCap,
   broadcastCapIdentifier,
   buildOfficialCap,
   capToXml,
+  officialCapCategory,
 } from "@/lib/cap";
 
 const input = {
@@ -256,12 +258,12 @@ describe("capToXml", () => {
         texts: [
           {
             ...input.texts[0]!,
-            headline: 'Fire <near> "Béjaïa" & Sétif',
+            headline: `Fire <near> "Béjaïa" & M'Sila`,
           },
         ],
       }),
     );
-    expect(xml).toContain("&lt;near&gt; &quot;Béjaïa&quot; &amp; Sétif");
+    expect(xml).toContain("&lt;near&gt; &quot;Béjaïa&quot; &amp; M&apos;Sila");
     expect(xml).not.toContain("<near>");
   });
 });
@@ -298,5 +300,124 @@ describe("buildOfficialCap", () => {
     const xml = capToXml(cap);
     expect(xml).toContain("<areaDesc>Aïn Zouit, Skikda</areaDesc>");
     expect(xml).not.toContain("<circle>");
+  });
+
+  it("maps official hazard kinds to CAP 1.2 categories and builds 12h non-fire & end Update CAP alerts", () => {
+    expect(officialCapCategory("vegetation")).toBe("Fire");
+    expect(officialCapCategory("flood")).toBe("Met");
+    expect(officialCapCategory("storm")).toBe("Met");
+    expect(officialCapCategory("road")).toBe("Transport");
+    expect(officialCapCategory("structure")).toBe("Safety");
+    expect(officialCapCategory("other")).toBe("Other");
+
+    const floodCap = buildOfficialCap({
+      incidentId: "3f2a9b71-0000-4000-8000-000000000001",
+      areaDesc: "Bab El Oued, Alger",
+      sentAt: new Date("2026-11-24T10:00:00Z"),
+      asOf: new Date("2026-11-24T09:00:00Z"),
+      texts: [{ ...texts[0]!, event: "Inondation", instruction: "" }],
+      category: officialCapCategory("flood"),
+      expiresHours: 12,
+    });
+    expect(floodCap.info[0]!.category).toBe("Met");
+    expect(
+      Date.parse(floodCap.info[0]!.expires) - Date.parse(floodCap.sent),
+    ).toBe(12 * 3600_000);
+
+    const endCap = buildOfficialCap({
+      incidentId: "3f2a9b71-0000-4000-8000-000000000001",
+      areaDesc: "Bab El Oued, Alger",
+      sentAt: new Date("2026-11-24T14:00:00Z"),
+      asOf: new Date("2026-11-24T13:30:00Z"),
+      texts: [{ ...texts[0]!, event: "Inondation", instruction: "" }],
+      category: "Met",
+      phase: "end",
+      expiresHours: 12,
+      references: [{ identifier: floodCap.identifier, sent: floodCap.sent }],
+    });
+    expect(endCap.identifier).toBe("nadhir-off-3f2a9b71-end");
+    expect(endCap.msgType).toBe("Update");
+    expect(endCap.info[0]!.urgency).toBe("Past");
+    expect(endCap.references).toBe(
+      `alerts@nadhir.app,${floodCap.identifier},${floodCap.sent}`,
+    );
+  });
+
+  it("resolves CAP 1.2 category from optional kind when category is omitted", () => {
+    const cases: Array<{ kind: string; expected: string }> = [
+      { kind: "flood", expected: "Met" },
+      { kind: "storm", expected: "Met" },
+      { kind: "road", expected: "Transport" },
+      { kind: "structure", expected: "Safety" },
+      { kind: "vegetation", expected: "Fire" },
+    ];
+
+    for (const { kind, expected } of cases) {
+      const built = buildOfficialCap({
+        incidentId: `3f2a9b71-0000-4000-8000-0000000000${kind.slice(0, 2)}`,
+        kind,
+        areaDesc: "Bab El Oued, Alger",
+        sentAt: new Date("2026-11-24T10:00:00Z"),
+        asOf: new Date("2026-11-24T09:00:00Z"),
+        texts: [{ ...texts[0]!, event: kind, instruction: "" }],
+      });
+      expect(built.info[0]!.category).toBe(expected);
+    }
+
+    // Explicit category continues to override kind
+    const overridden = buildOfficialCap({
+      incidentId: "3f2a9b71-0000-4000-8000-000000000099",
+      kind: "flood",
+      category: "Safety",
+      areaDesc: "Bab El Oued, Alger",
+      sentAt: new Date("2026-11-24T10:00:00Z"),
+      asOf: new Date("2026-11-24T09:00:00Z"),
+      texts: [{ ...texts[0]!, event: "Inondation", instruction: "" }],
+    });
+    expect(overridden.info[0]!.category).toBe("Safety");
+  });
+});
+
+describe("buildEarthquakeCap (F9)", () => {
+  const texts = [
+    {
+      language: "fr-DZ",
+      event: "Séisme",
+      headline: "EMSC : séisme de magnitude 4.5 près de Béjaïa",
+      description: "Séisme enregistré.",
+      instruction: "",
+    },
+  ];
+
+  it("emits CAP 1.2 Geo alerts with 100 km circle and M5+ Extreme / M4.x Severe mapping", () => {
+    const m4 = buildEarthquakeCap({
+      earthquakeId: "20261124_000001",
+      magnitude: 4.5,
+      lat: 36.75,
+      lon: 5.08,
+      areaDesc: "Béjaïa, Béjaïa",
+      occurredAt: new Date("2026-11-24T10:00:00Z"),
+      sentAt: new Date("2026-11-24T10:02:00Z"),
+      texts,
+    });
+    expect(m4.identifier).toBe("nadhir-quake-20261124_000001");
+    expect(m4.info[0]!.category).toBe("Geo");
+    expect(m4.info[0]!.severity).toBe("Severe");
+    expect(m4.info[0]!.urgency).toBe("Expected");
+    expect(m4.info[0]!.circle).toBe("36.75,5.08 100");
+    expect(capToXml(m4)).toContain("<category>Geo</category>");
+
+    const m5 = buildEarthquakeCap({
+      earthquakeId: "20261124_000002",
+      magnitude: 5.2,
+      lat: 36.75,
+      lon: 5.08,
+      areaDesc: "Béjaïa, Béjaïa",
+      occurredAt: new Date("2026-11-24T10:00:00Z"),
+      sentAt: new Date("2026-11-24T10:02:00Z"),
+      texts,
+    });
+    expect(m5.info[0]!.severity).toBe("Extreme");
+    expect(m5.info[0]!.urgency).toBe("Immediate");
   });
 });

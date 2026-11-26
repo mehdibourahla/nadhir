@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { ClaimedSourceJob } from "@/lib/source-jobs";
+import type { ClaimedSourceJob, SourceJobResult } from "@/lib/source-jobs";
 import {
   createSourceRunners,
+  isRuntimeContractKey,
   RUNTIME_CONTRACT_KEYS,
   type SourceRunnerDependencies,
 } from "@/lib/ingest/source-runners.server";
@@ -33,6 +34,26 @@ const job = (contractKey: string): ClaimedSourceJob => ({
   created_at: "2026-08-31T20:00:00.000Z",
   updated_at: "2026-08-31T20:00:01.000Z",
 });
+
+function mockWorkerSourceResult(j: ClaimedSourceJob): SourceJobResult {
+  return {
+    contractKey: j.contract_key,
+    trigger: j.trigger_kind,
+    scheduledFor: j.scheduled_for,
+    startedAt: j.started_at,
+    outcome: "succeeded",
+    coverageStatus: "complete",
+    upstreamPublishedAt: j.data_through,
+    dataFrom: j.data_from,
+    dataThrough: j.data_through,
+    recordsSeen: 2,
+    recordsInserted: 2,
+    recordsRejected: 0,
+    publicReasonCode: null,
+    privateDiagnostic: null,
+    retryDisposition: "none",
+  };
+}
 
 function dependencies() {
   return {
@@ -127,6 +148,33 @@ function dependencies() {
       telegramConfigured: true,
       disabled: false,
     }),
+    runImergSource: vi
+      .fn()
+      .mockImplementation(async (j) => mockWorkerSourceResult(j)),
+    runHsafSource: vi
+      .fn()
+      .mockImplementation(async (j) => mockWorkerSourceResult(j)),
+    runTarikiSource: vi
+      .fn()
+      .mockImplementation(async (j) => mockWorkerSourceResult(j)),
+    runCraagSource: vi
+      .fn()
+      .mockImplementation(async (j) => mockWorkerSourceResult(j)),
+    runMtgFciPushSource: vi
+      .fn()
+      .mockImplementation(async (j) => mockWorkerSourceResult(j)),
+    runMtgLightningSource: vi
+      .fn()
+      .mockImplementation(async (j) => mockWorkerSourceResult(j)),
+    runGwisBurnedAreasSource: vi
+      .fn()
+      .mockImplementation(async (j) => mockWorkerSourceResult(j)),
+    runClmsNdviSwiSource: vi
+      .fn()
+      .mockImplementation(async (j) => mockWorkerSourceResult(j)),
+    runGhslPopulationSource: vi
+      .fn()
+      .mockImplementation(async (j) => mockWorkerSourceResult(j)),
   } satisfies SourceRunnerDependencies;
 }
 
@@ -422,3 +470,99 @@ it.each(["failed", "skipped"])(
     expect(result.qualityChecks).toMatchObject({ webhook_failed: 1 });
   },
 );
+
+describe("Track 4 worker contract wiring (9 M4A + M4B runners)", () => {
+  const TRACK4_KEYS = [
+    "imerg_rainfall",
+    "hsaf_rainfall",
+    "tariki_facebook",
+    "craag_earthquakes",
+    "mtg_fci_push",
+    "mtg_lightning",
+    "gwis_burned_areas",
+    "clms_ndvi_swi",
+    "ghsl_population",
+  ] as const;
+
+  it("registers all 26 runtime contract keys including tariki_facebook ahead of generic textSourceRunner", () => {
+    expect(RUNTIME_CONTRACT_KEYS).toHaveLength(26);
+    for (const key of TRACK4_KEYS) {
+      expect(isRuntimeContractKey(key)).toBe(true);
+    }
+    expect(isRuntimeContractKey("dgpc_telegram")).toBe(false);
+  });
+
+  it("forwards replay jobs directly to each wired Track 4 worker runner", async () => {
+    const deps = dependencies();
+    const runners = createSourceRunners(deps);
+
+    const replayJob = (
+      key: (typeof TRACK4_KEYS)[number],
+    ): ClaimedSourceJob => ({
+      ...job(key),
+      trigger_kind: "replay",
+      execution_target: "worker",
+    });
+
+    const results = await Promise.all(
+      TRACK4_KEYS.map((key) => runners[key](replayJob(key))),
+    );
+
+    expect(results.map((r) => r.contractKey)).toEqual([...TRACK4_KEYS]);
+    expect(results.every((r) => r.trigger === "replay")).toBe(true);
+    expect(deps.runImergSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contract_key: "imerg_rainfall",
+        trigger_kind: "replay",
+      }),
+    );
+    expect(deps.runHsafSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contract_key: "hsaf_rainfall",
+        trigger_kind: "replay",
+      }),
+    );
+    expect(deps.runTarikiSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contract_key: "tariki_facebook",
+        trigger_kind: "replay",
+      }),
+    );
+    expect(deps.runCraagSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contract_key: "craag_earthquakes",
+        trigger_kind: "replay",
+      }),
+    );
+    expect(deps.runMtgFciPushSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contract_key: "mtg_fci_push",
+        trigger_kind: "replay",
+      }),
+    );
+    expect(deps.runMtgLightningSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contract_key: "mtg_lightning",
+        trigger_kind: "replay",
+      }),
+    );
+    expect(deps.runGwisBurnedAreasSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contract_key: "gwis_burned_areas",
+        trigger_kind: "replay",
+      }),
+    );
+    expect(deps.runClmsNdviSwiSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contract_key: "clms_ndvi_swi",
+        trigger_kind: "replay",
+      }),
+    );
+    expect(deps.runGhslPopulationSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contract_key: "ghsl_population",
+        trigger_kind: "replay",
+      }),
+    );
+  });
+});

@@ -28,6 +28,7 @@ import {
 import { MapCanvas } from "@/components/MapCanvas";
 import { useGrantedPosition } from "@/lib/granted-position";
 import { MapWorkspacePanel } from "@/components/nadhir/MapWorkspacePanel";
+import type { SheetDetent } from "@/lib/sheet-detent";
 import {
   SituationCard,
   SituationDetails,
@@ -68,6 +69,7 @@ import {
 import { civilMapGeoJSON, situationAreaId } from "@/lib/civil-map-geometry";
 import {
   buildSituations,
+  countSituationsByHazard,
   filterSituations,
   roadHints,
   findPlaces,
@@ -138,7 +140,7 @@ function LiveMapPage() {
   const [now, setNow] = useState(() => Date.now());
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [detent, setDetent] = useState<SheetDetent>("peek");
   const [panel, setPanel] = useState<
     "list" | "layers" | "sources" | "forecast" | "help"
   >("list");
@@ -182,14 +184,14 @@ function LiveMapPage() {
   }, []);
   useEffect(() => {
     if (search.event) {
-      setExpanded(true);
+      setDetent((current) => (current === "peek" ? "half" : current));
       setPanelHidden(false);
     }
   }, [search.event]);
   useEffect(() => {
-    if (searchOpen && panelView === "list" && expanded)
+    if (searchOpen && panelView === "list" && detent !== "peek")
       searchRef.current?.focus();
-  }, [searchOpen, panelView, expanded]);
+  }, [searchOpen, panelView, detent]);
   useEffect(() => {
     if (contentRef.current)
       contentRef.current.scrollTop =
@@ -210,7 +212,7 @@ function LiveMapPage() {
     update({ event: undefined }, true);
     setPanel(next);
     setPanelHidden(false);
-    setExpanded(true);
+    setDetent("full");
     setSearchOpen(false);
   };
   const backToList = () => {
@@ -303,6 +305,22 @@ function LiveMapPage() {
     () =>
       items.flatMap((item) => (item.source === "satellite" ? [item.data] : [])),
     [items],
+  );
+  const hazardCounts = useMemo(
+    () =>
+      countSituationsByHazard(
+        filterSituations(
+          items,
+          {
+            category: "all",
+            area,
+            showEnded: search.ended,
+            showCandidates: search.candidates,
+          },
+          allUnits,
+        ),
+      ),
+    [items, area, search.ended, search.candidates, allUnits],
   );
   const visible = useMemo(
     () =>
@@ -486,7 +504,7 @@ function LiveMapPage() {
     update({ event: id });
     setPanel("list");
     setPanelHidden(false);
-    setExpanded(true);
+    setDetent((current) => (current === "peek" ? "half" : current));
     setSearchOpen(false);
   };
   const refresh = () => {
@@ -538,18 +556,24 @@ function LiveMapPage() {
         );
   const buttonStyle =
     "flex size-11 items-center justify-center rounded-2xl border border-border bg-surface/95 text-foreground shadow-sm backdrop-blur hover:bg-muted focus-visible:outline-2 focus-visible:outline-primary";
+  const isRtl = i18n.dir() === "rtl";
   const padding = desktop
     ? {
         top: 24,
         bottom: 24,
-        left: !panelHidden && locale !== "ar" ? 412 : 24,
-        right: !panelHidden && locale === "ar" ? 412 : 80,
+        left: !panelHidden && !isRtl ? 416 : 24,
+        right: !panelHidden && isRtl ? 416 : 80,
       }
     : {
-        top: expanded ? 12 : 64,
-        bottom: expanded ? Math.round(mapHeight * 0.76) + 24 : 124,
-        left: locale === "ar" ? 64 : 24,
-        right: locale === "ar" ? 24 : 64,
+        top: detent === "peek" ? 64 : 12,
+        bottom:
+          detent === "full"
+            ? Math.round(mapHeight * 0.86) + 20
+            : detent === "half"
+              ? Math.round(mapHeight * 0.52) + 20
+              : 188,
+        left: isRtl ? 64 : 24,
+        right: isRtl ? 24 : 64,
       };
 
   return (
@@ -674,86 +698,150 @@ function LiveMapPage() {
           onClick={() => setPanelHidden(false)}
           aria-label={t("civilMap.expand")}
         >
-          <PanelLeftOpen className="size-5" />
+          <PanelLeftOpen className="size-5 rtl:rotate-180" />
         </button>
       )}
 
       {!panelHidden && (
-        <MapWorkspacePanel expanded={expanded} onExpandedChange={setExpanded}>
-          <div
-            className={`flex shrink-0 items-center gap-2 px-3 pb-2 lg:px-4 lg:pb-3 ${desktop ? "pt-4" : ""}`}
-          >
-            {panelView !== "list" && (
-              <button
-                ref={backRef}
-                type="button"
-                onClick={backToList}
-                aria-label={t("common.back")}
-                className="flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-muted"
-              >
-                <ArrowLeft className="size-5 rtl:rotate-180" />
-              </button>
-            )}
-            <div
-              className={`min-w-0 flex-1 ${!desktop && panelView === "list" ? "flex flex-wrap items-baseline gap-x-2" : ""}`}
-            >
-              <h1
-                className="max-w-full truncate font-sans text-sm font-semibold lg:text-base"
-                dir="auto"
-              >
-                {panelView === "list"
-                  ? area
-                    ? unitName(area, locale)
-                    : t("civilMap.national")
-                  : panelTitle}
-              </h1>
-              <p
-                className={`line-clamp-2 text-xs text-muted-foreground ${desktop ? "mt-0.5" : ""}`}
-              >
-                {panelView !== "list"
-                  ? t("civilMap.title")
-                  : loading || units.isPending || danger.isPending
-                    ? t("common.loading")
-                    : summaryLine}
-              </p>
-            </div>
-            {panelView === "list" && (
-              <Link
-                to="/report"
-                className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-border px-3 text-sm font-medium hover:bg-muted"
-              >
-                <Megaphone aria-hidden className="size-4" />
-                {t("reports.reportButton")}
-              </Link>
-            )}
-            {panelView === "list" && (
-              <button
-                type="button"
-                onClick={follow}
-                aria-label={t(
-                  following ? "civilMap.following" : "civilMap.follow",
+        <MapWorkspacePanel
+          detent={detent}
+          onDetentChange={setDetent}
+          header={
+            <div className="flex shrink-0 items-center gap-1.5 px-3 py-2 lg:flex-col lg:items-stretch lg:gap-2 lg:px-4 lg:pb-3 lg:pt-4">
+              <div className="flex min-w-0 flex-1 items-center gap-1.5 lg:items-start lg:gap-2">
+                {panelView !== "list" && (
+                  <button
+                    ref={backRef}
+                    type="button"
+                    onClick={backToList}
+                    aria-label={t("common.back")}
+                    className="flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-muted"
+                  >
+                    <ArrowLeft className="size-5 rtl:rotate-180" />
+                  </button>
                 )}
-                title={t(following ? "civilMap.following" : "civilMap.follow")}
-                className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground"
+                <div
+                  className={`min-w-0 flex-1 ${!desktop && panelView === "list" ? "flex flex-wrap items-baseline gap-x-2" : ""}`}
+                >
+                  <h1
+                    className="max-w-full truncate font-sans text-sm font-semibold lg:overflow-visible lg:whitespace-normal lg:break-words lg:text-base lg:leading-snug"
+                    dir="auto"
+                  >
+                    {panelView === "list"
+                      ? area
+                        ? unitName(area, locale)
+                        : t("civilMap.national")
+                      : panelTitle}
+                  </h1>
+                  <p className="line-clamp-2 text-xs text-muted-foreground lg:mt-0.5">
+                    {panelView !== "list"
+                      ? t("civilMap.title")
+                      : loading || units.isPending || danger.isPending
+                        ? t("common.loading")
+                        : summaryLine}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPanelHidden(true)}
+                  aria-label={t("civilMap.collapse")}
+                  className="hidden size-11 shrink-0 items-center justify-center rounded-xl hover:bg-muted lg:flex"
+                >
+                  <PanelLeftClose className="size-5 rtl:rotate-180" />
+                </button>
+              </div>
+              {panelView === "list" && (
+                <div className="flex shrink-0 items-center gap-1.5 lg:gap-2">
+                  <Link
+                    to="/survival"
+                    aria-label={t("track3.emergency.headerChipLabel")}
+                    title={t("track3.emergency.openSheet")}
+                    className="flex size-11 shrink-0 items-center justify-center rounded-xl border text-xs font-bold sm:hidden"
+                    style={{
+                      backgroundColor: "var(--emergency-surface)",
+                      borderColor: "var(--emergency)",
+                      color: "var(--emergency-ink)",
+                    }}
+                  >
+                    <span dir="ltr" className="tabular-nums">
+                      {t("track3.emergency.headerChip")}
+                    </span>
+                  </Link>
+                  <Link
+                    to="/report"
+                    aria-label={t("reports.reportButton")}
+                    className="flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-border px-2.5 text-xs font-medium hover:bg-muted sm:px-3 sm:text-sm lg:flex-1"
+                  >
+                    <Megaphone aria-hidden className="size-4 shrink-0" />
+                    <span className="max-[359px]:hidden">
+                      {t("reports.reportButton")}
+                    </span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={follow}
+                    aria-label={t(
+                      following ? "civilMap.following" : "civilMap.follow",
+                    )}
+                    title={t(
+                      following ? "civilMap.following" : "civilMap.follow",
+                    )}
+                    className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground"
+                  >
+                    <Bell className="size-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          }
+          filterBar={
+            panelView === "list" && !searchOpen ? (
+              <div
+                role="group"
+                aria-label={t("track3.filters.ariaLabel")}
+                className="map-scroll flex min-w-0 max-w-full shrink-0 items-center gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-border/60 px-3 pb-2 lg:px-4"
               >
-                <Bell className="size-4" />
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setPanelHidden(true)}
-              aria-label={t("civilMap.collapse")}
-              className={`${desktop ? "flex" : "hidden"} size-11 shrink-0 items-center justify-center rounded-xl hover:bg-muted`}
-            >
-              <PanelLeftClose className="size-5" />
-            </button>
-          </div>
-
-          <div
-            className={`${expanded || desktop ? "flex" : "hidden"} min-h-0 flex-1 flex-col`}
-          >
+                {HAZARD_CATEGORIES.map((category) => {
+                  const Icon = hazardIcons[category];
+                  const active = search.hazard === category;
+                  return (
+                    <button
+                      key={category}
+                      type="button"
+                      data-hazard-filter={category}
+                      aria-pressed={active}
+                      onClick={() =>
+                        update({ hazard: category, event: undefined })
+                      }
+                      className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-primary ${
+                        active
+                          ? "border-[var(--accent)] bg-[var(--accent-tint)] font-semibold text-[var(--accent)]"
+                          : "border-border bg-surface font-medium text-foreground hover:bg-muted"
+                      }`}
+                    >
+                      <Icon aria-hidden className="size-4 shrink-0" />
+                      <span>{t(`track3.filters.${category}`)}</span>
+                      <span
+                        className={`tabular-nums rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
+                          active
+                            ? "bg-[var(--accent)] text-[var(--accent-ink)]"
+                            : "bg-muted text-foreground"
+                        }`}
+                      >
+                        {t("track3.filters.count", {
+                          count: hazardCounts[category],
+                        })}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null
+          }
+        >
+          <div className="flex min-h-0 flex-1 flex-col">
             {panelView === "list" && (
-              <div className="shrink-0 border-b px-3 pb-2 lg:px-4 lg:pb-3">
+              <div className="shrink-0 border-b px-3 py-2 lg:px-4 lg:py-3">
                 <div className="relative flex items-center gap-2">
                   <Search
                     aria-hidden
@@ -769,7 +857,7 @@ function LiveMapPage() {
                     }}
                     onFocus={() => {
                       setSearchOpen(true);
-                      setExpanded(true);
+                      setDetent("full");
                     }}
                     aria-label={t("civilMap.search")}
                     aria-expanded={searchOpen}
@@ -795,30 +883,6 @@ function LiveMapPage() {
                     </button>
                   )}
                 </div>
-                {!searchOpen && (
-                  <div
-                    className="map-scroll mt-1.5 flex gap-1.5 overflow-x-auto overflow-y-hidden lg:mt-3 lg:py-1"
-                    aria-label={t("civilMap.filters")}
-                  >
-                    {HAZARD_CATEGORIES.map((category) => {
-                      const Icon = hazardIcons[category];
-                      return (
-                        <button
-                          key={category}
-                          type="button"
-                          aria-pressed={search.hazard === category}
-                          onClick={() =>
-                            update({ hazard: category, event: undefined })
-                          }
-                          className={`flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-medium ${search.hazard === category ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
-                        >
-                          <Icon className="size-4" />
-                          {t(`civilMap.${category}`)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             )}
 
@@ -845,7 +909,11 @@ function LiveMapPage() {
               {mapFailed && (
                 <p
                   role="status"
-                  className="mb-3 rounded-xl bg-amber-500/10 p-3 text-sm"
+                  className="mb-3 rounded-xl p-3 text-sm"
+                  style={{
+                    backgroundColor: "var(--risk-tint-2)",
+                    color: "var(--risk-ink-2)",
+                  }}
                 >
                   {t("civilMap.mapUnavailable")}
                 </p>
@@ -853,7 +921,11 @@ function LiveMapPage() {
               {offline && (
                 <p
                   role="status"
-                  className="mb-3 rounded-xl bg-amber-500/10 p-3 text-sm"
+                  className="mb-3 rounded-xl p-3 text-sm"
+                  style={{
+                    backgroundColor: "var(--risk-tint-2)",
+                    color: "var(--risk-ink-2)",
+                  }}
                 >
                   {t("civilMap.offline")}
                 </p>
@@ -964,12 +1036,17 @@ function LiveMapPage() {
 
               {panelView === "help" && (
                 <>
-                  <EmergencyNumbers />
+                  <EmergencyNumbers showSheetLink={false} />
                   <Link
                     to="/survival"
-                    className="mt-4 flex min-h-11 items-center justify-center rounded-xl border border-red-500 px-4 text-sm font-semibold text-red-700"
+                    className="mt-4 flex min-h-11 items-center justify-center rounded-xl border px-4 text-sm font-semibold"
+                    style={{
+                      backgroundColor: "var(--emergency-surface)",
+                      borderColor: "var(--emergency)",
+                      color: "var(--emergency-ink)",
+                    }}
                   >
-                    {t("civilMap.fireHelp")}
+                    {t("track3.emergency.openSheet")}
                   </Link>
                 </>
               )}
@@ -980,7 +1057,10 @@ function LiveMapPage() {
               className="flex min-h-11 shrink-0 items-center gap-2 border-t px-3 py-2 text-start text-xs text-muted-foreground lg:px-4"
             >
               {limited ? (
-                <TriangleAlert className="size-4 shrink-0 text-amber-600" />
+                <TriangleAlert
+                  className="size-4 shrink-0"
+                  style={{ color: "var(--risk-ink-3)" }}
+                />
               ) : (
                 <ShieldCheck className="size-4 shrink-0 text-primary" />
               )}
@@ -1002,7 +1082,14 @@ function LiveMapPage() {
           }}
         />
       )}
-      <MapSurvivalPrompt fires={survivalFires} now={now} />
+      <MapSurvivalPrompt
+        fires={survivalFires}
+        official={official.data ?? []}
+        warnings={warnings.data ?? []}
+        earthquakes={earthquakes.data ?? []}
+        units={allUnits}
+        now={now}
+      />
     </div>
   );
 }

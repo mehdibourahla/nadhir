@@ -27,17 +27,22 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        NotificationChannels.ensureAll(this);
         registerPlugin(CurrentCommunePlugin.class);
         registerPlugin(NativeAuthPlugin.class);
         super.onCreate(savedInstanceState);
         connectivity = getSystemService(ConnectivityManager.class);
-        setWebViewOnline(connectivity.getActiveNetwork() != null);
-        connectivity.registerDefaultNetworkCallback(networkCallback);
+        if (connectivity != null) {
+            setWebViewOnline(connectivity.getActiveNetwork() != null);
+            connectivity.registerDefaultNetworkCallback(networkCallback);
+        }
     }
 
     @Override
     public void onDestroy() {
-        connectivity.unregisterNetworkCallback(networkCallback);
+        if (connectivity != null) {
+            connectivity.unregisterNetworkCallback(networkCallback);
+        }
         super.onDestroy();
     }
 

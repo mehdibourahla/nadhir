@@ -76,6 +76,36 @@ function runnerFailure(job: ClaimedSourceJob, error: unknown): SourceJobResult {
   };
 }
 
+export type SourceRunnerDependencies = Pick<
+  SourceExecutorDependencies,
+  "runners" | "textRunner" | "parserVersion"
+>;
+
+export async function runClaimedSourceJob(
+  job: ClaimedSourceJob,
+  dependencies: SourceRunnerDependencies = sourceExecutorDependencies,
+): Promise<SourceJobResult> {
+  try {
+    const runner = isRuntimeContractKey(job.contract_key)
+      ? dependencies.runners[job.contract_key]
+      : await dependencies.textRunner(job.contract_key);
+    if (!runner)
+      throw new Error("No runner is registered for the claimed contract");
+    const parserVersion = await dependencies.parserVersion?.(job);
+    return await withSourceArchiveContext(
+      {
+        jobId: job.id,
+        attempt: job.attempt_count,
+        contractVersion: job.contract_version,
+        ...(parserVersion ? { parserVersion } : {}),
+      },
+      () => runner(job),
+    );
+  } catch (error) {
+    return runnerFailure(job, error);
+  }
+}
+
 export async function executeNextSourceJob(
   input: SourceExecutorInput,
   dependencies: SourceExecutorDependencies = sourceExecutorDependencies,
@@ -86,27 +116,7 @@ export async function executeNextSourceJob(
   const job = await dependencies.claim(input);
   if (!job) return { claimed: false };
 
-  let result: SourceJobResult;
-  try {
-    const runner = isRuntimeContractKey(job.contract_key)
-      ? dependencies.runners[job.contract_key]
-      : await dependencies.textRunner(job.contract_key);
-    if (!runner)
-      throw new Error("No runner is registered for the claimed contract");
-    const parserVersion = await dependencies.parserVersion?.(job);
-    result = await withSourceArchiveContext(
-      {
-        jobId: job.id,
-        attempt: job.attempt_count,
-        contractVersion: job.contract_version,
-        ...(parserVersion ? { parserVersion } : {}),
-      },
-      () => runner(job),
-    );
-  } catch (error) {
-    result = runnerFailure(job, error);
-  }
-
+  const result = await runClaimedSourceJob(job, dependencies);
   const completed = await dependencies.complete(job, input.workerId, result);
   return {
     claimed: true,

@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { hasSessionCookie } from "@/integrations/supabase/session-cookie";
-import { authDestination } from "@/lib/auth-destination";
+import { authDestination, authRedirectSearch } from "@/lib/auth-destination";
 
 export const Route = createFileRoute("/_authenticated")({
   // data-only runs beforeLoad on the server, so a signed-out visitor is redirected
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/_authenticated")({
     if (!hasSessionCookie())
       throw redirect({
         to: "/auth",
-        search: { returnTo: authDestination(location.href) },
+        search: authRedirectSearch(location.href, location.searchStr),
         replace: true,
       });
   },
@@ -59,14 +59,14 @@ function AuthenticatedLayout() {
       if (!ok)
         void navigate({
           to: "/auth",
-          search: { returnTo: authDestination(location.href) },
+          search: authRedirectSearch(location.href, location.searchStr),
           replace: true,
         });
     });
     return () => {
       cancelled = true;
     };
-  }, [navigate, location.href, sessionUser]);
+  }, [navigate, location.href, location.searchStr, sessionUser]);
 
   if (!validUser || validUser !== sessionUser) return null;
   return <Outlet key={validUser} />;

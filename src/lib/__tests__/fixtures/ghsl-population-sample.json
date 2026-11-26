@@ -1,0 +1,38 @@
+{
+  "epoch_year": 2025,
+  "dataset_release": "GHS-POP-R2023A",
+  "crs_code": "EPSG:4326",
+  "resolution_m": 100,
+  "exposure_label": "modeled_residents",
+  "published_at": "2025-01-15T00:00:00Z",
+  "tile_total_residents": 211650.0,
+  "communes": [
+    {
+      "commune_code": "1601",
+      "wilaya_code": "16",
+      "lat": 36.7529,
+      "lon": 3.0420,
+      "modeled_residents": 125400.0,
+      "source_cell_sum": 125400.0,
+      "source_cell_count": 420
+    },
+    {
+      "commune_code": "1501",
+      "wilaya_code": "15",
+      "lat": 36.7118,
+      "lon": 4.0459,
+      "modeled_residents": 86250.0,
+      "source_cell_sum": 86250.0,
+      "source_cell_count": 310
+    },
+    {
+      "commune_code": "9901",
+      "wilaya_code": "99",
+      "lat": 41.3851,
+      "lon": 2.1734,
+      "modeled_residents": 50000.0,
+      "source_cell_sum": 50000.0,
+      "source_cell_count": 150
+    }
+  ]
+}

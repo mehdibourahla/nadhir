@@ -26,17 +26,30 @@ export const Route = createFileRoute("/api/public/v1/subscribe")({
         if (!fcmConfigured())
           return json({ error: "push delivery is not configured" }, 503);
 
-        let body: {
+        const { readJsonBody } = await import("@/lib/request-body.server");
+        const read = await readJsonBody(request, 16_384);
+        if ("error" in read) {
+          return json(
+            {
+              error:
+                read.status === 413 ? "body too large" : "invalid JSON body",
+            },
+            read.status,
+          );
+        }
+        if (
+          !read.body ||
+          typeof read.body !== "object" ||
+          Array.isArray(read.body)
+        ) {
+          return json({ error: "invalid JSON body" }, 400);
+        }
+        const body = read.body as {
           token?: unknown;
           communes?: unknown;
           lang?: unknown;
           action?: unknown;
         };
-        try {
-          body = await request.json();
-        } catch {
-          return json({ error: "invalid JSON body" }, 400);
-        }
 
         const { token, communes, lang, action } = body;
         if (typeof token !== "string" || !token.length || token.length > 4096)

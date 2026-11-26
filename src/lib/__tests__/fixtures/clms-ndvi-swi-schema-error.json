@@ -1,0 +1,15 @@
+{
+  "product_version": "ndvi_v3_300m",
+  "is_calibrated_fuel": true,
+  "observed_at": "2026-10-11",
+  "published_at": "2026-10-14T06:00:00Z",
+  "communes": [
+    {
+      "commune_code": "1501",
+      "wilaya_code": "15",
+      "lat": 36.7118,
+      "lon": 4.0459,
+      "ndvi_value": 1.75
+    }
+  ]
+}

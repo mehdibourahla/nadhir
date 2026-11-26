@@ -60,8 +60,8 @@ export function AccountSecurity() {
           <div className="flex items-start gap-3">
             <Mail size={18} className="mt-1 shrink-0" aria-hidden="true" />
             <div className="min-w-0">
-              <p className="break-all font-medium" dir="auto">
-                {user.email}
+              <p className="break-words font-medium">
+                <bdi dir="ltr">{user.email}</bdi>
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {t(

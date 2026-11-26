@@ -1,10 +1,11 @@
+import { ShieldAlert, Wind } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { riskInk, riskTint } from "@/components/nadhir/risk-visuals";
 import { RiskChip } from "@/components/nadhir/RiskChip";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Locale } from "@/i18n";
+import type { AnyLocale } from "@/i18n";
 import { SMOKE_TINT } from "@/lib/air-quality";
 import type {
   AirCell,
@@ -18,6 +19,15 @@ export type Row<T> =
   | { status: "loading" }
   | { status: "error"; retry: () => void }
   | { status: "ok"; cells: T[] };
+
+const WEATHER_NS_ONM_EVENTS = new Set([
+  "rain",
+  "storm",
+  "sand",
+  "wind",
+  "heat",
+  "other",
+]);
 
 function Level({ level, children }: { level: number; children: ReactNode }) {
   return (
@@ -50,17 +60,25 @@ export function OutlookGrid({
   air: Row<AirCell>;
 }) {
   const { t, i18n } = useTranslation("weather");
-  const weekday = new Intl.DateTimeFormat(intlLocale(i18n.language as Locale), {
-    weekday: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
+  const weekday = new Intl.DateTimeFormat(
+    intlLocale(i18n.language as AnyLocale),
+    {
+      weekday: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    },
+  );
   const dayLabel = (day: string, i: number) =>
     i === 0
       ? t("translation:risk.today")
       : i === 1
         ? t("outlook.tomorrow")
         : weekday.format(new Date(`${day}T00:00:00Z`));
+
+  const onmEventLabel = (eventKey: string) =>
+    WEATHER_NS_ONM_EVENTS.has(eventKey)
+      ? t(`outlook.event.${eventKey}`)
+      : t(`translation:track3.forecast.onmEvent.${eventKey}`);
 
   const row = <T,>(
     label: string,
@@ -70,7 +88,7 @@ export function OutlookGrid({
     <tr className="border-t border-border align-top">
       <th
         scope="row"
-        className="sticky start-0 z-10 w-32 bg-surface py-3 pe-3 text-start text-sm font-medium"
+        className="sticky start-0 z-10 w-32 border-e border-border/60 bg-surface py-3 pe-3 text-start text-sm font-medium"
       >
         {label}
       </th>
@@ -104,14 +122,19 @@ export function OutlookGrid({
   );
 
   return (
-    <div className="overflow-x-auto">
+    <div
+      tabIndex={0}
+      role="region"
+      aria-label={t("outlook.caption", { place })}
+      className="overflow-x-auto"
+    >
       <table className="w-full border-collapse">
         <caption className="pb-3 text-start font-display text-lg">
           {t("outlook.caption", { place })}
         </caption>
         <thead>
           <tr>
-            <td className="sticky start-0 z-10 bg-surface" />
+            <td className="sticky start-0 z-10 border-e border-border/60 bg-surface" />
             {days.map((day, i) => (
               <th
                 key={day}
@@ -127,13 +150,13 @@ export function OutlookGrid({
           {row(t("outlook.rowOnm"), onm, (cell) =>
             cell.state === "warning" ? (
               <Level level={cell.level}>
-                <span className="font-medium">
-                  {t(`outlook.onmLevel.${cell.level}`)}
+                <span className="inline-flex items-center gap-1 font-medium">
+                  <ShieldAlert aria-hidden className="size-3.5 shrink-0" />
+                  <span className="tabular-nums">{cell.level}</span>
+                  <span>{t(`outlook.onmLevel.${cell.level}`)}</span>
                 </span>
                 <span className="block">
-                  {cell.events
-                    .map((e) => t(`outlook.event.${e}`))
-                    .join(t("outlook.separator"))}
+                  {cell.events.map(onmEventLabel).join(t("outlook.separator"))}
                 </span>
               </Level>
             ) : (
@@ -155,11 +178,9 @@ export function OutlookGrid({
             cell ? (
               <div className="tabular text-sm">
                 <span className="block font-medium">
-                  <bdi dir="ltr">
-                    {t("outlook.weatherTemp", {
-                      temp: Math.round(cell.tempC),
-                    })}
-                  </bdi>
+                  {t("outlook.weatherTemp", {
+                    temp: Math.round(cell.tempC),
+                  })}
                 </span>
                 <span className="block text-muted-foreground">
                   {t("outlook.weatherWind", {
@@ -179,8 +200,10 @@ export function OutlookGrid({
           {row(t("outlook.rowAir"), air, (cell) =>
             cell.state === "ok" ? (
               <Level level={SMOKE_TINT[cell.level]}>
-                <span className="font-medium">
-                  {t(`outlook.airLevel.${cell.level}`)}
+                <span className="inline-flex items-center gap-1 font-medium">
+                  <Wind aria-hidden className="size-3.5 shrink-0" />
+                  <span className="tabular-nums">{SMOKE_TINT[cell.level]}</span>
+                  <span>{t(`outlook.airLevel.${cell.level}`)}</span>
                 </span>
                 <span className="block text-xs">
                   {t("outlook.airBy", {

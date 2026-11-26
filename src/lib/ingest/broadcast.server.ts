@@ -1,4 +1,4 @@
-import { FIRE_KINDS } from "@/lib/text-sources/merge";
+import { FIRE_KINDS, isFireKind } from "@/lib/text-sources/merge";
 import { fireLevel, type FireContext } from "@/lib/fire-confidence";
 import { fireContexts } from "@/lib/ingest/fire-context.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -6,31 +6,48 @@ import type { Json } from "@/integrations/supabase/types";
 import { MIN_CONFIDENCE } from "@/lib/alerts-rules";
 import {
   broadcastTexts,
+  earthquakeTexts,
+  officialHazardTexts,
   officialTexts,
   type OfficialVars,
 } from "@/lib/broadcast-copy";
 import {
   BROADCAST_END_AFTER_HOURS,
+  EARTHQUAKE_BROADCAST_FRESH_HOURS,
+  EARTHQUAKE_BROADCAST_MIN_MAGNITUDE,
+  EARTHQUAKE_BROADCAST_RADIUS_KM,
+  NON_FIRE_BROADCAST_KINDS,
+  OFFICIAL_FIRE_FRESH_HOURS,
   REOPEN_WINDOW_HOURS,
   applyDailyLimit,
   coverageOf,
   downwindAdditions,
+  earthquakeSeverity,
+  evaluateOfficialIncidentBroadcast,
   fireSeverity,
   fuelLimitedCodes,
   insideCommunes,
+  isNonFireBroadcastKind,
   onmRelayPlan,
+  onmUpdateMaterialChange,
+  onmUpdatePriors,
   onmWarningIsCurrent,
+  planEarthquakeBroadcast,
   planFireBroadcast,
   pushCodesFor,
   setThreadCoverage,
   targetCommunes,
+  targetCommunesForEarthquake,
   type CommuneShape,
   type OnmWarning,
   type OpenThread,
 } from "@/lib/broadcast-rules";
 import {
   buildBroadcastCap,
+  buildEarthquakeCap,
   buildOfficialCap,
+  officialCapCategory,
+  parseCapMsgType,
   type BroadcastPhase,
 } from "@/lib/cap";
 import { coordLabel, fireStage, haversineKm } from "@/lib/nadhir";
@@ -92,6 +109,33 @@ async function auditRow(row: {
   if (error) throw new Error(`broadcast_audit insert failed: ${error.message}`);
 }
 
+async function loadSentToday(): Promise<Map<string, number>> {
+  const todayRows = await fetchAllPages<{ push_codes: string[] | null }>(
+    (from, to) =>
+      supabaseAdmin
+        .from("broadcasts")
+        .select("push_codes")
+        .in("phase", ["initial", "update"])
+        .gte("created_at", `${algiersToday()}T00:00:00+01:00`)
+        .order("id")
+        .range(from, to),
+  );
+  const sentToday = new Map<string, number>();
+  for (const row of todayRows)
+    for (const code of row.push_codes ?? [])
+      sentToday.set(code, (sentToday.get(code) ?? 0) + 1);
+  return sentToday;
+}
+
+async function runRelays(sentToday: Map<string, number>): Promise<number> {
+  let relayed = 0;
+  relayed += await relayOnmWarnings(sentToday);
+  relayed += await relayAuthorityWarnings(sentToday);
+  relayed += await relayOfficialIncidents(sentToday);
+  relayed += await relayEarthquakes(sentToday);
+  return relayed;
+}
+
 export async function publishBroadcasts(): Promise<BroadcastRun> {
   // fail closed: a missing or unreadable kill-switch row must stop publishing
   const { data: settings, error: settingsError } = await supabaseAdmin
@@ -113,6 +157,8 @@ export async function publishBroadcasts(): Promise<BroadcastRun> {
       await auditRow({ action: "suppressed", reason: "kill_switch" });
     return { published: 0, suppressed: 1 };
   }
+
+  const sentToday = await loadSentToday();
 
   const windowStart = new Date(
     Date.now() - OPEN_THREAD_WINDOW_DAYS * 86400_000,
@@ -180,10 +226,7 @@ export async function publishBroadcasts(): Promise<BroadcastRun> {
   }
   const clusters = [...byId.values()];
   if (!clusters.length) {
-    const relayed =
-      (await relayOnmWarnings()) +
-      (await relayAuthorityWarnings()) +
-      (await relayOfficialIncidents());
+    const relayed = await runRelays(sentToday);
     return { published: relayed, suppressed: 0 };
   }
 
@@ -193,6 +236,8 @@ export async function publishBroadcasts(): Promise<BroadcastRun> {
       .select(
         "id, code, name_fr, name_ar, name_en, name_kab, parent_id, lat, lon, level",
       )
+      .order("code")
+      .order("id")
       .range(from, to),
   );
   const communes = units.filter((u) => u.level === "commune");
@@ -286,18 +331,6 @@ export async function publishBroadcasts(): Promise<BroadcastRun> {
       .in("id", settlementIds);
     for (const s of data ?? []) settlementName.set(s.id, s.name);
   }
-
-  const { data: todayRows, error: todayError } = await supabaseAdmin
-    .from("broadcasts")
-    .select("push_codes")
-    .eq("kind", "fire")
-    .in("phase", ["initial", "update"])
-    .gte("created_at", `${algiersToday()}T00:00:00+01:00`);
-  if (todayError) throw new Error(todayError.message);
-  const sentToday = new Map<string, number>();
-  for (const row of todayRows ?? [])
-    for (const code of row.push_codes)
-      sentToday.set(code, (sentToday.get(code) ?? 0) + 1);
 
   const chains = new Map<string, { identifier: string; sent: string }[]>();
   const { data: capRows, error: capError } = await supabaseAdmin
@@ -523,9 +556,7 @@ export async function publishBroadcasts(): Promise<BroadcastRun> {
     }
   }
 
-  published += await relayOnmWarnings();
-  published += await relayAuthorityWarnings();
-  published += await relayOfficialIncidents();
+  published += await runRelays(sentToday);
 
   if (errors.length)
     throw new Error(
@@ -535,7 +566,9 @@ export async function publishBroadcasts(): Promise<BroadcastRun> {
   return { published, suppressed: 0 };
 }
 
-async function relayAuthorityWarnings(): Promise<number> {
+async function relayAuthorityWarnings(
+  sentToday: Map<string, number>,
+): Promise<number> {
   // recent window: unbounded growth would eventually hit the 1000-row page cap
   const { data: warnings, error } = await supabaseAdmin
     .from("authority_warnings")
@@ -565,6 +598,8 @@ async function relayAuthorityWarnings(): Promise<number> {
       .from("admin_units")
       .select("code, parent_id")
       .eq("level", "commune")
+      .order("code")
+      .order("id")
       .range(from, to),
   );
   const codesByWilaya = new Map<string, string[]>();
@@ -584,6 +619,11 @@ async function relayAuthorityWarnings(): Promise<number> {
         : [];
     if (!codes.length) continue;
     const severity = warning.severity as "Extreme" | "Severe";
+    const { allowed: pushCodes, dropped } = applyDailyLimit(
+      codes,
+      sentToday,
+      severity === "Extreme",
+    );
     const { error: insertError } = await supabaseAdmin
       .from("broadcasts")
       .insert({
@@ -592,57 +632,120 @@ async function relayAuthorityWarnings(): Promise<number> {
         authority_warning_id: warning.id,
         severity,
         commune_codes: codes,
-        push_codes: codes,
+        push_codes: pushCodes,
+        hazard: "authority",
+        source_key: "authority",
       });
     if (insertError)
       throw new Error(
         `authority broadcast insert failed: ${insertError.message}`,
       );
+    for (const code of pushCodes)
+      sentToday.set(code, (sentToday.get(code) ?? 0) + 1);
     published += 1;
     await auditRow({
       action: "published",
       reason: "authority_relay",
       kind: "authority",
+      phase: "initial",
       severity,
       commune_codes: codes,
-      payload: { authority_warning_id: warning.id },
+      payload: {
+        authority_warning_id: warning.id,
+        ...(dropped.length ? { rate_limited: dropped } : {}),
+      },
     });
   }
   return published;
 }
 
-const OFFICIAL_FRESH_HOURS = 24;
 const OFFICIAL_COVERED_HOURS = 12;
 
-async function relayOfficialIncidents(): Promise<number> {
+type OfficialIncidentRow = {
+  id: string;
+  kind: string;
+  commune_id: string | null;
+  wilaya_id: string;
+  place_text: string | null;
+  status: string;
+  as_of: string;
+  last_reported_at?: string | null;
+  evidence: string | null;
+  unlisted_at: string | null;
+  latest_mention_id: string | null;
+};
+
+type OfficialBroadcastRow = {
+  id?: string;
+  official_incident_id: string | null;
+  phase?: string;
+  cap_alert_id?: string | null;
+  fcm_delivered_at?: string | null;
+  telegram_delivered_at?: string | null;
+};
+
+type MentionSourceRow = {
+  id: string;
+  text_sources: {
+    label: string;
+    key: string;
+    authority_tier?: string | null;
+  } | null;
+  source_documents?: {
+    body: string | null;
+    published_at?: string | null;
+  } | null;
+};
+
+async function relayOfficialIncidents(
+  sentToday: Map<string, number>,
+): Promise<number> {
+  const nowMs = Date.now();
   const since = new Date(
-    Date.now() - OFFICIAL_FRESH_HOURS * HOUR,
+    nowMs - OFFICIAL_FIRE_FRESH_HOURS * HOUR,
   ).toISOString();
   const { data: incidents, error } = await supabaseAdmin
     .from("official_incidents")
     .select(
-      "id, commune_id, wilaya_id, status, as_of, evidence, unlisted_at, latest_mention_id",
+      "id, kind, commune_id, wilaya_id, place_text, status, as_of, last_reported_at, evidence, unlisted_at, latest_mention_id",
     )
     .not("commune_id", "is", null)
-    .in("kind", [...FIRE_KINDS])
-    .is("unlisted_at", null)
-    .not("status", "in", "(extinguished,cleared)")
+    .in("kind", [...FIRE_KINDS, ...NON_FIRE_BROADCAST_KINDS])
     .gte("as_of", since);
   if (error) throw new Error(error.message);
   if (!incidents?.length) return 0;
 
   const { data: already, error: alreadyError } = await supabaseAdmin
     .from("broadcasts")
-    .select("official_incident_id")
+    .select(
+      "id, official_incident_id, phase, cap_alert_id, fcm_delivered_at, telegram_delivered_at",
+    )
     .eq("kind", "official")
     .in(
       "official_incident_id",
       incidents.map((i) => i.id),
     );
   if (alreadyError) throw new Error(alreadyError.message);
-  const done = new Set((already ?? []).map((b) => b.official_incident_id));
-  const pending = incidents.filter((i) => !done.has(i.id));
-  if (!pending.length) return 0;
+
+  const initialByIncident = new Map<string, OfficialBroadcastRow>();
+  const closedIncidentIds = new Set<string>();
+  for (const b of (already ?? []) as OfficialBroadcastRow[]) {
+    if (!b.official_incident_id) continue;
+    const phase = b.phase ?? "initial";
+    if (phase === "end" || phase === "cancel") {
+      closedIncidentIds.add(b.official_incident_id);
+    } else if (!initialByIncident.has(b.official_incident_id)) {
+      initialByIncident.set(b.official_incident_id, b);
+    }
+  }
+
+  const candidates = (incidents as OfficialIncidentRow[]).filter((incident) => {
+    if (closedIncidentIds.has(incident.id)) return false;
+    const initial = initialByIncident.get(incident.id);
+    if (!initial) return true;
+    return incident.status === "cleared" || incident.status === "extinguished";
+  });
+  if (!candidates.length) return 0;
 
   const units = await fetchAllPages<{
     id: string;
@@ -655,12 +758,14 @@ async function relayOfficialIncidents(): Promise<number> {
     supabaseAdmin
       .from("admin_units")
       .select("id, code, name_fr, name_ar, name_en, name_kab")
+      .order("code")
+      .order("id")
       .range(from, to),
   );
   const unitById = new Map(units.map((u) => [u.id, u]));
 
   const coveredSince = new Date(
-    Date.now() - OFFICIAL_COVERED_HOURS * HOUR,
+    nowMs - OFFICIAL_COVERED_HOURS * HOUR,
   ).toISOString();
   const { data: liveThreads, error: liveError } = await supabaseAdmin
     .from("broadcasts")
@@ -673,54 +778,408 @@ async function relayOfficialIncidents(): Promise<number> {
     (liveThreads ?? []).flatMap((row) => row.inside_codes ?? []),
   );
 
-  const sourceLabel = new Map<string, string>();
-  const sourceKey = new Map<string, string>();
-  const mentionIds = pending
+  const mentionInfo = new Map<
+    string,
+    {
+      label: string;
+      key: string;
+      authorityTier: string | null;
+      documentBody: string | null | undefined;
+    }
+  >();
+  const mentionIds = candidates
     .map((i) => i.latest_mention_id)
     .filter((id): id is string => id !== null);
   if (mentionIds.length) {
     const { data, error: sourceError } = await supabaseAdmin
       .from("incident_mentions")
-      .select("id, text_sources(label, key)")
+      .select(
+        "id, text_sources(label, key, authority_tier), source_documents(body, published_at)",
+      )
       .in("id", mentionIds);
     if (sourceError) throw new Error(sourceError.message);
-    for (const row of data ?? []) {
+    for (const row of (data ?? []) as unknown as MentionSourceRow[]) {
       if (row.text_sources?.label) {
-        sourceLabel.set(row.id, row.text_sources.label);
-        sourceKey.set(row.id, row.text_sources.key);
+        mentionInfo.set(row.id, {
+          label: row.text_sources.label,
+          key: row.text_sources.key,
+          authorityTier: row.text_sources.authority_tier ?? null,
+          documentBody:
+            row.source_documents === undefined
+              ? undefined
+              : (row.source_documents?.body ?? null),
+        });
       }
     }
   }
 
+  // Load initial CAP references for any incident that may emit a 'cleared' end notice
+  const initialCapIds = candidates
+    .map((i) => initialByIncident.get(i.id)?.cap_alert_id ?? null)
+    .filter((id): id is string => id !== null);
+  const capRefById = new Map<string, { identifier: string; sent: string }>();
+  if (initialCapIds.length) {
+    const { data: capRows, error: capRefError } = await supabaseAdmin
+      .from("cap_alerts")
+      .select("id, identifier, sent")
+      .in("id", initialCapIds);
+    if (capRefError) throw new Error(capRefError.message);
+    for (const r of capRows ?? []) {
+      capRefById.set(r.id, { identifier: r.identifier, sent: r.sent });
+    }
+  }
+
   let published = 0;
-  for (const incident of pending) {
-    const commune = unitById.get(incident.commune_id!);
+  for (const incident of candidates) {
+    const commune = incident.commune_id
+      ? unitById.get(incident.commune_id)
+      : null;
     const wilaya = unitById.get(incident.wilaya_id);
-    if (!commune) continue;
-    const label =
-      (incident.latest_mention_id
-        ? sourceLabel.get(incident.latest_mention_id)
-        : null) ?? "Protection Civile";
-    const texts = officialTexts(
-      {
-        commune: commune.name_fr,
-        wilaya: wilaya?.name_fr ?? "",
-        source: label,
-        asOf: algiersClock(incident.as_of),
-        status: incident.status as OfficialVars["status"],
-      },
-      false,
+    const source = incident.latest_mention_id
+      ? mentionInfo.get(incident.latest_mention_id)
+      : undefined;
+    const initial = initialByIncident.get(incident.id);
+    const initialDelivered = Boolean(
+      initial &&
+      (initial.fcm_delivered_at != null ||
+        initial.telegram_delivered_at != null),
     );
+    const kind = incident.kind ?? "vegetation";
+
+    const decision = evaluateOfficialIncidentBroadcast({
+      kind,
+      status: incident.status,
+      communeCode: commune?.code ?? null,
+      asOfMs: Date.parse(incident.as_of),
+      nowMs,
+      unlistedAt: incident.unlisted_at,
+      sourceKey: source?.key ?? null,
+      authorityTier: source?.authorityTier ?? null,
+      evidence: incident.evidence,
+      documentBody: source?.documentBody,
+      hasInitialBroadcast: Boolean(initial),
+      initialDelivered,
+      hasEndBroadcast: closedIncidentIds.has(incident.id),
+    });
+    if (decision.action === "suppress" || !commune) continue;
+
+    const isFire = isFireKind(kind);
+    const phase = decision.action;
+    const label = source?.label ?? "Protection Civile";
+    const key = source?.key ?? null;
+    const areaDesc = [commune.name_fr, wilaya?.name_fr]
+      .filter(Boolean)
+      .join(", ");
+
+    const fireStatus = (
+      incident.status === "cleared"
+        ? "extinguished"
+        : [
+              "ongoing",
+              "contained",
+              "extinguished",
+              "monitoring",
+              "unknown",
+            ].includes(incident.status)
+          ? incident.status
+          : "ongoing"
+    ) as OfficialVars["status"];
+
+    const texts = isFire
+      ? officialTexts(
+          {
+            commune: commune.name_fr,
+            wilaya: wilaya?.name_fr ?? "",
+            source: label,
+            asOf: algiersClock(incident.as_of),
+            status: fireStatus,
+          },
+          false,
+        )
+      : officialHazardTexts({
+          kind: isNonFireBroadcastKind(kind) ? kind : "flood",
+          phase,
+          commune: commune.name_fr,
+          wilaya: wilaya?.name_fr ?? "",
+          place: incident.place_text,
+          source: label,
+          asOf: algiersClock(incident.as_of),
+          evidence: incident.evidence,
+        });
+
+    const initialRef = initial?.cap_alert_id
+      ? capRefById.get(initial.cap_alert_id)
+      : undefined;
+
     const cap = buildOfficialCap({
       incidentId: incident.id,
-      areaDesc: [commune.name_fr, wilaya?.name_fr].filter(Boolean).join(", "),
-      sentAt: new Date(),
+      areaDesc,
+      sentAt: new Date(nowMs),
       asOf: new Date(incident.as_of),
       texts,
+      category: officialCapCategory(kind),
+      severity: "Severe",
+      phase,
+      expiresHours: isFire ? 24 : 12,
+      references: initialRef ? [initialRef] : [],
     });
-    const key = incident.latest_mention_id
-      ? sourceKey.get(incident.latest_mention_id)
-      : undefined;
+
+    const capParams: { valueName: string; value: string }[] = [
+      ...(key ? [{ valueName: "source_key", value: key }] : []),
+      { valueName: "source_attribution", value: label },
+      { valueName: "hazard_kind", value: isFire ? "fire" : kind },
+      { valueName: "incident_status", value: incident.status },
+      { valueName: "broadcast_phase", value: phase },
+      { valueName: "observed_at", value: incident.as_of },
+      { valueName: "area_label", value: areaDesc },
+      { valueName: "official_incident_id", value: incident.id },
+    ];
+
+    const { data: capRow, error: capError } = await supabaseAdmin
+      .from("cap_alerts")
+      .insert({
+        identifier: cap.identifier,
+        sender: cap.sender,
+        sent: cap.sent,
+        status: cap.status,
+        msg_type: cap.msgType,
+        scope: cap.scope,
+        cap_references: cap.references ?? null,
+        info: cap.info.map((info) => ({
+          ...info,
+          parameter: capParams,
+        })),
+      })
+      .select("id")
+      .single();
+    if (capError)
+      throw new Error(`official cap insert failed: ${capError.message}`);
+
+    // Satellite fire coverage suppresses duplicate fire official pushes ONLY — never non-fire hazards
+    const candidatePush =
+      isFire && phase === "initial" && covered.has(commune.code)
+        ? []
+        : [commune.code];
+    const { allowed: pushCodes, dropped } = applyDailyLimit(
+      candidatePush,
+      sentToday,
+      phase === "end",
+    );
+
+    const { data: row, error: insertError } = await supabaseAdmin
+      .from("broadcasts")
+      .insert({
+        kind: "official",
+        phase,
+        official_incident_id: incident.id,
+        cap_alert_id: capRow.id,
+        severity: "Severe",
+        commune_codes: [commune.code],
+        push_codes: pushCodes,
+        hazard: isFire ? "fire" : kind,
+        source_key: key,
+        metadata: {
+          official_incident_id: incident.id,
+          hazard_kind: kind,
+          incident_status: incident.status,
+          source_attribution: label,
+          observed_at: incident.as_of,
+          area_label: areaDesc,
+          phase,
+        },
+      })
+      .select("id")
+      .single();
+    if (insertError)
+      throw new Error(
+        `official broadcast insert failed: ${insertError.message}`,
+      );
+    if (phase === "initial") {
+      for (const code of pushCodes)
+        sentToday.set(code, (sentToday.get(code) ?? 0) + 1);
+    }
+    published += 1;
+    await auditRow({
+      action: "published",
+      reason: phase === "end" ? "official_cleared" : "official_relay",
+      kind: "official",
+      phase,
+      severity: "Severe",
+      commune_codes: [commune.code],
+      payload: {
+        official_incident_id: incident.id,
+        broadcast_id: row.id,
+        hazard_kind: kind,
+        headline: texts[0]?.headline ?? "",
+        ...(dropped.length ? { rate_limited: dropped } : {}),
+      },
+    });
+  }
+  return published;
+}
+
+type EarthquakeRow = {
+  id: string;
+  occurred_at: string;
+  lat: number;
+  lon: number;
+  depth_km: number | null;
+  magnitude: number;
+  magnitude_type: string | null;
+  region: string | null;
+  network: string | null;
+  commune_id: string | null;
+  offshore: boolean;
+};
+
+/**
+ * Feature F9: Accountless M4+ earthquake commune topic fan-out (100 km radius via ADR-0001
+ * haversineKm). Zero per-subscriber PII: reads only public earthquakes + admin_units.
+ * Upward revision crossing M4.0 pushes once; already-pushed M4+ never double-pushes;
+ * downward revision below M4.0 never retracts or sends "safe"/all-clear.
+ */
+async function relayEarthquakes(
+  sentToday: Map<string, number>,
+): Promise<number> {
+  const nowMs = Date.now();
+  const since = new Date(
+    nowMs - EARTHQUAKE_BROADCAST_FRESH_HOURS * HOUR,
+  ).toISOString();
+  const { data: quakes, error } = await supabaseAdmin
+    .from("earthquakes")
+    .select(
+      "id, occurred_at, lat, lon, depth_km, magnitude, magnitude_type, region, network, commune_id, offshore",
+    )
+    .gte("magnitude", EARTHQUAKE_BROADCAST_MIN_MAGNITUDE)
+    .gte("occurred_at", since);
+  if (error) throw new Error(error.message);
+
+  const eligible = ((quakes ?? []) as EarthquakeRow[]).filter(
+    (q) =>
+      planEarthquakeBroadcast({
+        id: q.id,
+        magnitude: Number(q.magnitude),
+        lat: q.lat,
+        lon: q.lon,
+        occurredMs: Date.parse(q.occurred_at),
+        nowMs,
+        alreadyBroadcast: false,
+      }).shouldBroadcast,
+  );
+  if (!eligible.length) return 0;
+
+  const { data: existing, error: existingError } = await supabaseAdmin
+    .from("broadcasts")
+    .select("earthquake_id")
+    .eq("kind", "earthquake")
+    .in(
+      "earthquake_id",
+      eligible.map((q) => q.id),
+    );
+  if (existingError) throw new Error(existingError.message);
+  const done = new Set((existing ?? []).map((b) => b.earthquake_id));
+  const pending = eligible.filter(
+    (q) =>
+      planEarthquakeBroadcast({
+        id: q.id,
+        magnitude: Number(q.magnitude),
+        lat: q.lat,
+        lon: q.lon,
+        occurredMs: Date.parse(q.occurred_at),
+        nowMs,
+        alreadyBroadcast: done.has(q.id),
+      }).shouldBroadcast,
+  );
+  if (!pending.length) return 0;
+
+  const units = await fetchAllPages<{
+    id: string;
+    code: string;
+    level: string;
+    parent_id: string | null;
+    name_fr: string;
+    lat: number | null;
+    lon: number | null;
+  }>((from, to) =>
+    supabaseAdmin
+      .from("admin_units")
+      .select("id, code, level, parent_id, name_fr, lat, lon")
+      .order("code")
+      .order("id")
+      .range(from, to),
+  );
+  const unitById = new Map(units.map((u) => [u.id, u]));
+  const unitByCode = new Map(units.map((u) => [u.code, u]));
+  const communes = units.filter(
+    (u): u is typeof u & { lat: number; lon: number } =>
+      u.level === "commune" && u.lat !== null && u.lon !== null,
+  );
+  if (!communes.length) return 0;
+
+  let published = 0;
+  for (const quake of pending) {
+    const codes = targetCommunesForEarthquake(
+      { lat: quake.lat, lon: quake.lon },
+      communes,
+      EARTHQUAKE_BROADCAST_RADIUS_KM,
+    );
+    if (!codes.length) continue;
+
+    const magnitude = Number(quake.magnitude);
+    const severity = earthquakeSeverity(magnitude);
+    const { allowed: pushCodes, dropped } = applyDailyLimit(
+      codes,
+      sentToday,
+      severity === "Extreme",
+    );
+
+    const nearestCommune =
+      (quake.commune_id ? unitById.get(quake.commune_id) : null) ??
+      unitByCode.get(codes[0]!) ??
+      null;
+    const wilaya = nearestCommune?.parent_id
+      ? unitById.get(nearestCommune.parent_id)
+      : null;
+    const place =
+      nearestCommune?.name_fr ??
+      quake.region?.trim() ??
+      coordLabel(quake.lat, quake.lon);
+    const areaDesc =
+      [nearestCommune?.name_fr, wilaya?.name_fr].filter(Boolean).join(", ") ||
+      place;
+    const network = quake.network?.trim() || "EMSC";
+
+    const texts = earthquakeTexts({
+      magnitude,
+      place,
+      wilaya: wilaya?.name_fr ?? null,
+      depthKm: quake.depth_km,
+      network,
+      asOf: algiersClock(quake.occurred_at),
+      offshore: quake.offshore,
+    });
+    const cap = buildEarthquakeCap({
+      earthquakeId: quake.id,
+      magnitude,
+      lat: quake.lat,
+      lon: quake.lon,
+      radiusKm: EARTHQUAKE_BROADCAST_RADIUS_KM,
+      areaDesc,
+      occurredAt: new Date(quake.occurred_at),
+      sentAt: new Date(nowMs),
+      texts,
+    });
+
+    const capParams: { valueName: string; value: string }[] = [
+      { valueName: "source_key", value: "emsc" },
+      { valueName: "source_attribution", value: network },
+      { valueName: "hazard_kind", value: "earthquake" },
+      { valueName: "magnitude", value: magnitude.toFixed(1) },
+      { valueName: "observed_at", value: quake.occurred_at },
+      { valueName: "area_label", value: areaDesc },
+      { valueName: "earthquake_id", value: quake.id },
+    ];
+
     const { data: capRow, error: capError } = await supabaseAdmin
       .from("cap_alerts")
       .insert({
@@ -732,68 +1191,103 @@ async function relayOfficialIncidents(): Promise<number> {
         scope: cap.scope,
         info: cap.info.map((info) => ({
           ...info,
-          parameter: key ? [{ valueName: "source_key", value: key }] : [],
+          parameter: capParams,
         })),
       })
       .select("id")
       .single();
     if (capError)
-      throw new Error(`official cap insert failed: ${capError.message}`);
+      throw new Error(`earthquake cap insert failed: ${capError.message}`);
+
     const { data: row, error: insertError } = await supabaseAdmin
       .from("broadcasts")
       .insert({
-        kind: "official",
+        kind: "earthquake",
         phase: "initial",
-        official_incident_id: incident.id,
+        earthquake_id: quake.id,
         cap_alert_id: capRow.id,
-        severity: "Severe",
-        commune_codes: [commune.code],
-        push_codes: covered.has(commune.code) ? [] : [commune.code],
+        severity,
+        commune_codes: codes,
+        push_codes: pushCodes,
+        hazard: "earthquake",
+        source_key: "emsc",
+        metadata: {
+          earthquake_id: quake.id,
+          magnitude,
+          depth_km: quake.depth_km,
+          network,
+          offshore: quake.offshore,
+          occurred_at: quake.occurred_at,
+          area_label: areaDesc,
+        },
       })
       .select("id")
       .single();
     if (insertError)
       throw new Error(
-        `official broadcast insert failed: ${insertError.message}`,
+        `earthquake broadcast insert failed: ${insertError.message}`,
       );
+
+    for (const code of pushCodes)
+      sentToday.set(code, (sentToday.get(code) ?? 0) + 1);
     published += 1;
     await auditRow({
       action: "published",
-      reason: "official_relay",
-      kind: "official",
-      severity: "Severe",
-      commune_codes: [commune.code],
+      reason: "earthquake_relay",
+      kind: "earthquake",
+      phase: "initial",
+      severity,
+      commune_codes: codes,
       payload: {
-        official_incident_id: incident.id,
+        earthquake_id: quake.id,
+        magnitude,
         broadcast_id: row.id,
-        headline: texts[0]?.headline ?? "",
+        pushed: pushCodes.length,
+        ...(dropped.length ? { rate_limited: dropped } : {}),
       },
     });
   }
   return published;
 }
 
-async function relayOnmWarnings(): Promise<number> {
+type OnmCandidateRow = {
+  id: string;
+  cap_id?: string | null;
+  msg_type?: string | null;
+  referenced_cap_ids?: string[] | null;
+  area_desc?: string | null;
+  geocodes?: string[] | null;
+  severity: string;
+  wilaya_id: string | null;
+  event: string | null;
+  instruction_fr?: string | null;
+  sent: string;
+  onset: string | null;
+  expires: string | null;
+  cancelled_at?: string | null;
+  superseded_by?: string | null;
+};
+
+async function relayOnmWarnings(
+  sentToday: Map<string, number>,
+): Promise<number> {
   const nowIso = new Date().toISOString();
   const { data: warnings, error } = await supabaseAdmin
     .from("onm_vigilance")
-    .select("id, severity, wilaya_id, event, sent, onset, expires")
+    .select(
+      "id, cap_id, msg_type, referenced_cap_ids, area_desc, geocodes, severity, wilaya_id, event, instruction_fr, sent, onset, expires, cancelled_at, superseded_by",
+    )
     .in("severity", ["Severe", "Extreme"])
     .not("wilaya_id", "is", null)
     .is("superseded_at", null)
+    .is("cancelled_at", null)
+    .is("superseded_by", null)
+    .neq("msg_type", "Cancel")
     .or(`expires.is.null,expires.gt.${nowIso}`);
   if (error) throw new Error(error.message);
   if (!warnings?.length) return 0;
 
-  const toWarning = (row: {
-    id: string;
-    severity: string;
-    wilaya_id: string | null;
-    event: string | null;
-    sent: string;
-    onset: string | null;
-    expires: string | null;
-  }): OnmWarning => ({
+  const toWarning = (row: OnmCandidateRow): OnmWarning => ({
     id: row.id,
     wilayaId: row.wilaya_id!,
     event: row.event ?? "",
@@ -801,6 +1295,14 @@ async function relayOnmWarnings(): Promise<number> {
     sentMs: Date.parse(row.sent),
     onsetMs: row.onset === null ? null : Date.parse(row.onset),
     expiresMs: row.expires === null ? null : Date.parse(row.expires),
+    ...(row.cap_id ? { capId: row.cap_id } : {}),
+    msgType: parseCapMsgType(row.msg_type) ?? "Alert",
+    referencedCapIds: row.referenced_cap_ids ?? [],
+    areaDesc: row.area_desc ?? null,
+    geocodes: row.geocodes ?? [],
+    instructionFr: row.instruction_fr ?? null,
+    cancelledAtMs: row.cancelled_at ? Date.parse(row.cancelled_at) : null,
+    supersededBy: row.superseded_by ?? null,
   });
 
   const relayedSince = new Date(
@@ -809,19 +1311,21 @@ async function relayOnmWarnings(): Promise<number> {
   const { data: relayedRows, error: relayedError } = await supabaseAdmin
     .from("broadcasts")
     .select(
-      "onm_vigilance_id, onm_vigilance(id, severity, wilaya_id, event, sent, onset, expires)",
+      "onm_vigilance_id, onm_vigilance(id, cap_id, msg_type, referenced_cap_ids, area_desc, geocodes, severity, wilaya_id, event, instruction_fr, sent, onset, expires, cancelled_at, superseded_by)",
     )
     .eq("kind", "onm")
     .gte("created_at", relayedSince);
   if (relayedError) throw new Error(relayedError.message);
   const relayed = (relayedRows ?? [])
-    .map((row) => row.onm_vigilance)
-    .filter((row): row is NonNullable<typeof row> => row !== null)
+    .map((row) => row.onm_vigilance as OnmCandidateRow | null)
+    .filter(
+      (row): row is OnmCandidateRow => row !== null && row.wilaya_id !== null,
+    )
     .map(toWarning);
   const relayedIds = new Set(relayed.map((w) => w.id));
 
   const { relay, suppressed } = onmRelayPlan(
-    warnings
+    (warnings as OnmCandidateRow[])
       .filter((w) => !relayedIds.has(w.id))
       .map(toWarning)
       .filter((warning) => onmWarningIsCurrent(warning, Date.parse(nowIso))),
@@ -852,6 +1356,8 @@ async function relayOnmWarnings(): Promise<number> {
       .from("admin_units")
       .select("code, parent_id")
       .eq("level", "commune")
+      .order("code")
+      .order("id")
       .range(from, to),
   );
   const codesByWilaya = new Map<string, string[]>();
@@ -863,30 +1369,67 @@ async function relayOnmWarnings(): Promise<number> {
   }
 
   let published = 0;
+  const seenForReasons = [...relayed];
   for (const warning of relay) {
     const codes = codesByWilaya.get(warning.wilayaId) ?? [];
     if (!codes.length) continue;
     const severity = warning.severity as "Extreme" | "Severe";
+    const phase: BroadcastPhase =
+      warning.msgType === "Update" ? "update" : "initial";
+    const priors = onmUpdatePriors(warning, seenForReasons);
+    const changeReasons =
+      phase === "update"
+        ? onmUpdateMaterialChange(warning, priors).reasons
+        : [];
+
+    const { allowed: pushCodes, dropped } = applyDailyLimit(
+      codes,
+      sentToday,
+      severity === "Extreme",
+    );
+
     const { error: insertError } = await supabaseAdmin
       .from("broadcasts")
       .insert({
         kind: "onm",
-        phase: "initial",
+        phase,
         onm_vigilance_id: warning.id,
         severity,
         commune_codes: codes,
-        push_codes: codes,
+        push_codes: pushCodes,
+        hazard: "weather",
+        source_key: "onm",
+        metadata: {
+          cap_id: warning.capId ?? null,
+          msg_type: warning.msgType ?? "Alert",
+          event: warning.event,
+          area_desc: warning.areaDesc ?? null,
+          expires_is_internal_deadline: warning.expiresMs === null,
+          ...(changeReasons.length ? { change_reasons: changeReasons } : {}),
+        },
       });
     if (insertError)
       throw new Error(`onm broadcast insert failed: ${insertError.message}`);
+    for (const code of pushCodes)
+      sentToday.set(code, (sentToday.get(code) ?? 0) + 1);
+    seenForReasons.push(warning);
     published += 1;
     await auditRow({
       action: "published",
-      reason: "onm_relay",
+      reason: phase === "update" ? "onm_update" : "onm_relay",
       kind: "onm",
       onm_vigilance_id: warning.id,
+      phase,
       severity,
       commune_codes: codes,
+      payload: {
+        cap_id: warning.capId ?? null,
+        msg_type: warning.msgType ?? "Alert",
+        referenced_cap_ids: warning.referencedCapIds ?? [],
+        ...(changeReasons.length ? { change_reasons: changeReasons } : {}),
+        expires_is_internal_deadline: warning.expiresMs === null,
+        ...(dropped.length ? { rate_limited: dropped } : {}),
+      },
     });
   }
   return published;

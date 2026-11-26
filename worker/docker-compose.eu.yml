@@ -1,0 +1,73 @@
+services:
+  nadhir-eu-worker:
+    build:
+      context: ..
+      dockerfile: worker/Dockerfile
+    container_name: nadhir-eu-worker
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL is required}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?SUPABASE_SERVICE_ROLE_KEY is required}
+      WORKER_ID: ${WORKER_ID:-eu-worker-1}
+      WORKER_EXECUTION_TARGETS: ${WORKER_EXECUTION_TARGETS:-worker}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-3}
+      WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-2000}
+      WORKER_SCHEDULER_ENABLED: ${WORKER_SCHEDULER_ENABLED:-true}
+      WORKER_SCHEDULER_INTERVAL_MS: ${WORKER_SCHEDULER_INTERVAL_MS:-30000}
+      WORKER_LEASE_SECONDS: ${WORKER_LEASE_SECONDS:-180}
+      WORKER_JOB_TIMEOUT_MS: ${WORKER_JOB_TIMEOUT_MS:-1200000}
+      WORKER_HEALTH_HOST: 0.0.0.0
+      WORKER_HEALTH_PORT: 8090
+      WORKER_DRAIN_TIMEOUT_MS: ${WORKER_DRAIN_TIMEOUT_MS:-30000}
+      # Optional primary home model gateway (fails over automatically when unset/down)
+      NADHIR_GATEWAY_URL: ${NADHIR_GATEWAY_URL:-}
+      NADHIR_GATEWAY_ACCESS_CLIENT_ID: ${NADHIR_GATEWAY_ACCESS_CLIENT_ID:-}
+      NADHIR_GATEWAY_ACCESS_CLIENT_SECRET: ${NADHIR_GATEWAY_ACCESS_CLIENT_SECRET:-}
+      # Unified automatic EU/cloud LLM API fallback configuration
+      LLM_FALLBACK_PROVIDER: ${LLM_FALLBACK_PROVIDER:-mistral}
+      LLM_FALLBACK_API_URL: ${LLM_FALLBACK_API_URL:-}
+      LLM_FALLBACK_API_KEY: ${LLM_FALLBACK_API_KEY:-}
+      LLM_FALLBACK_MODEL: ${LLM_FALLBACK_MODEL:-mistral-small-latest}
+      LLM_FALLBACK_TIMEOUT_MS: ${LLM_FALLBACK_TIMEOUT_MS:-}
+      LLM_FALLBACK_MAX_RETRIES: ${LLM_FALLBACK_MAX_RETRIES:-0}
+      LLM_FALLBACK_HEADERS: ${LLM_FALLBACK_HEADERS:-}
+      LLM_FALLBACK_CHAIN: ${LLM_FALLBACK_CHAIN:-}
+      # Ingestion credentials (optional depending on enabled contracts)
+      FIRMS_MAP_KEY: ${FIRMS_MAP_KEY:-}
+      EUMETSAT_CONSUMER_KEY: ${EUMETSAT_CONSUMER_KEY:-}
+      EUMETSAT_CONSUMER_SECRET: ${EUMETSAT_CONSUMER_SECRET:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      FIREBASE_SERVICE_ACCOUNT: ${FIREBASE_SERVICE_ACCOUNT:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+    ports:
+      - "127.0.0.1:8090:8090"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "const r = await fetch('http://127.0.0.1:8090/healthz'); process.exit(r.ok ? 0 : 1)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

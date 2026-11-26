@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  parseProvenancePayload,
+  validateProvenanceInvariants,
+} from "@/lib/alert-provenance";
+import {
   hazardAlerts,
   type HazardContext,
   type HazardZone,
@@ -399,5 +403,72 @@ describe("earthquake alerts", () => {
     expect(
       hazardAlerts([zone], only({ magnitude: 5.1 }), quiet).rows,
     ).toHaveLength(1);
+  });
+});
+
+describe("watch-zone hazard alert trigger provenance (F10 + F11)", () => {
+  it("embeds valid provenance_* keys on all 6 hazard alert types and hazard kind on official incidents", () => {
+    const richContext: HazardContext = {
+      ...context,
+      weather: [{ ...context.weather[0]!, sent: "2026-09-25T05:30:00Z" }],
+      official: [
+        context.official[0]!,
+        {
+          id: "dgpc-flood",
+          kind: "flood",
+          commune_id: "c1",
+          wilaya_id: "w16",
+          place_text: "Bab El Oued",
+          last_reported_at: "2026-09-24T11:00:00Z",
+        },
+      ],
+      road: [{ ...context.road[0]!, updated_at: "2026-09-24T08:00:00Z" }],
+      citizen: [
+        {
+          id: "r1",
+          reporter: "u7",
+          hazard: "flooding",
+          summary: "Water on road",
+          lat: 36.61,
+          lon: 3.1,
+          expires_at: "2026-09-25T18:00:00Z",
+          observed_at: "2026-09-24T12:00:00Z",
+          witnesses: ["u8"],
+        },
+      ],
+      earthquakes: [
+        {
+          id: "eq-1",
+          occurred_at: "2026-09-25T10:02:00Z",
+          lat: 36.65,
+          lon: 3.3,
+          magnitude: 4.3,
+          network: "EMSC",
+          offshore: false,
+        },
+      ],
+    };
+
+    const { rows } = hazardAlerts([zone], richContext, awake);
+    expect(rows).toHaveLength(7);
+    for (const row of rows) {
+      const prov = parseProvenancePayload(row.payload);
+      expect(prov, row.dedupe_key).not.toBeNull();
+      expect(validateProvenanceInvariants(prov!), row.dedupe_key).toEqual([]);
+      expect(prov!.triggerKind).toBe("watch_zone");
+      expect(prov!.areaLabel).toBe("Home");
+      expect(prov!.radiusKm).toBe(5);
+    }
+
+    const dgpcFlood = rows.find((r) => r.dedupe_key === "official:dgpc-flood")!;
+    expect(dgpcFlood.payload["hazard"]).toBe("flood");
+    expect(dgpcFlood.payload["provenance_rule"]).toBe(
+      "provenance.rule.dgpcNonFire",
+    );
+    const dgpcFire = rows.find((r) => r.dedupe_key === "official:dgpc1")!;
+    expect(dgpcFire.payload["hazard"]).toBe("vegetation");
+    expect(dgpcFire.payload["provenance_rule"]).toBe(
+      "provenance.rule.dgpcFire",
+    );
   });
 });

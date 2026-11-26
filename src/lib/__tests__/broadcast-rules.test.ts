@@ -2,21 +2,27 @@ import { describe, expect, it } from "vitest";
 
 import {
   BROADCAST_DAILY_COMMUNE_LIMIT,
+  EARTHQUAKE_BROADCAST_RADIUS_KM,
   applyDailyLimit,
   coverageOf,
   downwindAdditions,
+  earthquakeSeverity,
+  evaluateOfficialIncidentBroadcast,
   setThreadCoverage,
   fireSeverity,
   insideCommunes,
   onmRelayPlan,
   onmWarningIsCurrent,
   kmToMultiPolygon,
+  planEarthquakeBroadcast,
   planFireBroadcast,
   pointInMultiPolygon,
   pushCodesFor,
   fuelLimitedCodes,
   targetCommunes,
+  targetCommunesForEarthquake,
   type CommuneShape,
+  type OfficialIncidentBroadcastInput,
   type OpenThread,
   type OnmWarning,
 } from "@/lib/broadcast-rules";
@@ -697,5 +703,473 @@ describe("onmRelayPlan", () => {
         [open],
       ).relay,
     ).toHaveLength(1);
+  });
+});
+
+describe("evaluateOfficialIncidentBroadcast (F8)", () => {
+  const nowMs = Date.parse("2026-11-24T12:00:00Z");
+  const baseNonFire = (
+    over: Partial<OfficialIncidentBroadcastInput> = {},
+  ): OfficialIncidentBroadcastInput => ({
+    kind: "flood",
+    status: "ongoing",
+    communeCode: "1601",
+    asOfMs: nowMs - 2 * 3600_000,
+    nowMs,
+    unlistedAt: null,
+    sourceKey: "dgpc_telegram",
+    authorityTier: "national",
+    evidence: "تدخل متواصل لامتصاص مياه الأمطار في بلدية باب الوادي",
+    documentBody:
+      "الحماية المدنية: تدخل متواصل لامتصاص مياه الأمطار في بلدية باب الوادي ولاية الجزائر.",
+    hasInitialBroadcast: false,
+    initialDelivered: false,
+    hasEndBroadcast: false,
+    ...over,
+  });
+
+  it.each(["flood", "storm", "road", "structure"] as const)(
+    "accepts verified ongoing dgpc_telegram %s incident within 12h",
+    (kind) => {
+      expect(evaluateOfficialIncidentBroadcast(baseNonFire({ kind }))).toEqual({
+        action: "initial",
+      });
+    },
+  );
+
+  it("rejects ITA, media tier, unapproved sources, unsupported kinds, missing commune, stale, future, non-ongoing, missing verbatim evidence, and retrospective summaries", () => {
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({ sourceKey: "ita_facebook", authorityTier: "media" }),
+      ),
+    ).toEqual({ action: "suppress", reason: "media_source_excluded" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({ sourceKey: "ita_website", authorityTier: "national" }),
+      ),
+    ).toEqual({ action: "suppress", reason: "ita_source_excluded" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({ sourceKey: "other_source" }),
+      ),
+    ).toEqual({ action: "suppress", reason: "unapproved_non_fire_source" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(baseNonFire({ kind: "other" })),
+    ).toEqual({ action: "suppress", reason: "unsupported_hazard_kind" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(baseNonFire({ communeCode: null })),
+    ).toEqual({ action: "suppress", reason: "missing_commune" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({ asOfMs: nowMs - 13 * 3600_000 }),
+      ),
+    ).toEqual({ action: "suppress", reason: "stale_incident" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({ asOfMs: nowMs + 60_000 }),
+      ),
+    ).toEqual({ action: "suppress", reason: "future_as_of" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(baseNonFire({ status: "unknown" })),
+    ).toEqual({ action: "suppress", reason: "non_fire_not_ongoing" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({ documentBody: "Unrelated bulletin text" }),
+      ),
+    ).toEqual({ action: "suppress", reason: "missing_verbatim_evidence" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          evidence: "حصيلة تدخلات الحماية المدنية خلال 24 ساعة الماضية",
+          documentBody: "حصيلة تدخلات الحماية المدنية خلال 24 ساعة الماضية",
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "retrospective_or_summary" });
+  });
+
+  it("blocks retrospective headers in documentBody (clean evidence), Arabic tatweel/diacritics/Eastern numerals, and unlisted/NaN asOf on cleared", () => {
+    // Recap header in documentBody while evidence is a clean bullet line (both initial & end)
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          evidence: "امتصاص مياه الأمطار المتراكمة ببلدية باب الوادي",
+          documentBody:
+            "حصيلة تدخلات الحماية المدنية خلال 24 ساعة:\n- امتصاص مياه الأمطار المتراكمة ببلدية باب الوادي",
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "retrospective_or_summary" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          status: "cleared",
+          hasInitialBroadcast: true,
+          initialDelivered: true,
+          evidence: "امتصاص مياه الأمطار المتراكمة ببلدية باب الوادي",
+          documentBody:
+            "Bilan des interventions durant les 24 dernières heures : امتصاص مياه الأمطار المتراكمة ببلدية باب الوادي",
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "retrospective_or_summary" });
+
+    // Arabic tatweel
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          evidence: "حـصـيـلـة تدخلات ببلدية باب الوادي",
+          documentBody: "حـصـيـلـة تدخلات ببلدية باب الوادي",
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "retrospective_or_summary" });
+
+    // Arabic diacritics
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          evidence: "حَصِيلَة تدخلات ببلدية باب الوادي",
+          documentBody: "حَصِيلَة تدخلات ببلدية باب الوادي",
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "retrospective_or_summary" });
+
+    // Eastern Arabic numerals (٢٤) and Extended Arabic-Indic numerals (۲۴)
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          evidence: "تدخلات الحماية المدنية خلال ٢٤ ساعة ببلدية باب الوادي",
+          documentBody: "تدخلات الحماية المدنية خلال ٢٤ ساعة ببلدية باب الوادي",
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "retrospective_or_summary" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          evidence: "تدخلات الحماية المدنية خلال ۲۴ ساعة ببلدية باب الوادي",
+          documentBody: "تدخلات الحماية المدنية خلال ۲۴ ساعة ببلدية باب الوادي",
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "retrospective_or_summary" });
+
+    // Unlisted incident marked cleared must NEVER emit end
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          status: "cleared",
+          hasInitialBroadcast: true,
+          initialDelivered: true,
+          unlistedAt: "2026-11-24T11:30:00Z",
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "unlisted_incident" });
+
+    // Invalid/NaN asOfMs on cleared must suppress cleanly (never crash buildOfficialCap)
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          status: "cleared",
+          hasInitialBroadcast: true,
+          initialDelivered: true,
+          asOfMs: Number.NaN,
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "invalid_timestamp" });
+  });
+
+  it("emits end on cleared ONLY when initial was delivered, stays silent if cleared before delivery, and never infers cleared from silence", () => {
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          status: "cleared",
+          hasInitialBroadcast: true,
+          initialDelivered: true,
+        }),
+      ),
+    ).toEqual({ action: "end" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          status: "cleared",
+          hasInitialBroadcast: true,
+          initialDelivered: false,
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "cleared_before_delivery" });
+
+    expect(
+      evaluateOfficialIncidentBroadcast(
+        baseNonFire({
+          status: "ongoing",
+          hasInitialBroadcast: true,
+          initialDelivered: true,
+        }),
+      ),
+    ).toEqual({ action: "suppress", reason: "already_broadcast" });
+  });
+});
+
+describe("earthquake commune targeting & severity (F9)", () => {
+  const communes = [
+    { code: "1601", lat: 36.75, lon: 3.05 }, // ~0 km
+    { code: "0901", lat: 36.47, lon: 2.83 }, // ~37 km
+    { code: "1501", lat: 36.71, lon: 4.05 }, // ~89 km
+    { code: "3101", lat: 35.7, lon: -0.63 }, // ~350 km (Oran)
+  ];
+
+  it("targets all communes within 100 km sorted by distance then code, excluding distant communes", () => {
+    expect(EARTHQUAKE_BROADCAST_RADIUS_KM).toBe(100);
+    expect(
+      targetCommunesForEarthquake({ lat: 36.75, lon: 3.05 }, communes),
+    ).toEqual(["1601", "0901", "1501"]);
+  });
+
+  it("maps M4.0-4.9 to Severe and M5.0+ to Extreme", () => {
+    expect(earthquakeSeverity(4.0)).toBe("Severe");
+    expect(earthquakeSeverity(4.9)).toBe("Severe");
+    expect(earthquakeSeverity(5.0)).toBe("Extreme");
+    expect(earthquakeSeverity(6.2)).toBe("Extreme");
+  });
+});
+
+describe("planEarthquakeBroadcast (F9)", () => {
+  const HOUR = 3_600_000;
+  const nowMs = Date.parse("2026-11-25T12:00:00Z");
+
+  it("enforces M3.99 vs M4.00 and M4.99 vs M5.00 severity boundaries", () => {
+    expect(
+      planEarthquakeBroadcast({
+        id: "eq-399",
+        magnitude: 3.99,
+        lat: 36.75,
+        lon: 3.05,
+        occurredMs: nowMs - HOUR,
+        nowMs,
+        alreadyBroadcast: false,
+      }),
+    ).toEqual({
+      action: "suppress",
+      shouldBroadcast: false,
+      send: false,
+      retract: false,
+      severity: null,
+      reason: "below_threshold",
+    });
+
+    expect(
+      planEarthquakeBroadcast({
+        id: "eq-400",
+        magnitude: 4.0,
+        lat: 36.75,
+        lon: 3.05,
+        occurredMs: nowMs - HOUR,
+        nowMs,
+        alreadyBroadcast: false,
+      }),
+    ).toEqual({
+      action: "publish",
+      shouldBroadcast: true,
+      send: true,
+      retract: false,
+      severity: "Severe",
+      reason: "m4_threshold_met",
+    });
+
+    expect(
+      planEarthquakeBroadcast({
+        id: "eq-499",
+        magnitude: 4.99,
+        alreadyBroadcast: false,
+      }),
+    ).toMatchObject({
+      action: "publish",
+      shouldBroadcast: true,
+      severity: "Severe",
+    });
+
+    expect(
+      planEarthquakeBroadcast({
+        id: "eq-500",
+        magnitude: 5.0,
+        alreadyBroadcast: false,
+      }),
+    ).toEqual({
+      action: "publish",
+      shouldBroadcast: true,
+      send: true,
+      retract: false,
+      severity: "Extreme",
+      reason: "m4_threshold_met",
+    });
+  });
+
+  it("rejects non-finite and implausible magnitudes, out-of-range coordinates, and future/stale timestamps", () => {
+    for (const badMag of [
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+      -2.1,
+      10.1,
+    ]) {
+      expect(
+        planEarthquakeBroadcast({ id: "eq-bad-mag", magnitude: badMag }),
+      ).toMatchObject({
+        action: "suppress",
+        shouldBroadcast: false,
+        send: false,
+        retract: false,
+        reason: "invalid_magnitude",
+      });
+    }
+
+    for (const coords of [
+      { lat: -91, lon: 3.0 },
+      { lat: 91, lon: 3.0 },
+      { lat: 36.7, lon: -181 },
+      { lat: 36.7, lon: 181 },
+      { lat: Number.NaN, lon: 3.0 },
+      { lat: null, lon: 3.0 },
+    ]) {
+      expect(
+        planEarthquakeBroadcast({
+          id: "eq-bad-coords",
+          magnitude: 4.5,
+          ...coords,
+        }),
+      ).toMatchObject({
+        action: "suppress",
+        shouldBroadcast: false,
+        reason: "invalid_coordinates",
+      });
+    }
+
+    expect(
+      planEarthquakeBroadcast({
+        id: "eq-future",
+        magnitude: 4.6,
+        occurredMs: nowMs + 60_000,
+        nowMs,
+      }),
+    ).toMatchObject({
+      action: "suppress",
+      shouldBroadcast: false,
+      reason: "future_earthquake",
+    });
+
+    expect(
+      planEarthquakeBroadcast({
+        id: "eq-stale",
+        magnitude: 4.6,
+        occurredMs: nowMs - 7 * HOUR,
+        nowMs,
+      }),
+    ).toMatchObject({
+      action: "suppress",
+      shouldBroadcast: false,
+      reason: "stale_earthquake",
+    });
+
+    expect(
+      planEarthquakeBroadcast({
+        id: "eq-nan-ts",
+        magnitude: 4.6,
+        occurredMs: Number.NaN,
+        nowMs,
+      }),
+    ).toMatchObject({
+      action: "suppress",
+      shouldBroadcast: false,
+      reason: "invalid_timestamp",
+    });
+  });
+
+  it("enforces revision asymmetry: upward M3.8 -> M4.2 pushes once, repeat M4.2 -> M4.8 suppresses, downward M4.5 -> M3.6 never retracts or emits banned labels", () => {
+    const upward = planEarthquakeBroadcast({
+      id: "eq-rev-up",
+      magnitude: 4.2,
+      previousMagnitude: 3.8,
+      alreadyBroadcast: false,
+    });
+    expect(upward).toEqual({
+      action: "publish",
+      shouldBroadcast: true,
+      send: true,
+      retract: false,
+      severity: "Severe",
+      reason: "upward_revision_crossed_threshold",
+    });
+
+    const repeat = planEarthquakeBroadcast({
+      id: "eq-rev-repeat",
+      magnitude: 4.8,
+      previousMagnitude: 4.2,
+      alreadyBroadcast: true,
+    });
+    expect(repeat).toEqual({
+      action: "suppress",
+      shouldBroadcast: false,
+      send: false,
+      retract: false,
+      severity: null,
+      reason: "already_broadcast",
+    });
+
+    const downward = planEarthquakeBroadcast({
+      id: "eq-rev-down",
+      magnitude: 3.6,
+      previousMagnitude: 4.5,
+      alreadyBroadcast: true,
+    });
+    expect(downward).toEqual({
+      action: "suppress",
+      shouldBroadcast: false,
+      send: false,
+      retract: false,
+      severity: null,
+      reason: "downward_revision_no_retraction",
+    });
+    expect(JSON.stringify(downward)).not.toMatch(/safe|all[-\s]clear/i);
+  });
+
+  it("suppresses half-provided coordinate or timestamp pairs while allowing both members to be omitted", () => {
+    const halfCoordCases = [
+      { magnitude: 4.5, lat: 36.7 },
+      { magnitude: 4.5, lon: 3.0 },
+    ];
+    for (const input of halfCoordCases) {
+      expect(planEarthquakeBroadcast(input)).toEqual({
+        action: "suppress",
+        shouldBroadcast: false,
+        send: false,
+        retract: false,
+        severity: null,
+        reason: "invalid_coordinates",
+      });
+    }
+
+    const halfTimeCases = [
+      { magnitude: 4.5, occurredMs: 0 },
+      { magnitude: 4.5, occurredMs: Date.now() + 365 * 24 * 3600_000 },
+      { magnitude: 4.5, nowMs: Date.parse("2026-11-24T15:00:00Z") },
+    ];
+    for (const input of halfTimeCases) {
+      expect(planEarthquakeBroadcast(input)).toEqual({
+        action: "suppress",
+        shouldBroadcast: false,
+        send: false,
+        retract: false,
+        severity: null,
+        reason: "invalid_timestamp",
+      });
+    }
   });
 });

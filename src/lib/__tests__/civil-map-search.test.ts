@@ -1,5 +1,18 @@
 import { expect, it } from "vitest";
-import { parseMapSearch } from "../civil-map-search";
+import { HAZARD_CATEGORIES, parseMapSearch } from "../civil-map-search";
+
+it("includes flood in the 7 hazard filter categories and accepts ?hazard=flood", () => {
+  expect(HAZARD_CATEGORIES).toEqual([
+    "all",
+    "fire",
+    "weather",
+    "flood",
+    "road",
+    "earthquake",
+    "other",
+  ]);
+  expect(parseMapSearch({ hazard: "flood" }).hazard).toBe("flood");
+});
 
 it("preserves shareable place, record and supported filters", () => {
   expect(

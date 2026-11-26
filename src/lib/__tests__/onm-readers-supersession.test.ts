@@ -49,13 +49,19 @@ beforeEach(() => {
   calls.length = 0;
 });
 
-it("never relays a warning ONM already replaced", async () => {
+it("never relays a warning ONM already replaced or cancelled", async () => {
   await publishBroadcasts();
   expect(onmReads()).toHaveLength(1);
   expect(onmReads()[0]!.ops).toContainEqual(["is", "superseded_at", null]);
+  expect(onmReads()[0]!.ops).toContainEqual(["is", "cancelled_at", null]);
+  expect(onmReads()[0]!.ops).toContainEqual(["is", "superseded_by", null]);
+  expect(onmReads()[0]!.ops).toContainEqual(["neq", "msg_type", "Cancel"]);
 });
 
-it("keeps replaced warnings off the map", async () => {
+it("keeps replaced and cancelled warnings off the map", async () => {
   await onmVigilanceQuery.queryFn!({} as never);
   expect(onmReads()[0]!.ops).toContainEqual(["is", "superseded_at", null]);
+  expect(onmReads()[0]!.ops).toContainEqual(["is", "cancelled_at", null]);
+  expect(onmReads()[0]!.ops).toContainEqual(["is", "superseded_by", null]);
+  expect(onmReads()[0]!.ops).toContainEqual(["neq", "msg_type", "Cancel"]);
 });

@@ -1,0 +1,14 @@
+{
+  "valid_time": "2026-11-24T12:00:00Z",
+  "published_time": "2026-11-24T15:52:00Z",
+  "window_minutes": 30,
+  "scale_factor": 0.1,
+  "snapshot_id": "IMERG-E-20261124-S113000-E115959",
+  "cells": [
+    { "lat": 36.75, "lon": 3.05, "scaled_rate": 246 },
+    { "lat": 22.79, "lon": 5.52, "scaled_rate": 184 },
+    { "lat": 31.62, "lon": -2.22, "scaled_rate": 0 },
+    { "lat": 35.7, "lon": -0.63, "scaled_rate": 29999 },
+    { "lat": 41.38, "lon": 2.17, "scaled_rate": 150 }
+  ]
+}

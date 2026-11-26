@@ -3,8 +3,9 @@ import {
   SETTLEMENT_EMERGENCY_KM,
   downwindOf,
 } from "@/lib/alerts-rules";
-import { BROADCAST_RING_KM } from "@/lib/cap";
-import { bearingBetween } from "@/lib/nadhir";
+import { BROADCAST_RING_KM, type CapMsgType } from "@/lib/cap";
+import { bearingBetween, haversineKm } from "@/lib/nadhir";
+import { isFireKind } from "@/lib/text-sources/merge";
 import { isFuelLimited, type LandcoverFractions } from "@/lib/zonal";
 
 export const BROADCAST_END_AFTER_HOURS = 12;
@@ -354,6 +355,14 @@ export function pushCodesFor(args: {
 }
 
 const ONM_NO_EXPIRY_WINDOW_HOURS = 24;
+const ONM_BOILERPLATE_INSTRUCTION = "no additional information.";
+
+const ONM_SEVERITY_RANK: Record<string, number> = {
+  Extreme: 4,
+  Severe: 3,
+  Moderate: 2,
+  Minor: 1,
+};
 
 export type OnmWarning = {
   id: string;
@@ -363,12 +372,24 @@ export type OnmWarning = {
   sentMs: number;
   onsetMs: number | null;
   expiresMs: number | null;
+  capId?: string;
+  msgType?: CapMsgType;
+  referencedCapIds?: string[];
+  areaDesc?: string | null;
+  geocodes?: string[];
+  instructionFr?: string | null;
+  cancelledAtMs?: number | null;
+  supersededBy?: string | null;
 };
+
+export type OnmUpdateChangeReason =
+  "severity_escalation" | "area_expansion" | "instruction_change";
 
 function validity(w: OnmWarning): { start: number; end: number } {
   const start = w.onsetMs ?? w.sentMs;
   // ONM often omits expires; a warning without one covers a day rather than forever,
-  // or one silent reissue would suppress every later warning for that wilaya
+  // or one silent reissue would suppress every later warning for that wilaya.
+  // This is strictly an internal delivery deadline, never an authority expiry or all-clear.
   return {
     start,
     end: w.expiresMs ?? start + ONM_NO_EXPIRY_WINDOW_HOURS * HOUR,
@@ -376,6 +397,12 @@ function validity(w: OnmWarning): { start: number; end: number } {
 }
 
 export function onmWarningIsCurrent(w: OnmWarning, now: number): boolean {
+  if (
+    w.msgType === "Cancel" ||
+    w.cancelledAtMs != null ||
+    w.supersededBy != null
+  )
+    return false;
   const { start, end } = validity(w);
   return (
     [w.sentMs, start, end, now].every(Number.isFinite) &&
@@ -385,12 +412,126 @@ export function onmWarningIsCurrent(w: OnmWarning, now: number): boolean {
   );
 }
 
+function normalizeOnmInstruction(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const collapsed = raw.trim().replace(/\s+/g, " ");
+  if (!collapsed) return "";
+  if (collapsed.toLowerCase() === ONM_BOILERPLATE_INSTRUCTION) return "";
+  return collapsed;
+}
+
+function normalizeAreaTokens(areaDesc: string | null | undefined): string[] {
+  if (!areaDesc) return [];
+  return areaDesc
+    .split(/[,;/\n]+/)
+    .map((part) =>
+      part
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, " "),
+    )
+    .filter(Boolean);
+}
+
+function normalizeGeocodes(geocodes: readonly string[] | undefined): string[] {
+  if (!geocodes?.length) return [];
+  return geocodes.map((g) => g.trim().toUpperCase()).filter(Boolean);
+}
+
+/**
+ * Evaluates whether an ONM CAP `Update` carries a material change over its prior
+ * bulletin(s): severity escalation, area expansion (wilaya, geocode, or areaDesc),
+ * or a material non-boilerplate authority instruction change.
+ * Identical reissues and de-escalations return `{ material: false, reasons: [] }`.
+ */
+export function onmUpdateMaterialChange(
+  next: OnmWarning,
+  priors: readonly OnmWarning[],
+): { material: boolean; reasons: OnmUpdateChangeReason[] } {
+  if (!priors.length) return { material: false, reasons: [] };
+
+  const reasons: OnmUpdateChangeReason[] = [];
+
+  const nextRank =
+    ONM_SEVERITY_RANK[next.severity] ?? SEVERITY_RANK[next.severity] ?? 0;
+  const maxPriorRank = Math.max(
+    ...priors.map(
+      (p) => ONM_SEVERITY_RANK[p.severity] ?? SEVERITY_RANK[p.severity] ?? 0,
+    ),
+  );
+  if (nextRank > maxPriorRank) {
+    reasons.push("severity_escalation");
+  }
+
+  const priorWilayas = new Set(priors.map((p) => p.wilayaId));
+  const nextGeocodes = normalizeGeocodes(next.geocodes);
+  const priorGeocodes = new Set(
+    priors.flatMap((p) => normalizeGeocodes(p.geocodes)),
+  );
+  let areaExpanded = !priorWilayas.has(next.wilayaId);
+  if (!areaExpanded && priorGeocodes.size > 0 && nextGeocodes.length > 0) {
+    areaExpanded = nextGeocodes.some((code) => !priorGeocodes.has(code));
+  } else if (!areaExpanded) {
+    const nextTokens = normalizeAreaTokens(next.areaDesc);
+    const priorTokens = new Set(
+      priors.flatMap((p) => normalizeAreaTokens(p.areaDesc)),
+    );
+    if (nextTokens.length > 0 && priorTokens.size > 0) {
+      areaExpanded = nextTokens.some((tok) => !priorTokens.has(tok));
+    }
+  }
+  if (areaExpanded) {
+    reasons.push("area_expansion");
+  }
+
+  const nextInstruction = normalizeOnmInstruction(next.instructionFr);
+  if (nextInstruction) {
+    const latestPrior = [...priors].sort((a, b) => b.sentMs - a.sentMs)[0]!;
+    const priorInstruction = normalizeOnmInstruction(latestPrior.instructionFr);
+    if (nextInstruction !== priorInstruction) {
+      reasons.push("instruction_change");
+    }
+  }
+
+  return { material: reasons.length > 0, reasons };
+}
+
+/**
+ * Deduplicated union of CAP-referenced priors and overlapping same-(wilaya, event)
+ * already-relayed warnings, so chained de-escalations referencing an earlier root
+ * Alert still see intermediate Extreme Updates.
+ */
+export function onmUpdatePriors(
+  warning: OnmWarning,
+  seen: readonly OnmWarning[],
+): OnmWarning[] {
+  const refIds = new Set(warning.referencedCapIds ?? []);
+  const wv = validity(warning);
+  const priors: OnmWarning[] = [];
+  const added = new Set<string>();
+  for (const p of seen) {
+    const matchesRef = p.capId != null && refIds.has(p.capId);
+    let overlapsSame = false;
+    if (p.wilayaId === warning.wilayaId && p.event === warning.event) {
+      const pv = validity(p);
+      overlapsSame = pv.start <= wv.end && wv.start <= pv.end;
+    }
+    if ((matchesRef || overlapsSame) && !added.has(p.id)) {
+      added.add(p.id);
+      priors.push(p);
+    }
+  }
+  return priors;
+}
+
 function covers(previous: OnmWarning, next: OnmWarning): boolean {
   if (previous.wilayaId !== next.wilayaId || previous.event !== next.event)
     return false;
   if (
-    (SEVERITY_RANK[previous.severity] ?? 0) <
-    (SEVERITY_RANK[next.severity] ?? 0)
+    (ONM_SEVERITY_RANK[previous.severity] ?? 0) <
+    (ONM_SEVERITY_RANK[next.severity] ?? 0)
   )
     return false;
   const a = validity(previous);
@@ -399,15 +540,42 @@ function covers(previous: OnmWarning, next: OnmWarning): boolean {
 }
 
 /* ONM reissues the same warning every few hours with a fresh CAP id, so dedup on the
- * identity a subscriber perceives — wilaya, event and overlapping validity — not the id. */
+ * identity a subscriber perceives — wilaya, event and overlapping validity — not the id.
+ * CAP Updates additionally check referenced priors for material changes (escalation,
+ * area expansion, or authority instruction change), keeping identical reissues silent. */
 export function onmRelayPlan(
   pending: readonly OnmWarning[],
   relayed: readonly OnmWarning[],
 ): { relay: OnmWarning[]; suppressed: OnmWarning[] } {
-  const seen = [...relayed];
+  const seen = relayed.filter(
+    (w) => w.msgType !== "Cancel" && w.cancelledAtMs == null,
+  );
   const relay: OnmWarning[] = [];
   const suppressed: OnmWarning[] = [];
-  for (const warning of [...pending].sort((a, b) => a.sentMs - b.sentMs)) {
+  const candidates = [...pending]
+    .filter(
+      (w) =>
+        w.msgType !== "Cancel" &&
+        w.cancelledAtMs == null &&
+        w.supersededBy == null,
+    )
+    .sort((a, b) => a.sentMs - b.sentMs);
+
+  for (const warning of candidates) {
+    if (warning.msgType === "Update") {
+      const priors = onmUpdatePriors(warning, seen);
+      if (priors.length > 0) {
+        const change = onmUpdateMaterialChange(warning, priors);
+        if (!change.material) {
+          suppressed.push(warning);
+          continue;
+        }
+        relay.push(warning);
+        seen.push(warning);
+        continue;
+      }
+    }
+
     if (seen.some((previous) => covers(previous, warning))) {
       suppressed.push(warning);
       continue;
@@ -416,4 +584,396 @@ export function onmRelayPlan(
     seen.push(warning);
   }
   return { relay, suppressed };
+}
+
+/* ---------- Feature F8: DGPC Non-Fire Broadcast Policy Gate ---------- */
+
+export const NON_FIRE_BROADCAST_KINDS = [
+  "flood",
+  "storm",
+  "road",
+  "structure",
+] as const;
+export type NonFireBroadcastKind = (typeof NON_FIRE_BROADCAST_KINDS)[number];
+
+export const OFFICIAL_FIRE_FRESH_HOURS = 24;
+export const OFFICIAL_NON_FIRE_FRESH_HOURS = 12;
+
+export function isNonFireBroadcastKind(
+  kind: string,
+): kind is NonFireBroadcastKind {
+  return (NON_FIRE_BROADCAST_KINDS as readonly string[]).includes(kind);
+}
+
+export function isOfficialBroadcastKind(kind: string): boolean {
+  return isFireKind(kind) || isNonFireBroadcastKind(kind);
+}
+
+export function squashOfficialText(text: string): string {
+  return text
+    .normalize("NFKC")
+    .replace(/\u0640/g, "")
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .toLowerCase();
+}
+
+export function hasVerbatimOfficialEvidence(
+  evidence: string | null | undefined,
+  documentBody?: string | null,
+): boolean {
+  if (!evidence) return false;
+  const needle = squashOfficialText(evidence);
+  if (needle.length < 8) return false;
+  if (documentBody !== undefined) {
+    if (!documentBody) return false;
+    return squashOfficialText(documentBody).includes(needle);
+  }
+  return true;
+}
+
+const RETROSPECTIVE_SUMMARY_PATTERNS: readonly RegExp[] = [
+  /\bbilan\b/i,
+  /\br[ée]capitulatif\b/i,
+  /\bsynth[èe]se\s+(?:des\s+)?interventions\b/i,
+  /\b(?:au\s+cours\s+des|durant\s+les)\s+24\s*(?:h|heures|derni[èe]res\s+heures)\b/i,
+  /\bactivit[ée]s?\s+(?:hebdomadaires?|mensuelles?|journali[èe]res?)\b/i,
+  /\b(?:retrospective|weekly\s+summary|daily\s+tally|activity\s+summary)\b/i,
+  /حصيلة/,
+  /ملخص\s+التدخلات/,
+  /خلال\s+(?:ال\s*)?24\s*ساعة/,
+  /الإحصائيات\s+الأسبوعية/,
+];
+
+function normalizeForSummaryCheck(text: string): string {
+  return text
+    .normalize("NFKC")
+    .replace(/\u0640/g, "")
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[\u0660-\u0669]/g, (ch) =>
+      String.fromCharCode(ch.charCodeAt(0) - 0x0660 + 48),
+    )
+    .replace(/[\u06F0-\u06F9]/g, (ch) =>
+      String.fromCharCode(ch.charCodeAt(0) - 0x06f0 + 48),
+    );
+}
+
+export function looksRetrospectiveOrSummary(
+  text: string | null | undefined,
+): boolean {
+  if (!text) return false;
+  const normalized = normalizeForSummaryCheck(text);
+  return RETROSPECTIVE_SUMMARY_PATTERNS.some((pattern) =>
+    pattern.test(normalized),
+  );
+}
+
+export type OfficialIncidentBroadcastInput = {
+  kind: string;
+  status: string;
+  communeCode: string | null;
+  asOfMs: number;
+  nowMs: number;
+  unlistedAt: string | null;
+  sourceKey: string | null;
+  authorityTier: string | null;
+  evidence: string | null;
+  documentBody?: string | null | undefined;
+  hasInitialBroadcast: boolean;
+  initialDelivered: boolean;
+  hasEndBroadcast: boolean;
+};
+
+export type OfficialIncidentBroadcastDecision =
+  | { action: "initial" }
+  | { action: "end" }
+  | { action: "suppress"; reason: string };
+
+const ENDED_OFFICIAL_STATUSES = new Set(["cleared", "extinguished"]);
+
+export function evaluateOfficialIncidentBroadcast(
+  input: OfficialIncidentBroadcastInput,
+): OfficialIncidentBroadcastDecision {
+  const isFire = isFireKind(input.kind);
+  const isNonFire = isNonFireBroadcastKind(input.kind);
+  if (!isFire && !isNonFire) {
+    return { action: "suppress", reason: "unsupported_hazard_kind" };
+  }
+
+  // Strict media & ITA exclusion per docs/official-notification-policy.md
+  if (input.authorityTier === "media") {
+    return { action: "suppress", reason: "media_source_excluded" };
+  }
+  const normalizedSourceKey = input.sourceKey?.trim().toLowerCase() ?? "";
+  if (normalizedSourceKey.startsWith("ita")) {
+    return { action: "suppress", reason: "ita_source_excluded" };
+  }
+  if (isNonFire && normalizedSourceKey !== "dgpc_telegram") {
+    return { action: "suppress", reason: "unapproved_non_fire_source" };
+  }
+
+  if (!input.communeCode || !input.communeCode.trim()) {
+    return { action: "suppress", reason: "missing_commune" };
+  }
+
+  if (input.unlistedAt !== null) {
+    return { action: "suppress", reason: "unlisted_incident" };
+  }
+  if (!Number.isFinite(input.asOfMs) || !Number.isFinite(input.nowMs)) {
+    return { action: "suppress", reason: "invalid_timestamp" };
+  }
+
+  const ended = ENDED_OFFICIAL_STATUSES.has(input.status);
+
+  if (input.hasInitialBroadcast) {
+    if (input.hasEndBroadcast) {
+      return { action: "suppress", reason: "already_closed" };
+    }
+    if (ended) {
+      if (!input.initialDelivered) {
+        return { action: "suppress", reason: "cleared_before_delivery" };
+      }
+      if (isNonFire) {
+        if (!hasVerbatimOfficialEvidence(input.evidence, input.documentBody)) {
+          return { action: "suppress", reason: "missing_verbatim_evidence" };
+        }
+        if (
+          looksRetrospectiveOrSummary(input.evidence) ||
+          looksRetrospectiveOrSummary(input.documentBody)
+        ) {
+          return { action: "suppress", reason: "retrospective_or_summary" };
+        }
+      }
+      return { action: "end" };
+    }
+    return { action: "suppress", reason: "already_broadcast" };
+  }
+
+  if (ended) {
+    return { action: "suppress", reason: "incident_already_ended" };
+  }
+  if (isNonFire && input.status !== "ongoing") {
+    return { action: "suppress", reason: "non_fire_not_ongoing" };
+  }
+
+  if (input.asOfMs > input.nowMs) {
+    return { action: "suppress", reason: "future_as_of" };
+  }
+  const maxAgeHours = isFire
+    ? OFFICIAL_FIRE_FRESH_HOURS
+    : OFFICIAL_NON_FIRE_FRESH_HOURS;
+  if (input.nowMs - input.asOfMs > maxAgeHours * HOUR) {
+    return { action: "suppress", reason: "stale_incident" };
+  }
+
+  if (isNonFire) {
+    if (!hasVerbatimOfficialEvidence(input.evidence, input.documentBody)) {
+      return { action: "suppress", reason: "missing_verbatim_evidence" };
+    }
+    if (
+      looksRetrospectiveOrSummary(input.evidence) ||
+      looksRetrospectiveOrSummary(input.documentBody)
+    ) {
+      return { action: "suppress", reason: "retrospective_or_summary" };
+    }
+  } else if (!input.evidence || !input.evidence.trim()) {
+    return { action: "suppress", reason: "missing_verbatim_evidence" };
+  }
+
+  return { action: "initial" };
+}
+
+/* ---------- Feature F9: Accountless M4+ Earthquake Commune Targeting ---------- */
+
+export const EARTHQUAKE_BROADCAST_MIN_MAGNITUDE = 4.0;
+export const EARTHQUAKE_PLAUSIBLE_MIN_MAGNITUDE = -2.0;
+export const EARTHQUAKE_PLAUSIBLE_MAX_MAGNITUDE = 10.0;
+export const EARTHQUAKE_BROADCAST_RADIUS_KM = 100;
+export const EARTHQUAKE_BROADCAST_FRESH_HOURS = 6;
+
+export type EarthquakeBroadcastInput = {
+  id?: string | null;
+  magnitude: number;
+  lat?: number | null;
+  lon?: number | null;
+  occurredMs?: number | null;
+  nowMs?: number | null;
+  previousMagnitude?: number | null;
+  alreadyBroadcast?: boolean;
+};
+
+export type EarthquakeBroadcastDecision =
+  | {
+      action: "publish";
+      shouldBroadcast: true;
+      send: true;
+      retract: false;
+      severity: "Extreme" | "Severe";
+      reason: "m4_threshold_met" | "upward_revision_crossed_threshold";
+    }
+  | {
+      action: "suppress";
+      shouldBroadcast: false;
+      send: false;
+      retract: false;
+      severity: null;
+      reason:
+        | "invalid_magnitude"
+        | "invalid_coordinates"
+        | "invalid_timestamp"
+        | "future_earthquake"
+        | "stale_earthquake"
+        | "downward_revision_no_retraction"
+        | "already_broadcast"
+        | "below_threshold";
+    };
+
+export function earthquakeSeverity(magnitude: number): "Extreme" | "Severe" {
+  return magnitude >= 5.0 ? "Extreme" : "Severe";
+}
+
+/**
+ * Pure M4+ earthquake broadcast planner (Feature F9).
+ * Enforces finite plausibility bounds, WGS84 bounds when coordinates are
+ * provided, freshness bounds when timestamps are provided, single-shot
+ * idempotency on upward revisions crossing M4.0, and strict suppression
+ * (never retraction) on downward revisions below M4.0.
+ */
+export function planEarthquakeBroadcast(
+  input: EarthquakeBroadcastInput,
+): EarthquakeBroadcastDecision {
+  const suppress = (
+    reason: Extract<
+      EarthquakeBroadcastDecision,
+      { action: "suppress" }
+    >["reason"],
+  ): EarthquakeBroadcastDecision => ({
+    action: "suppress",
+    shouldBroadcast: false,
+    send: false,
+    retract: false,
+    severity: null,
+    reason,
+  });
+
+  const { magnitude } = input;
+  if (
+    typeof magnitude !== "number" ||
+    !Number.isFinite(magnitude) ||
+    magnitude < EARTHQUAKE_PLAUSIBLE_MIN_MAGNITUDE ||
+    magnitude > EARTHQUAKE_PLAUSIBLE_MAX_MAGNITUDE
+  ) {
+    return suppress("invalid_magnitude");
+  }
+
+  if ((input.lat !== undefined) !== (input.lon !== undefined)) {
+    return suppress("invalid_coordinates");
+  }
+  if (input.lat !== undefined) {
+    if (
+      typeof input.lat !== "number" ||
+      !Number.isFinite(input.lat) ||
+      input.lat < -90 ||
+      input.lat > 90
+    ) {
+      return suppress("invalid_coordinates");
+    }
+  }
+  if (input.lon !== undefined) {
+    if (
+      typeof input.lon !== "number" ||
+      !Number.isFinite(input.lon) ||
+      input.lon < -180 ||
+      input.lon > 180
+    ) {
+      return suppress("invalid_coordinates");
+    }
+  }
+
+  if ((input.occurredMs !== undefined) !== (input.nowMs !== undefined)) {
+    return suppress("invalid_timestamp");
+  }
+  if (input.occurredMs !== undefined) {
+    if (
+      typeof input.occurredMs !== "number" ||
+      !Number.isFinite(input.occurredMs)
+    ) {
+      return suppress("invalid_timestamp");
+    }
+  }
+  if (input.nowMs !== undefined) {
+    if (typeof input.nowMs !== "number" || !Number.isFinite(input.nowMs)) {
+      return suppress("invalid_timestamp");
+    }
+  }
+  if (typeof input.occurredMs === "number" && typeof input.nowMs === "number") {
+    if (input.occurredMs > input.nowMs) {
+      return suppress("future_earthquake");
+    }
+    if (
+      input.nowMs - input.occurredMs >
+      EARTHQUAKE_BROADCAST_FRESH_HOURS * HOUR
+    ) {
+      return suppress("stale_earthquake");
+    }
+  }
+
+  if (input.alreadyBroadcast === true) {
+    return suppress(
+      magnitude < EARTHQUAKE_BROADCAST_MIN_MAGNITUDE
+        ? "downward_revision_no_retraction"
+        : "already_broadcast",
+    );
+  }
+
+  if (magnitude < EARTHQUAKE_BROADCAST_MIN_MAGNITUDE) {
+    return suppress("below_threshold");
+  }
+
+  const crossedUpward =
+    typeof input.previousMagnitude === "number" &&
+    Number.isFinite(input.previousMagnitude) &&
+    input.previousMagnitude < EARTHQUAKE_BROADCAST_MIN_MAGNITUDE;
+
+  return {
+    action: "publish",
+    shouldBroadcast: true,
+    send: true,
+    retract: false,
+    severity: earthquakeSeverity(magnitude),
+    reason: crossedUpward
+      ? "upward_revision_crossed_threshold"
+      : "m4_threshold_met",
+  };
+}
+
+export function targetCommunesForEarthquake(
+  quake: { lat: number; lon: number },
+  communes: readonly { code: string; lat: number; lon: number }[],
+  radiusKm = EARTHQUAKE_BROADCAST_RADIUS_KM,
+): string[] {
+  if (
+    !Number.isFinite(quake.lat) ||
+    !Number.isFinite(quake.lon) ||
+    !Number.isFinite(radiusKm) ||
+    radiusKm < 0
+  ) {
+    return [];
+  }
+  const hits: { code: string; km: number }[] = [];
+  for (const c of communes) {
+    if (!Number.isFinite(c.lat) || !Number.isFinite(c.lon)) continue;
+    const km = haversineKm(quake.lat, quake.lon, c.lat, c.lon);
+    if (km <= radiusKm) hits.push({ code: c.code, km });
+  }
+  hits.sort((a, b) => a.km - b.km || a.code.localeCompare(b.code));
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const h of hits) {
+    if (seen.has(h.code)) continue;
+    seen.add(h.code);
+    out.push(h.code);
+  }
+  return out;
 }

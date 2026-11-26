@@ -1,0 +1,25 @@
+{
+  "product_id": "EO:EUM:DAT:0662:MTG-I1-FCI-L2P-FRP-20260815T031000Z",
+  "product_level": "L2P_FRP",
+  "slot_time": "2026-08-15T03:10:00Z",
+  "published_at": "2026-08-15T03:12:40Z",
+  "quality_state": "valid",
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [5.52100, 22.79000]
+      },
+      "properties": {
+        "FRP": 85.0,
+        "Confidence": 92,
+        "SZA": 115.0,
+        "Satellite": "MTG-I1",
+        "Datetime": "2026-08-15 03:10:20",
+        "time": "2026-08-15T03:10:00Z"
+      }
+    }
+  ]
+}

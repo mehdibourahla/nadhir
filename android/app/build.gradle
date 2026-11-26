@@ -1,5 +1,34 @@
 apply plugin: 'com.android.application'
 
+def maxPlayVersionCode = 2100000000
+def envVersionCode = System.getenv("NADHIR_ANDROID_VERSION_CODE")?.toString()?.trim() ?: ""
+def propVersionCode = findProperty("nadhirVersionCode")?.toString()?.trim() ?: ""
+def rawVersionCode = envVersionCode ?: propVersionCode ?: "4"
+def resolvedVersionCode
+try {
+    resolvedVersionCode = Integer.parseInt(rawVersionCode)
+} catch (NumberFormatException ignored) {
+    throw new GradleException("Invalid Android versionCode '${rawVersionCode}': must be an integer in 1..${maxPlayVersionCode}.")
+}
+if (resolvedVersionCode < 1 || resolvedVersionCode > maxPlayVersionCode) {
+    throw new GradleException("Invalid Android versionCode '${resolvedVersionCode}': must be in 1..${maxPlayVersionCode}.")
+}
+
+def envVersionName = System.getenv("NADHIR_ANDROID_VERSION_NAME")?.toString()?.trim() ?: ""
+def propVersionName = findProperty("nadhirVersionName")?.toString()?.trim() ?: ""
+def resolvedVersionName = envVersionName ?: propVersionName ?: "1.1.0"
+if (!resolvedVersionName) {
+    throw new GradleException("Android versionName must be non-empty.")
+}
+
+def uploadStore = System.getenv("NADHIR_UPLOAD_STORE")?.toString()?.trim() ?: ""
+def uploadStorePassword = System.getenv("NADHIR_UPLOAD_PASSWORD")?.toString() ?: ""
+def hasUploadStorePassword = !uploadStorePassword.trim().isEmpty()
+def uploadKeyAlias = System.getenv("NADHIR_UPLOAD_KEY_ALIAS")?.toString()?.trim() ?: "upload"
+def uploadKeyPasswordRaw = System.getenv("NADHIR_UPLOAD_KEY_PASSWORD")?.toString() ?: ""
+def uploadKeyPassword = uploadKeyPasswordRaw.trim() ? uploadKeyPasswordRaw : uploadStorePassword
+def hasReleaseSigningEnv = !uploadStore.isEmpty() && hasUploadStorePassword
+
 android {
     namespace = "app.nadhir"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +36,8 @@ android {
         applicationId "app.nadhir"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "1.0"
+        versionCode resolvedVersionCode
+        versionName resolvedVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -18,20 +47,47 @@ android {
     }
     signingConfigs {
         release {
-            def store = System.getenv("NADHIR_UPLOAD_STORE")
-            if (store) {
-                storeFile file(store)
-                storePassword System.getenv("NADHIR_UPLOAD_PASSWORD")
-                keyAlias "upload"
-                keyPassword System.getenv("NADHIR_UPLOAD_PASSWORD")
+            if (hasReleaseSigningEnv) {
+                storeFile file(uploadStore)
+                storePassword uploadStorePassword
+                keyAlias uploadKeyAlias
+                keyPassword uploadKeyPassword
             }
         }
     }
     buildTypes {
         release {
-            if (System.getenv("NADHIR_UPLOAD_STORE")) signingConfig signingConfigs.release
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigningEnv) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+def releasePackagingTasks = [
+    'assembleRelease',
+    'bundleRelease',
+    'packageRelease',
+    'packageReleaseBundle',
+    'signReleaseBundle',
+] as Set
+
+gradle.taskGraph.whenReady { taskGraph ->
+    def packagingRelease = taskGraph.allTasks.any { task ->
+        task.project == project && releasePackagingTasks.contains(task.name)
+    }
+    if (packagingRelease) {
+        if (!uploadStore) {
+            throw new GradleException("NADHIR_UPLOAD_STORE must be set for release packaging (assembleRelease / bundleRelease).")
+        }
+        if (!file(uploadStore).isFile()) {
+            throw new GradleException("NADHIR_UPLOAD_STORE file does not exist: ${uploadStore}")
+        }
+        if (!hasUploadStorePassword) {
+            throw new GradleException("NADHIR_UPLOAD_PASSWORD must be set for release packaging (assembleRelease / bundleRelease).")
         }
     }
 }

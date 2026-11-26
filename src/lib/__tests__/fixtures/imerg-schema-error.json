@@ -1,0 +1,9 @@
+{
+  "valid_time": "2026-11-24T13:00:00Z",
+  "published_time": "2026-11-24T16:52:00Z",
+  "window_minutes": 30,
+  "scale_factor": 0.1,
+  "cells": [
+    { "lat": 36.75, "lon": 3.05, "scaled_rate": 9500 }
+  ]
+}

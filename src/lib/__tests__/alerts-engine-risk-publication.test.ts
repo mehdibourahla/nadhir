@@ -12,6 +12,10 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 vi.mock("@/lib/webhooks.server", () => ({ drainWebhookDeliveries }));
 
 import { evaluateAlerts } from "@/lib/alerts-engine.server";
+import {
+  parseProvenancePayload,
+  validateProvenanceInvariants,
+} from "@/lib/alert-provenance";
 
 type Result = { data: unknown; error: { message: string } | null };
 
@@ -154,6 +158,11 @@ describe("alert risk publication boundary", () => {
       expect((row["payload"] as { phase: string }).phase).toBe(
         "observation_ended",
       );
+      const endedProv = parseProvenancePayload(row["payload"]);
+      expect(endedProv).not.toBeNull();
+      expect(validateProvenanceInvariants(endedProv!)).toEqual([]);
+      expect(endedProv!.triggerKind).toBe("watch_zone");
+      expect(endedProv!.areaLabel).toBe("Zone");
       expect(row["cap_alert_id"]).toBeNull();
       writes.length = 0;
       profile.quiet_hours_start = 12;
@@ -525,5 +534,281 @@ describe("zone hazard alerts reach the alert table", () => {
 
   it("fails loudly when a hazard source cannot be read", async () => {
     await written({}, "civil_publications");
+  });
+
+  it("excludes watch zones for users who withdrew zone_alerts consent and fails closed on consent lookup errors (T5-R2-01)", async () => {
+    const onmRow = {
+      id: "onm1",
+      severity: "Severe",
+      event: "Rain",
+      onset: "2026-09-08T15:00:00Z",
+      title: "Rain Severe warning for the wilaya: ALGER",
+      headline_fr: null,
+      area: null,
+      wilaya_id: "w16",
+      expires: "2026-09-09T12:00:00Z",
+      episode_id: "ep1",
+      episode_peak: 3,
+    };
+
+    const withdrawnRows = await written({
+      privacy_consents: [{ user_id: "u1" }],
+      onm_vigilance: [onmRow],
+    });
+    expect(withdrawnRows).toEqual([]);
+    expect(drainWebhookDeliveries).not.toHaveBeenCalled();
+
+    // Multi-user run: withdrawn user excluded while consented user still receives alerts
+    const multiWrites: Record<string, unknown>[] = [];
+    const multiData: Record<string, unknown> = {
+      zones: [
+        {
+          id: "z-withdrawn",
+          user_id: "u-withdrawn",
+          name: "Withdrawn Zone",
+          notify_fires: false,
+          notify_risk: false,
+          notify_weather: true,
+          lat: 36.6,
+          lon: 3.1,
+          radius_km: 5,
+          commune_id: "k1",
+        },
+        {
+          id: "z-granted",
+          user_id: "u-granted",
+          name: "Granted Zone",
+          notify_fires: false,
+          notify_risk: false,
+          notify_weather: true,
+          lat: 36.6,
+          lon: 3.1,
+          radius_km: 5,
+          commune_id: "k1",
+        },
+      ],
+      privacy_consents: [{ user_id: "u-withdrawn" }],
+      profiles: [
+        { id: "u-withdrawn", locale: "en" },
+        { id: "u-granted", locale: "en" },
+      ],
+      admin_units: [{ id: "k1", code: "1601", parent_id: "w16" }],
+      onm_vigilance: [onmRow],
+    };
+    fromMock.mockImplementation((table: string) => {
+      const builder = query(
+        table,
+        { data: multiData[table] ?? [], error: null },
+        [],
+      );
+      const upsert = builder["upsert"] as (rows: unknown) => unknown;
+      builder["upsert"] = (next: Record<string, unknown>[]) => {
+        if (table === "alerts") multiWrites.push(...next);
+        return upsert(next);
+      };
+      return builder;
+    });
+    const multiResult = await evaluateAlerts("u-granted");
+    expect(multiResult.evaluated).toBe(1);
+    expect(multiWrites.map((r) => r["user_id"])).toEqual(["u-granted"]);
+
+    // Fail-closed: DB error on privacy_consents must throw before inserting any alert
+    await written({ onm_vigilance: [onmRow] }, "privacy_consents");
+  });
+
+  it("chunks privacy_consents, profiles, alerts, risk_forecasts, and admin_units .in() queries to <= 100 UUIDs at 250+ watch-zone users (T5-R3-01)", async () => {
+    const totalUsers = 255;
+    const withdrawnIndices = new Set([0, 99, 100, 199, 254]);
+    const makeUserId = (i: number) =>
+      `5e030000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`;
+    const makeCommuneId = (i: number) =>
+      `6e030000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`;
+
+    const zones = Array.from({ length: totalUsers }, (_, i) => ({
+      id: `z-${i}`,
+      user_id: makeUserId(i),
+      name: `Zone ${i}`,
+      active: true,
+      notify_fires: true,
+      notify_risk: true,
+      notify_weather: true,
+      min_danger_level: 3,
+      lat: 36.6,
+      lon: 3.1,
+      radius_km: 5,
+      commune_id: makeCommuneId(i),
+    }));
+    const withdrawnUsers = new Set(
+      [...withdrawnIndices].map((i) => makeUserId(i)),
+    );
+    const profiles = Array.from({ length: totalUsers }, (_, i) => ({
+      id: makeUserId(i),
+      locale: "en",
+      min_danger_level: 3,
+      quiet_hours_start: null,
+      quiet_hours_end: null,
+    }));
+    const adminUnits = Array.from({ length: totalUsers }, (_, i) => ({
+      id: makeCommuneId(i),
+      code: `16${String(i).padStart(2, "0")}`,
+      parent_id: "w16",
+    }));
+    const forecasts = Array.from({ length: totalUsers }, (_, i) => ({
+      commune_id: makeCommuneId(i),
+      forecast_date: "2026-09-08",
+      horizon_days: 1,
+      danger_level: 4,
+      fuel_limited: false,
+      source: "local_fwi",
+    }));
+
+    const inCallsByTable = new Map<string, Array<[string, number]>>();
+    const writtenAlerts: Record<string, unknown>[] = [];
+
+    fromMock.mockImplementation((table: string) => {
+      const filters: [string, unknown][] = [];
+      let mode = "read";
+      const builder: Record<string, unknown> = {};
+      for (const method of [
+        "select",
+        "order",
+        "limit",
+        "range",
+        "neq",
+        "gte",
+        "gt",
+        "is",
+        "or",
+        "lte",
+      ]) {
+        builder[method] = vi.fn(() => builder);
+      }
+      builder["in"] = vi.fn((col: string, vals: unknown[]) => {
+        filters.push([col, vals]);
+        const list = inCallsByTable.get(table) ?? [];
+        list.push([col, vals.length]);
+        inCallsByTable.set(table, list);
+        return builder;
+      });
+      builder["eq"] = vi.fn((col: string, val: unknown) => {
+        filters.push([col, val]);
+        return builder;
+      });
+      builder["upsert"] = vi.fn((next: Record<string, unknown>[]) => {
+        mode = "upsert";
+        if (table === "alerts") writtenAlerts.push(...next);
+        return builder;
+      });
+
+      const resolveData = (): Result => {
+        if (mode === "upsert" && table === "alerts") {
+          return { data: [{ id: "alert-batch" }], error: null };
+        }
+        if (table === "zones") return { data: zones, error: null };
+        if (table === "privacy_consents") {
+          const batch =
+            (filters.find(([c]) => c === "user_id")?.[1] as string[]) ?? [];
+          return {
+            data: batch
+              .filter((id) => withdrawnUsers.has(id))
+              .map((user_id) => ({ user_id })),
+            error: null,
+          };
+        }
+        if (table === "profiles") {
+          const batch = new Set(
+            (filters.find(([c]) => c === "id")?.[1] as string[]) ?? [],
+          );
+          return {
+            data: profiles.filter((p) => batch.has(p.id)),
+            error: null,
+          };
+        }
+        if (table === "fire_clusters") {
+          return {
+            data: [
+              {
+                id: "c-live-1",
+                short_id: "live1",
+                state: "active",
+                lat: 30,
+                lon: 3,
+                confidence: 0.9,
+                spread_bearing_deg: null,
+                confirmed_at: null,
+                est_area_ha: 5,
+                max_frp_mw: 10,
+                first_detected_at: "2026-09-08T11:00:00Z",
+                last_detected_at: "2026-09-08T11:50:00Z",
+                commune_id: null,
+              },
+            ],
+            error: null,
+          };
+        }
+        if (table === "risk_publication_checkpoint") {
+          return {
+            data: {
+              coverage_status: "complete",
+              snapshot_id: "f0220000-0000-4000-8000-000000000001",
+              base_date: "2026-09-07",
+              published_at: "2026-09-07T00:20:00.000Z",
+            },
+            error: null,
+          };
+        }
+        if (table === "risk_forecasts") {
+          const batch = new Set(
+            (filters.find(([c]) => c === "commune_id")?.[1] as string[]) ?? [],
+          );
+          return {
+            data: forecasts.filter((f) => batch.has(f.commune_id)),
+            error: null,
+          };
+        }
+        if (table === "admin_units") {
+          const batch = new Set(
+            (filters.find(([c]) => c === "id")?.[1] as string[]) ?? [],
+          );
+          return {
+            data: adminUnits.filter((u) => batch.has(u.id)),
+            error: null,
+          };
+        }
+        return { data: [], error: null };
+      };
+
+      builder["maybeSingle"] = vi.fn(async () => resolveData());
+      builder["then"] = (resolve: (value: Result) => unknown) =>
+        Promise.resolve(resolveData()).then(resolve);
+      return builder;
+    });
+
+    const result = await evaluateAlerts();
+
+    expect(result.evaluated).toBe(250);
+    expect(writtenAlerts).toHaveLength(250);
+    for (const row of writtenAlerts) {
+      expect(withdrawnUsers.has(String(row["user_id"]))).toBe(false);
+    }
+
+    const sizesFor = (table: string, col: string) =>
+      (inCallsByTable.get(table) ?? [])
+        .filter(([c]) => c === col)
+        .map(([, len]) => len);
+
+    expect(sizesFor("privacy_consents", "user_id")).toEqual([100, 100, 55]);
+    expect(sizesFor("profiles", "id")).toEqual([100, 100, 50]);
+    expect(sizesFor("alerts", "user_id")).toEqual([100, 100, 50]);
+    expect(sizesFor("risk_forecasts", "commune_id")).toEqual([100, 100, 50]);
+    expect(sizesFor("admin_units", "id")).toEqual([100, 100, 50]);
+    for (const [table, calls] of inCallsByTable) {
+      for (const [col, len] of calls) {
+        expect(
+          len,
+          `${table}.in(${col}) exceeded 100 UUIDs`,
+        ).toBeLessThanOrEqual(100);
+      }
+    }
   });
 });

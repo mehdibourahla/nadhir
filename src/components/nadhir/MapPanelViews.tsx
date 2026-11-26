@@ -249,7 +249,7 @@ export function LayersPanel({
               className={`flex min-h-12 items-center gap-2 rounded-xl border px-3 text-sm ${search.hazard === category ? "border-primary bg-primary/10" : "bg-surface"}`}
             >
               <Icon className="size-4" />
-              {t(`civilMap.${category}`)}
+              {t(`track3.filters.${category}`)}
             </button>
           );
         })}

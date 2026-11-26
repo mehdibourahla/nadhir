@@ -2,6 +2,7 @@ export const HAZARD_CATEGORIES = [
   "all",
   "fire",
   "weather",
+  "flood",
   "road",
   "earthquake",
   "other",

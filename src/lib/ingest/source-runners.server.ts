@@ -1,5 +1,7 @@
 import { drainWebhookDeliveries } from "@/lib/webhooks.server";
 import { evaluateAlerts } from "@/lib/alerts-engine.server";
+import { deliverZoneEmailDigests } from "@/lib/delivery/email-digest.server";
+import { deliverWhatsappChannelBroadcasts } from "@/lib/delivery/whatsapp-channel.server";
 import {
   retryDispositionForReason,
   type ClaimedSourceJob,
@@ -17,6 +19,7 @@ import {
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { runItaSource } from "@/lib/text-sources/ita-pipeline.server";
 import { runItaFacebookSource } from "@/lib/text-sources/ita-facebook.server";
+import { runTarikiSource } from "@/lib/text-sources/tariki.server";
 import {
   runTextSource,
   type TextSourceRun,
@@ -24,11 +27,19 @@ import {
 
 import { algiersToday } from "./algiers-date";
 import { publishBroadcasts } from "./broadcast.server";
+import { runClmsNdviSwiSource } from "./clms.server";
+import { runCraagSource } from "./craag.server";
 import { deliverBroadcasts } from "./delivery.server";
 import { ingestEffis } from "./effis.server";
 import { ingestFci, ingestS3, type FciRun } from "./fci.server";
 import { ingestFirms } from "./firms.server";
 import { fuseDetections } from "./fusion.server";
+import { runGhslPopulationSource } from "./ghsl.server";
+import { runGwisBurnedAreasSource } from "./gwis.server";
+import { runHsafSource } from "./hsaf.server";
+import { runImergSource } from "./imerg.server";
+import { runMtgFciPushSource } from "./mtg-fci-push.server";
+import { runMtgLightningSource } from "./mtg-lightning.server";
 import { ingestOnm } from "./onm.server";
 import { ingestEmsc } from "./emsc.server";
 import { ingestMetar } from "./metar.server";
@@ -57,6 +68,15 @@ export const RUNTIME_CONTRACT_KEYS = [
   "alert_evaluation",
   "broadcast_publish",
   "broadcast_delivery",
+  "imerg_rainfall",
+  "hsaf_rainfall",
+  "tariki_facebook",
+  "craag_earthquakes",
+  "mtg_fci_push",
+  "mtg_lightning",
+  "gwis_burned_areas",
+  "clms_ndvi_swi",
+  "ghsl_population",
 ] as const;
 
 export type RuntimeContractKey = (typeof RUNTIME_CONTRACT_KEYS)[number];
@@ -83,6 +103,17 @@ export type SourceRunnerDependencies = {
   publishBroadcasts: typeof publishBroadcasts;
   deliverBroadcasts: typeof deliverBroadcasts;
   drainWebhookDeliveries: typeof drainWebhookDeliveries;
+  deliverWhatsappChannel?: typeof deliverWhatsappChannelBroadcasts;
+  deliverEmailDigests?: typeof deliverZoneEmailDigests;
+  runImergSource: typeof runImergSource;
+  runHsafSource: typeof runHsafSource;
+  runTarikiSource: typeof runTarikiSource;
+  runCraagSource: typeof runCraagSource;
+  runMtgFciPushSource: typeof runMtgFciPushSource;
+  runMtgLightningSource: typeof runMtgLightningSource;
+  runGwisBurnedAreasSource: typeof runGwisBurnedAreasSource;
+  runClmsNdviSwiSource: typeof runClmsNdviSwiSource;
+  runGhslPopulationSource: typeof runGhslPopulationSource;
 };
 
 function baseReport(
@@ -396,6 +427,22 @@ export function createSourceRunners(
     },
     alert_evaluation: async (job) => {
       const run = await dependencies.evaluateAlerts();
+      let emailDigestChecks: Record<string, unknown> = {};
+      if (dependencies.deliverEmailDigests) {
+        try {
+          const emailRun = await dependencies.deliverEmailDigests();
+          emailDigestChecks = {
+            email_digest_sent: emailRun.sent,
+            email_digest_deferred_quiet: emailRun.deferredQuietHours,
+            email_digest_failed: emailRun.failed,
+            email_digest_bounced: emailRun.bounced,
+            email_digest_unconfigured: emailRun.unconfigured,
+            email_digest_disabled: emailRun.disabled,
+          };
+        } catch {
+          emailDigestChecks = { email_digest_error: true };
+        }
+      }
       return {
         ...baseReport(job),
         outcome: "succeeded",
@@ -408,6 +455,7 @@ export function createSourceRunners(
         qualityChecks: {
           delivery_failed: run.failed ?? 0,
           suppressed: run.suppressed,
+          ...emailDigestChecks,
         },
         retryDisposition: "none",
       };
@@ -426,14 +474,29 @@ export function createSourceRunners(
       };
     },
     broadcast_delivery: async (job) => {
-      const [broadcasts, webhooks] = await Promise.allSettled([
+      const [broadcasts, webhooks, whatsapp] = await Promise.allSettled([
         dependencies.deliverBroadcasts(),
         dependencies.drainWebhookDeliveries(),
+        dependencies.deliverWhatsappChannel
+          ? dependencies.deliverWhatsappChannel()
+          : Promise.resolve(null),
       ]);
       if (broadcasts.status === "rejected") throw broadcasts.reason;
       if (webhooks.status === "rejected") throw webhooks.reason;
       const run = broadcasts.value;
       const webhookRun = webhooks.value;
+      const whatsappChecks: Record<string, unknown> =
+        whatsapp.status === "fulfilled" && whatsapp.value !== null
+          ? {
+              whatsapp_sent: whatsapp.value.sent,
+              whatsapp_retried: whatsapp.value.retried,
+              whatsapp_failed: whatsapp.value.failed,
+              whatsapp_unconfigured: whatsapp.value.unconfigured,
+              whatsapp_disabled: whatsapp.value.disabled,
+            }
+          : whatsapp.status === "rejected"
+            ? { whatsapp_error: true }
+            : {};
       const broadcastHealth = deliveryRunOutcome(run);
       const health =
         webhookRun.failed > 0 && broadcastHealth.outcome !== "failed"
@@ -456,6 +519,7 @@ export function createSourceRunners(
           telegram_channels: run.telegramChannels,
           webhook_sent: webhookRun.sent,
           webhook_failed: webhookRun.failed,
+          ...whatsappChecks,
         },
         retryDisposition: retryDisposition(
           health.outcome,
@@ -463,6 +527,15 @@ export function createSourceRunners(
         ),
       };
     },
+    imerg_rainfall: (job) => dependencies.runImergSource(job),
+    hsaf_rainfall: (job) => dependencies.runHsafSource(job),
+    tariki_facebook: (job) => dependencies.runTarikiSource(job),
+    craag_earthquakes: (job) => dependencies.runCraagSource(job),
+    mtg_fci_push: (job) => dependencies.runMtgFciPushSource(job),
+    mtg_lightning: (job) => dependencies.runMtgLightningSource(job),
+    gwis_burned_areas: (job) => dependencies.runGwisBurnedAreasSource(job),
+    clms_ndvi_swi: (job) => dependencies.runClmsNdviSwiSource(job),
+    ghsl_population: (job) => dependencies.runGhslPopulationSource(job),
   };
 }
 
@@ -486,6 +559,17 @@ const sourceRunnerDependencies: SourceRunnerDependencies = {
   publishBroadcasts,
   deliverBroadcasts,
   drainWebhookDeliveries,
+  deliverWhatsappChannel: deliverWhatsappChannelBroadcasts,
+  deliverEmailDigests: deliverZoneEmailDigests,
+  runImergSource,
+  runHsafSource,
+  runTarikiSource,
+  runCraagSource,
+  runMtgFciPushSource,
+  runMtgLightningSource,
+  runGwisBurnedAreasSource,
+  runClmsNdviSwiSource,
+  runGhslPopulationSource,
 };
 
 export const SOURCE_RUNNERS = createSourceRunners(sourceRunnerDependencies);

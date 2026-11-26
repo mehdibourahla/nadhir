@@ -6,6 +6,7 @@ const KNOWN: Record<string, string> = {
   weak_password: "account.errorWeakPassword",
   over_email_send_rate_limit: "account.errorRateLimited",
   over_request_rate_limit: "account.errorRateLimited",
+  captcha_failed: "turnstile.failed",
 };
 
 // provider messages are English-only and leak transport detail, so only mapped

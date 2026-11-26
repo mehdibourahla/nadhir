@@ -34,26 +34,141 @@ export type Database = {
   };
   public: {
     Tables: {
-      push_test_receipts: {
+      admin_audit: {
         Row: {
+          action: string;
+          actor_kind: string;
+          actor_label: string | null;
+          actor_user_id: string | null;
+          after: Json | null;
+          at: string;
+          before: Json | null;
+          domain: string;
           id: string;
-          received_at: string | null;
-          sent_at: string;
-          user_id: string;
+          reason: string | null;
+          target_id: string | null;
+          target_table: string;
         };
         Insert: {
+          action: string;
+          actor_kind: string;
+          actor_label?: string | null;
+          actor_user_id?: string | null;
+          after?: Json | null;
+          at?: string;
+          before?: Json | null;
+          domain: string;
           id?: string;
-          received_at?: string | null;
-          sent_at?: string;
-          user_id: string;
+          reason?: string | null;
+          target_id?: string | null;
+          target_table: string;
         };
         Update: {
+          action?: string;
+          actor_kind?: string;
+          actor_label?: string | null;
+          actor_user_id?: string | null;
+          after?: Json | null;
+          at?: string;
+          before?: Json | null;
+          domain?: string;
           id?: string;
-          received_at?: string | null;
-          sent_at?: string;
-          user_id?: string;
+          reason?: string | null;
+          target_id?: string | null;
+          target_table?: string;
         };
         Relationships: [];
+      };
+      admin_unit_aliases: {
+        Row: {
+          admin_unit_id: string;
+          alias_ar: string;
+          source: string;
+        };
+        Insert: {
+          admin_unit_id: string;
+          alias_ar: string;
+          source: string;
+        };
+        Update: {
+          admin_unit_id?: string;
+          alias_ar?: string;
+          source?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "admin_unit_aliases_admin_unit_id_fkey";
+            columns: ["admin_unit_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      admin_units: {
+        Row: {
+          code: string;
+          created_at: string;
+          forest_fraction: number;
+          geom: Json | null;
+          id: string;
+          landcover: Json | null;
+          lat: number;
+          level: string;
+          lon: number;
+          name_ar: string;
+          name_en: string;
+          name_fr: string;
+          name_kab: string | null;
+          parent_id: string | null;
+          population: number | null;
+          terrain: Json | null;
+        };
+        Insert: {
+          code: string;
+          created_at?: string;
+          forest_fraction?: number;
+          geom?: Json | null;
+          id?: string;
+          landcover?: Json | null;
+          lat: number;
+          level: string;
+          lon: number;
+          name_ar: string;
+          name_en: string;
+          name_fr: string;
+          name_kab?: string | null;
+          parent_id?: string | null;
+          population?: number | null;
+          terrain?: Json | null;
+        };
+        Update: {
+          code?: string;
+          created_at?: string;
+          forest_fraction?: number;
+          geom?: Json | null;
+          id?: string;
+          landcover?: Json | null;
+          lat?: number;
+          level?: string;
+          lon?: number;
+          name_ar?: string;
+          name_en?: string;
+          name_fr?: string;
+          name_kab?: string | null;
+          parent_id?: string | null;
+          population?: number | null;
+          terrain?: Json | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "admin_units_parent_id_fkey";
+            columns: ["parent_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       airport_observations: {
         Row: {
@@ -103,53 +218,634 @@ export type Database = {
         };
         Relationships: [];
       };
-      cold_exports: {
+      alerts: {
         Row: {
-          bytes: number | null;
-          day: string;
-          exported_at: string;
-          key_digest: string | null;
-          path: string | null;
-          rows: number;
-          sha256: string | null;
-          table_name: string;
+          body: string;
+          cap_alert_id: string | null;
+          cluster_id: string | null;
+          commune_id: string | null;
+          created_at: string;
+          dedupe_key: string;
+          delivered_email: boolean;
+          delivered_webhook: boolean;
+          distance_km: number | null;
+          id: string;
+          kind: string;
+          payload: Json | null;
+          push_attempts: number;
+          push_claimed_at: string | null;
+          push_received_at: string | null;
+          push_state: string;
+          read_at: string | null;
+          severity: number;
+          source_id: string | null;
+          source_table: string | null;
+          title: string;
+          user_id: string;
+          zone_id: string | null;
         };
         Insert: {
-          bytes?: number | null;
-          day: string;
-          exported_at?: string;
-          key_digest?: string | null;
-          path?: string | null;
-          rows: number;
-          sha256?: string | null;
-          table_name: string;
+          body: string;
+          cap_alert_id?: string | null;
+          cluster_id?: string | null;
+          commune_id?: string | null;
+          created_at?: string;
+          dedupe_key: string;
+          delivered_email?: boolean;
+          delivered_webhook?: boolean;
+          distance_km?: number | null;
+          id?: string;
+          kind: string;
+          payload?: Json | null;
+          push_attempts?: number;
+          push_claimed_at?: string | null;
+          push_received_at?: string | null;
+          push_state?: string;
+          read_at?: string | null;
+          severity?: number;
+          source_id?: string | null;
+          source_table?: string | null;
+          title: string;
+          user_id: string;
+          zone_id?: string | null;
         };
         Update: {
-          bytes?: number | null;
-          day?: string;
-          exported_at?: string;
-          key_digest?: string | null;
-          path?: string | null;
-          rows?: number;
-          sha256?: string | null;
-          table_name?: string;
+          body?: string;
+          cap_alert_id?: string | null;
+          cluster_id?: string | null;
+          commune_id?: string | null;
+          created_at?: string;
+          dedupe_key?: string;
+          delivered_email?: boolean;
+          delivered_webhook?: boolean;
+          distance_km?: number | null;
+          id?: string;
+          kind?: string;
+          payload?: Json | null;
+          push_attempts?: number;
+          push_claimed_at?: string | null;
+          push_received_at?: string | null;
+          push_state?: string;
+          read_at?: string | null;
+          severity?: number;
+          source_id?: string | null;
+          source_table?: string | null;
+          title?: string;
+          user_id?: string;
+          zone_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "alerts_cap_alert_id_fkey";
+            columns: ["cap_alert_id"];
+            isOneToOne: false;
+            referencedRelation: "cap_alerts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "alerts_cluster_id_fkey";
+            columns: ["cluster_id"];
+            isOneToOne: false;
+            referencedRelation: "fire_clusters";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "alerts_commune_id_fkey";
+            columns: ["commune_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "alerts_zone_id_fkey";
+            columns: ["zone_id"];
+            isOneToOne: false;
+            referencedRelation: "zones";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      authority_warnings: {
+        Row: {
+          body: string;
+          commune_codes: string[] | null;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          received_via: string;
+          severity: string;
+          source: string;
+          wilaya_id: string | null;
+        };
+        Insert: {
+          body: string;
+          commune_codes?: string[] | null;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          received_via: string;
+          severity: string;
+          source: string;
+          wilaya_id?: string | null;
+        };
+        Update: {
+          body?: string;
+          commune_codes?: string[] | null;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          received_via?: string;
+          severity?: string;
+          source?: string;
+          wilaya_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "authority_warnings_wilaya_id_fkey";
+            columns: ["wilaya_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      broadcast_audit: {
+        Row: {
+          action: string;
+          actor_id: string | null;
+          at: string;
+          cluster_id: string | null;
+          commune_codes: string[] | null;
+          id: string;
+          kind: string | null;
+          onm_vigilance_id: string | null;
+          payload: Json | null;
+          phase: string | null;
+          reason: string;
+          severity: string | null;
+        };
+        Insert: {
+          action: string;
+          actor_id?: string | null;
+          at?: string;
+          cluster_id?: string | null;
+          commune_codes?: string[] | null;
+          id?: string;
+          kind?: string | null;
+          onm_vigilance_id?: string | null;
+          payload?: Json | null;
+          phase?: string | null;
+          reason: string;
+          severity?: string | null;
+        };
+        Update: {
+          action?: string;
+          actor_id?: string | null;
+          at?: string;
+          cluster_id?: string | null;
+          commune_codes?: string[] | null;
+          id?: string;
+          kind?: string | null;
+          onm_vigilance_id?: string | null;
+          payload?: Json | null;
+          phase?: string | null;
+          reason?: string;
+          severity?: string | null;
         };
         Relationships: [];
       };
-      onm_areas: {
+      broadcast_delivery_queue: {
         Row: {
-          id: string;
-          polygon: Json;
+          attempts: number;
+          broadcast_id: string;
+          channel: string;
+          created_at: string;
+          expires_at: string;
+          last_error: string | null;
+          lease_token: string | null;
+          lease_until: string | null;
+          next_attempt_at: string;
+          state: string;
         };
         Insert: {
-          id: string;
-          polygon: Json;
+          attempts?: number;
+          broadcast_id: string;
+          channel: string;
+          created_at?: string;
+          expires_at: string;
+          last_error?: string | null;
+          lease_token?: string | null;
+          lease_until?: string | null;
+          next_attempt_at?: string;
+          state?: string;
         };
         Update: {
-          id?: string;
-          polygon?: Json;
+          attempts?: number;
+          broadcast_id?: string;
+          channel?: string;
+          created_at?: string;
+          expires_at?: string;
+          last_error?: string | null;
+          lease_token?: string | null;
+          lease_until?: string | null;
+          next_attempt_at?: string;
+          state?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_delivery_queue_broadcast_id_fkey";
+            columns: ["broadcast_id"];
+            isOneToOne: false;
+            referencedRelation: "broadcasts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "broadcast_delivery_queue_channel_fkey";
+            columns: ["channel"];
+            isOneToOne: false;
+            referencedRelation: "delivery_channel_settings";
+            referencedColumns: ["channel"];
+          },
+          {
+            foreignKeyName: "broadcast_delivery_queue_channel_fkey";
+            columns: ["channel"];
+            isOneToOne: false;
+            referencedRelation: "delivery_queue_health";
+            referencedColumns: ["channel"];
+          },
+        ];
+      };
+      broadcast_delivery_receipts: {
+        Row: {
+          broadcast_id: string;
+          channel: string;
+          delivered_at: string;
+          destination: string;
+        };
+        Insert: {
+          broadcast_id: string;
+          channel: string;
+          delivered_at?: string;
+          destination: string;
+        };
+        Update: {
+          broadcast_id?: string;
+          channel?: string;
+          delivered_at?: string;
+          destination?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_delivery_receipts_broadcast_id_fkey";
+            columns: ["broadcast_id"];
+            isOneToOne: false;
+            referencedRelation: "broadcasts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      broadcast_settings: {
+        Row: {
+          enabled: boolean;
+          id: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          enabled?: boolean;
+          id?: boolean;
+          updated_at?: string;
+        };
+        Update: {
+          enabled?: boolean;
+          id?: boolean;
+          updated_at?: string;
         };
         Relationships: [];
+      };
+      broadcasts: {
+        Row: {
+          authority_warning_id: string | null;
+          cap_alert_id: string | null;
+          cluster_id: string | null;
+          commune_codes: string[];
+          created_at: string;
+          earthquake_id: string | null;
+          fcm_delivered_at: string | null;
+          fcm_topics: number | null;
+          hazard: string | null;
+          id: string;
+          inside_codes: string[];
+          kind: string;
+          metadata: Json;
+          official_incident_id: string | null;
+          onm_vigilance_id: string | null;
+          phase: string;
+          push_codes: string[];
+          severity: string;
+          source_key: string | null;
+          telegram_channels: number | null;
+          telegram_delivered_at: string | null;
+        };
+        Insert: {
+          authority_warning_id?: string | null;
+          cap_alert_id?: string | null;
+          cluster_id?: string | null;
+          commune_codes: string[];
+          created_at?: string;
+          earthquake_id?: string | null;
+          fcm_delivered_at?: string | null;
+          fcm_topics?: number | null;
+          hazard?: string | null;
+          id?: string;
+          inside_codes?: string[];
+          kind: string;
+          metadata?: Json;
+          official_incident_id?: string | null;
+          onm_vigilance_id?: string | null;
+          phase?: string;
+          push_codes: string[];
+          severity: string;
+          source_key?: string | null;
+          telegram_channels?: number | null;
+          telegram_delivered_at?: string | null;
+        };
+        Update: {
+          authority_warning_id?: string | null;
+          cap_alert_id?: string | null;
+          cluster_id?: string | null;
+          commune_codes?: string[];
+          created_at?: string;
+          earthquake_id?: string | null;
+          fcm_delivered_at?: string | null;
+          fcm_topics?: number | null;
+          hazard?: string | null;
+          id?: string;
+          inside_codes?: string[];
+          kind?: string;
+          metadata?: Json;
+          official_incident_id?: string | null;
+          onm_vigilance_id?: string | null;
+          phase?: string;
+          push_codes?: string[];
+          severity?: string;
+          source_key?: string | null;
+          telegram_channels?: number | null;
+          telegram_delivered_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "broadcasts_authority_warning_id_fkey";
+            columns: ["authority_warning_id"];
+            isOneToOne: false;
+            referencedRelation: "authority_warnings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "broadcasts_cap_alert_id_fkey";
+            columns: ["cap_alert_id"];
+            isOneToOne: false;
+            referencedRelation: "cap_alerts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "broadcasts_cluster_id_fkey";
+            columns: ["cluster_id"];
+            isOneToOne: false;
+            referencedRelation: "fire_clusters";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "broadcasts_earthquake_id_fkey";
+            columns: ["earthquake_id"];
+            isOneToOne: false;
+            referencedRelation: "earthquakes";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "broadcasts_official_incident_id_fkey";
+            columns: ["official_incident_id"];
+            isOneToOne: false;
+            referencedRelation: "official_incidents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "broadcasts_onm_vigilance_id_fkey";
+            columns: ["onm_vigilance_id"];
+            isOneToOne: false;
+            referencedRelation: "onm_vigilance";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "broadcasts_onm_vigilance_id_fkey";
+            columns: ["onm_vigilance_id"];
+            isOneToOne: false;
+            referencedRelation: "onm_warning_history";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      cap_alerts: {
+        Row: {
+          cap_references: string | null;
+          cluster_id: string | null;
+          created_at: string;
+          id: string;
+          identifier: string;
+          info: Json;
+          msg_type: string;
+          scope: string;
+          sender: string;
+          sent: string;
+          status: string;
+        };
+        Insert: {
+          cap_references?: string | null;
+          cluster_id?: string | null;
+          created_at?: string;
+          id?: string;
+          identifier: string;
+          info: Json;
+          msg_type: string;
+          scope: string;
+          sender: string;
+          sent: string;
+          status: string;
+        };
+        Update: {
+          cap_references?: string | null;
+          cluster_id?: string | null;
+          created_at?: string;
+          id?: string;
+          identifier?: string;
+          info?: Json;
+          msg_type?: string;
+          scope?: string;
+          sender?: string;
+          sent?: string;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "cap_alerts_cluster_id_fkey";
+            columns: ["cluster_id"];
+            isOneToOne: false;
+            referencedRelation: "fire_clusters";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      citizen_report_flags: {
+        Row: {
+          created_at: string;
+          reason: string;
+          report_id: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          reason: string;
+          report_id: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          reason?: string;
+          report_id?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "citizen_report_flags_report_id_fkey";
+            columns: ["report_id"];
+            isOneToOne: false;
+            referencedRelation: "citizen_reports";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "citizen_report_flags_report_id_fkey";
+            columns: ["report_id"];
+            isOneToOne: false;
+            referencedRelation: "hazard_reports";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      citizen_report_submissions: {
+        Row: {
+          created_at: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
+      citizen_reports: {
+        Row: {
+          classified_at: string | null;
+          classifier: string | null;
+          cluster_id: string | null;
+          commune_id: string | null;
+          created_at: string;
+          expires_at: string | null;
+          flagged_at: string | null;
+          hazard: string | null;
+          id: string;
+          kind: string;
+          lat: number;
+          lon: number;
+          moderation_note: string | null;
+          note: string | null;
+          observed_at: string;
+          photo_url: string | null;
+          publish_state: string;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+          sighting: string;
+          size_hint: string;
+          status: string;
+          summary: string | null;
+          updated_at: string;
+          user_flagged_at: string | null;
+          user_id: string;
+        };
+        Insert: {
+          classified_at?: string | null;
+          classifier?: string | null;
+          cluster_id?: string | null;
+          commune_id?: string | null;
+          created_at?: string;
+          expires_at?: string | null;
+          flagged_at?: string | null;
+          hazard?: string | null;
+          id?: string;
+          kind?: string;
+          lat: number;
+          lon: number;
+          moderation_note?: string | null;
+          note?: string | null;
+          observed_at?: string;
+          photo_url?: string | null;
+          publish_state?: string;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          sighting?: string;
+          size_hint?: string;
+          status?: string;
+          summary?: string | null;
+          updated_at?: string;
+          user_flagged_at?: string | null;
+          user_id: string;
+        };
+        Update: {
+          classified_at?: string | null;
+          classifier?: string | null;
+          cluster_id?: string | null;
+          commune_id?: string | null;
+          created_at?: string;
+          expires_at?: string | null;
+          flagged_at?: string | null;
+          hazard?: string | null;
+          id?: string;
+          kind?: string;
+          lat?: number;
+          lon?: number;
+          moderation_note?: string | null;
+          note?: string | null;
+          observed_at?: string;
+          photo_url?: string | null;
+          publish_state?: string;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          sighting?: string;
+          size_hint?: string;
+          status?: string;
+          summary?: string | null;
+          updated_at?: string;
+          user_flagged_at?: string | null;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "citizen_reports_cluster_id_fkey";
+            columns: ["cluster_id"];
+            isOneToOne: false;
+            referencedRelation: "fire_clusters";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "citizen_reports_commune_id_fkey";
+            columns: ["commune_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       civil_decisions: {
         Row: {
@@ -378,946 +1074,85 @@ export type Database = {
           },
         ];
       };
-      weather_snapshots: {
+      clms_land_indices: {
         Row: {
-          id: string;
-          commune_id: string;
-          scheduled_at: string;
-          fetched_at: string;
-          job_id: string | null;
-          evidence: Json;
-        };
-        Insert: {
-          id?: string;
-          commune_id: string;
-          scheduled_at: string;
-          fetched_at: string;
-          job_id?: string | null;
-          evidence: Json;
-        };
-        Update: {
-          id?: string;
-          commune_id?: string;
-          scheduled_at?: string;
-          fetched_at?: string;
-          job_id?: string | null;
-          evidence?: Json;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "weather_snapshots_commune_id_fkey";
-            columns: ["commune_id"];
-            isOneToOne: false;
-            referencedRelation: "admin_units";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "weather_snapshots_job_id_fkey";
-            columns: ["job_id"];
-            isOneToOne: false;
-            referencedRelation: "source_jobs";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      webhook_outbox: {
-        Row: {
-          alert_id: string;
-          attempts: number;
-          available_at: string;
-          created_at: string;
-          endpoint_id: string;
-          id: string;
-          lease_token: string | null;
-          lease_until: string | null;
-          payload: Json;
-          state: string;
-          user_id: string;
-        };
-        Insert: {
-          alert_id: string;
-          attempts?: number;
-          available_at?: string;
-          created_at?: string;
-          endpoint_id: string;
-          id?: string;
-          lease_token?: string | null;
-          lease_until?: string | null;
-          payload: Json;
-          state?: string;
-          user_id: string;
-        };
-        Update: {
-          alert_id?: string;
-          attempts?: number;
-          available_at?: string;
-          created_at?: string;
-          endpoint_id?: string;
-          id?: string;
-          lease_token?: string | null;
-          lease_until?: string | null;
-          payload?: Json;
-          state?: string;
-          user_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "webhook_outbox_alert_id_fkey";
-            columns: ["alert_id"];
-            isOneToOne: false;
-            referencedRelation: "alerts";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "webhook_outbox_endpoint_id_fkey";
-            columns: ["endpoint_id"];
-            isOneToOne: false;
-            referencedRelation: "webhook_endpoints";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      source_captures: {
-        Row: {
-          attempt: number | null;
-          byte_length: number | null;
-          code_revision: string | null;
-          contract_version: number | null;
-          endpoint: string;
-          error_code: string | null;
-          fetched_at: string;
-          http_status: number | null;
-          id: string;
-          job_id: string | null;
-          media_type: string | null;
-          parser_version: string | null;
-          recorded_at: string;
-          request_params: Json;
-          requested_at: string;
-          response_headers: Json;
-          sha256: string | null;
-          source_key: string;
-          source_origin: string;
-          status: string;
-          storage_path: string | null;
-        };
-        Insert: {
-          attempt?: number | null;
-          byte_length?: number | null;
-          code_revision?: string | null;
-          contract_version?: number | null;
-          endpoint: string;
-          error_code?: string | null;
-          fetched_at: string;
-          http_status?: number | null;
-          id?: string;
-          job_id?: string | null;
-          media_type?: string | null;
-          parser_version?: string | null;
-          recorded_at?: string;
-          request_params?: Json;
-          requested_at: string;
-          response_headers?: Json;
-          sha256?: string | null;
-          source_key: string;
-          source_origin: string;
-          status: string;
-          storage_path?: string | null;
-        };
-        Update: {
-          attempt?: number | null;
-          byte_length?: number | null;
-          code_revision?: string | null;
-          contract_version?: number | null;
-          endpoint?: string;
-          error_code?: string | null;
-          fetched_at?: string;
-          http_status?: number | null;
-          id?: string;
-          job_id?: string | null;
-          media_type?: string | null;
-          parser_version?: string | null;
-          recorded_at?: string;
-          request_params?: Json;
-          requested_at?: string;
-          response_headers?: Json;
-          sha256?: string | null;
-          source_key?: string;
-          source_origin?: string;
-          status?: string;
-          storage_path?: string | null;
-        };
-        Relationships: [];
-      };
-      ita_feed_state: {
-        Row: {
-          checked_at: string | null;
-          etag: string | null;
-          singleton: boolean;
-        };
-        Insert: {
-          checked_at?: string | null;
-          etag?: string | null;
-          singleton?: boolean;
-        };
-        Update: {
-          checked_at?: string | null;
-          etag?: string | null;
-          singleton?: boolean;
-        };
-        Relationships: [];
-      };
-      ita_reports: {
-        Row: {
-          body: string;
-          content_hash: string;
-          extracted_at: string | null;
-          extraction: Json | null;
-          extraction_attempts: number;
-          extraction_error: string | null;
-          extraction_requeued_at: string | null;
-          fetched_at: string;
-          id: string;
-          next_extraction_at: string;
-          published_at: string;
-          raw: Json;
-          recovery_version: string;
-          source_page: string;
-          source_post_id: string;
-          source_url: string;
-        };
-        Insert: {
-          body: string;
-          content_hash: string;
-          extracted_at?: string | null;
-          extraction?: Json | null;
-          extraction_attempts?: number;
-          extraction_error?: string | null;
-          extraction_requeued_at?: string | null;
-          fetched_at?: string;
-          id?: string;
-          next_extraction_at?: string;
-          published_at: string;
-          raw: Json;
-          recovery_version?: string;
-          source_page: string;
-          source_post_id: string;
-          source_url: string;
-        };
-        Update: {
-          body?: string;
-          content_hash?: string;
-          extracted_at?: string | null;
-          extraction?: Json | null;
-          extraction_attempts?: number;
-          extraction_error?: string | null;
-          extraction_requeued_at?: string | null;
-          fetched_at?: string;
-          id?: string;
-          next_extraction_at?: string;
-          published_at?: string;
-          raw?: Json;
-          recovery_version?: string;
-          source_page?: string;
-          source_post_id?: string;
-          source_url?: string;
-        };
-        Relationships: [];
-      };
-
-      source_run_retired_keys: {
-        Row: {
-          idempotency_key: string;
-          retired_at: string;
-        };
-        Insert: {
-          idempotency_key: string;
-          retired_at?: string;
-        };
-        Update: {
-          idempotency_key?: string;
-          retired_at?: string;
-        };
-        Relationships: [];
-      };
-      broadcast_delivery_queue: {
-        Row: {
-          attempts: number;
-          broadcast_id: string;
-          channel: string;
-          created_at: string;
-          expires_at: string;
-          last_error: string | null;
-          lease_token: string | null;
-          lease_until: string | null;
-          next_attempt_at: string;
-          state: string;
-        };
-        Insert: {
-          attempts?: number;
-          broadcast_id: string;
-          channel: string;
-          created_at?: string;
-          expires_at: string;
-          last_error?: string | null;
-          lease_token?: string | null;
-          lease_until?: string | null;
-          next_attempt_at?: string;
-          state?: string;
-        };
-        Update: {
-          attempts?: number;
-          broadcast_id?: string;
-          channel?: string;
-          created_at?: string;
-          expires_at?: string;
-          last_error?: string | null;
-          lease_token?: string | null;
-          lease_until?: string | null;
-          next_attempt_at?: string;
-          state?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "broadcast_delivery_queue_broadcast_id_fkey";
-            columns: ["broadcast_id"];
-            isOneToOne: false;
-            referencedRelation: "broadcasts";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "broadcast_delivery_queue_channel_fkey";
-            columns: ["channel"];
-            isOneToOne: false;
-            referencedRelation: "delivery_channel_settings";
-            referencedColumns: ["channel"];
-          },
-          {
-            foreignKeyName: "broadcast_delivery_queue_channel_fkey";
-            columns: ["channel"];
-            isOneToOne: false;
-            referencedRelation: "delivery_queue_health";
-            referencedColumns: ["channel"];
-          },
-        ];
-      };
-      delivery_channel_settings: {
-        Row: {
-          channel: string;
-          paused: boolean;
-        };
-        Insert: {
-          channel: string;
-          paused?: boolean;
-        };
-        Update: {
-          channel?: string;
-          paused?: boolean;
-        };
-        Relationships: [];
-      };
-      operational_incidents: {
-        Row: {
-          acknowledged_at: string | null;
-          acknowledged_by: string | null;
-          contract_key: string;
-          first_seen_at: string;
-          id: string;
-          last_seen_at: string;
-          reason_code: string;
-          resolved_at: string | null;
-        };
-        Insert: {
-          acknowledged_at?: string | null;
-          acknowledged_by?: string | null;
-          contract_key: string;
-          first_seen_at?: string;
-          id?: string;
-          last_seen_at?: string;
-          reason_code: string;
-          resolved_at?: string | null;
-        };
-        Update: {
-          acknowledged_at?: string | null;
-          acknowledged_by?: string | null;
-          contract_key?: string;
-          first_seen_at?: string;
-          id?: string;
-          last_seen_at?: string;
-          reason_code?: string;
-          resolved_at?: string | null;
-        };
-        Relationships: [];
-      };
-      admin_units: {
-        Row: {
-          code: string;
-          created_at: string;
-          forest_fraction: number;
-          geom: Json | null;
-          id: string;
-          landcover: Json | null;
-          lat: number;
-          level: string;
-          lon: number;
-          name_ar: string;
-          name_en: string;
-          name_fr: string;
-          name_kab: string | null;
-          parent_id: string | null;
-          population: number | null;
-          terrain: Json | null;
-        };
-        Insert: {
-          code: string;
-          created_at?: string;
-          forest_fraction?: number;
-          geom?: Json | null;
-          id?: string;
-          landcover?: Json | null;
-          lat: number;
-          level: string;
-          lon: number;
-          name_ar: string;
-          name_en: string;
-          name_fr: string;
-          name_kab?: string | null;
-          parent_id?: string | null;
-          population?: number | null;
-          terrain?: Json | null;
-        };
-        Update: {
-          code?: string;
-          created_at?: string;
-          forest_fraction?: number;
-          geom?: Json | null;
-          id?: string;
-          landcover?: Json | null;
-          lat?: number;
-          level?: string;
-          lon?: number;
-          name_ar?: string;
-          name_en?: string;
-          name_fr?: string;
-          name_kab?: string | null;
-          parent_id?: string | null;
-          population?: number | null;
-          terrain?: Json | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "admin_units_parent_id_fkey";
-            columns: ["parent_id"];
-            isOneToOne: false;
-            referencedRelation: "admin_units";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-
-      alerts: {
-        Row: {
-          body: string;
-          cap_alert_id: string | null;
-          cluster_id: string | null;
+          attribution: string;
+          commune_code: string;
           commune_id: string | null;
-          created_at: string;
-          dedupe_key: string;
-          delivered_email: boolean;
-          delivered_webhook: boolean;
-          distance_km: number | null;
           id: string;
-          kind: string;
-          payload: Json | null;
-          push_attempts: number;
-          push_claimed_at: string | null;
-          push_received_at: string | null;
-          push_state: string;
-          read_at: string | null;
-          severity: number;
-          source_id: string | null;
-          source_table: string | null;
-          title: string;
-          user_id: string;
-          zone_id: string | null;
-        };
-        Insert: {
-          body: string;
-          cap_alert_id?: string | null;
-          cluster_id?: string | null;
-          commune_id?: string | null;
-          created_at?: string;
-          dedupe_key: string;
-          delivered_email?: boolean;
-          delivered_webhook?: boolean;
-          distance_km?: number | null;
-          id?: string;
-          kind: string;
-          payload?: Json | null;
-          push_attempts?: number;
-          push_claimed_at?: string | null;
-          push_received_at?: string | null;
-          push_state?: string;
-          read_at?: string | null;
-          severity?: number;
-          source_id?: string | null;
-          source_table?: string | null;
-          title: string;
-          user_id: string;
-          zone_id?: string | null;
-        };
-        Update: {
-          body?: string;
-          cap_alert_id?: string | null;
-          cluster_id?: string | null;
-          commune_id?: string | null;
-          created_at?: string;
-          dedupe_key?: string;
-          delivered_email?: boolean;
-          delivered_webhook?: boolean;
-          distance_km?: number | null;
-          id?: string;
-          kind?: string;
-          payload?: Json | null;
-          push_attempts?: number;
-          push_claimed_at?: string | null;
-          push_received_at?: string | null;
-          push_state?: string;
-          read_at?: string | null;
-          severity?: number;
-          source_id?: string | null;
-          source_table?: string | null;
-          title?: string;
-          user_id?: string;
-          zone_id?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "alerts_cap_alert_id_fkey";
-            columns: ["cap_alert_id"];
-            isOneToOne: false;
-            referencedRelation: "cap_alerts";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "alerts_cluster_id_fkey";
-            columns: ["cluster_id"];
-            isOneToOne: false;
-            referencedRelation: "fire_clusters";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "alerts_commune_id_fkey";
-            columns: ["commune_id"];
-            isOneToOne: false;
-            referencedRelation: "admin_units";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "alerts_zone_id_fkey";
-            columns: ["zone_id"];
-            isOneToOne: false;
-            referencedRelation: "zones";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      authority_warnings: {
-        Row: {
-          body: string;
-          commune_codes: string[] | null;
-          created_at: string;
-          created_by: string | null;
-          id: string;
-          received_via: string;
-          severity: string;
-          source: string;
-          wilaya_id: string | null;
-        };
-        Insert: {
-          body: string;
-          commune_codes?: string[] | null;
-          created_at?: string;
-          created_by?: string | null;
-          id?: string;
-          received_via: string;
-          severity: string;
-          source: string;
-          wilaya_id?: string | null;
-        };
-        Update: {
-          body?: string;
-          commune_codes?: string[] | null;
-          created_at?: string;
-          created_by?: string | null;
-          id?: string;
-          received_via?: string;
-          severity?: string;
-          source?: string;
-          wilaya_id?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "authority_warnings_wilaya_id_fkey";
-            columns: ["wilaya_id"];
-            isOneToOne: false;
-            referencedRelation: "admin_units";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      broadcast_audit: {
-        Row: {
-          action: string;
-          actor_id: string | null;
-          at: string;
-          cluster_id: string | null;
-          commune_codes: string[] | null;
-          id: string;
-          kind: string | null;
-          onm_vigilance_id: string | null;
-          payload: Json | null;
-          phase: string | null;
-          reason: string;
-          severity: string | null;
-        };
-        Insert: {
-          action: string;
-          actor_id?: string | null;
-          at?: string;
-          cluster_id?: string | null;
-          commune_codes?: string[] | null;
-          id?: string;
-          kind?: string | null;
-          onm_vigilance_id?: string | null;
-          payload?: Json | null;
-          phase?: string | null;
-          reason: string;
-          severity?: string | null;
-        };
-        Update: {
-          action?: string;
-          actor_id?: string | null;
-          at?: string;
-          cluster_id?: string | null;
-          commune_codes?: string[] | null;
-          id?: string;
-          kind?: string | null;
-          onm_vigilance_id?: string | null;
-          payload?: Json | null;
-          phase?: string | null;
-          reason?: string;
-          severity?: string | null;
-        };
-        Relationships: [];
-      };
-      broadcast_delivery_receipts: {
-        Row: {
-          broadcast_id: string;
-          channel: string;
-          delivered_at: string;
-          destination: string;
-        };
-        Insert: {
-          broadcast_id: string;
-          channel: string;
-          delivered_at?: string;
-          destination: string;
-        };
-        Update: {
-          broadcast_id?: string;
-          channel?: string;
-          delivered_at?: string;
-          destination?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "broadcast_delivery_receipts_broadcast_id_fkey";
-            columns: ["broadcast_id"];
-            isOneToOne: false;
-            referencedRelation: "broadcasts";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      broadcast_settings: {
-        Row: {
-          enabled: boolean;
-          id: boolean;
-          updated_at: string;
-        };
-        Insert: {
-          enabled?: boolean;
-          id?: boolean;
-          updated_at?: string;
-        };
-        Update: {
-          enabled?: boolean;
-          id?: boolean;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      broadcasts: {
-        Row: {
-          authority_warning_id: string | null;
-          cap_alert_id: string | null;
-          cluster_id: string | null;
-          commune_codes: string[];
-          created_at: string;
-          fcm_delivered_at: string | null;
-          fcm_topics: number | null;
-          id: string;
-          inside_codes: string[];
-          kind: string;
-          official_incident_id: string | null;
-          onm_vigilance_id: string | null;
-          phase: string;
-          push_codes: string[];
-          severity: string;
-          telegram_channels: number | null;
-          telegram_delivered_at: string | null;
-        };
-        Insert: {
-          authority_warning_id?: string | null;
-          cap_alert_id?: string | null;
-          cluster_id?: string | null;
-          commune_codes: string[];
-          created_at?: string;
-          fcm_delivered_at?: string | null;
-          fcm_topics?: number | null;
-          id?: string;
-          inside_codes?: string[];
-          kind: string;
-          official_incident_id?: string | null;
-          onm_vigilance_id?: string | null;
-          phase?: string;
-          push_codes: string[];
-          severity: string;
-          telegram_channels?: number | null;
-          telegram_delivered_at?: string | null;
-        };
-        Update: {
-          authority_warning_id?: string | null;
-          cap_alert_id?: string | null;
-          cluster_id?: string | null;
-          commune_codes?: string[];
-          created_at?: string;
-          fcm_delivered_at?: string | null;
-          fcm_topics?: number | null;
-          id?: string;
-          inside_codes?: string[];
-          kind?: string;
-          official_incident_id?: string | null;
-          onm_vigilance_id?: string | null;
-          phase?: string;
-          push_codes?: string[];
-          severity?: string;
-          telegram_channels?: number | null;
-          telegram_delivered_at?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "broadcasts_authority_warning_id_fkey";
-            columns: ["authority_warning_id"];
-            isOneToOne: false;
-            referencedRelation: "authority_warnings";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "broadcasts_cap_alert_id_fkey";
-            columns: ["cap_alert_id"];
-            isOneToOne: false;
-            referencedRelation: "cap_alerts";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "broadcasts_cluster_id_fkey";
-            columns: ["cluster_id"];
-            isOneToOne: false;
-            referencedRelation: "fire_clusters";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "broadcasts_official_incident_id_fkey";
-            columns: ["official_incident_id"];
-            isOneToOne: false;
-            referencedRelation: "official_incidents";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "broadcasts_onm_vigilance_id_fkey";
-            columns: ["onm_vigilance_id"];
-            isOneToOne: false;
-            referencedRelation: "onm_vigilance";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      cap_alerts: {
-        Row: {
-          cap_references: string | null;
-          cluster_id: string | null;
-          created_at: string;
-          id: string;
-          identifier: string;
-          info: Json;
-          msg_type: string;
-          scope: string;
-          sender: string;
-          sent: string;
-          status: string;
-        };
-        Insert: {
-          cap_references?: string | null;
-          cluster_id?: string | null;
-          created_at?: string;
-          id?: string;
-          identifier: string;
-          info: Json;
-          msg_type: string;
-          scope: string;
-          sender: string;
-          sent: string;
-          status: string;
-        };
-        Update: {
-          cap_references?: string | null;
-          cluster_id?: string | null;
-          created_at?: string;
-          id?: string;
-          identifier?: string;
-          info?: Json;
-          msg_type?: string;
-          scope?: string;
-          sender?: string;
-          sent?: string;
-          status?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "cap_alerts_cluster_id_fkey";
-            columns: ["cluster_id"];
-            isOneToOne: false;
-            referencedRelation: "fire_clusters";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      citizen_report_submissions: {
-        Row: {
-          created_at: string;
-          user_id: string;
-        };
-        Insert: {
-          created_at?: string;
-          user_id: string;
-        };
-        Update: {
-          created_at?: string;
-          user_id?: string;
-        };
-        Relationships: [];
-      };
-      citizen_reports: {
-        Row: {
-          classified_at: string | null;
-          classifier: string | null;
-          cluster_id: string | null;
-          commune_id: string | null;
-          created_at: string;
-          expires_at: string | null;
-          flagged_at: string | null;
-          user_flagged_at: string | null;
-          hazard: string | null;
-          id: string;
-          kind: string;
+          ingested_at: string;
+          is_calibrated_fuel: boolean;
           lat: number;
           lon: number;
-          moderation_note: string | null;
-          note: string | null;
+          ndvi_value: number | null;
           observed_at: string;
-          photo_url: string | null;
-          publish_state: string;
-          reviewed_at: string | null;
-          reviewed_by: string | null;
-          sighting: string;
-          size_hint: string;
-          status: string;
-          summary: string | null;
-          updated_at: string;
-          user_id: string;
+          product_version: string;
+          published_at: string;
+          qa_pixel_fraction: number | null;
+          quality_state: string;
+          source_key: string;
+          swi_value: number | null;
+          wilaya_code: string;
         };
         Insert: {
-          classified_at?: string | null;
-          classifier?: string | null;
-          cluster_id?: string | null;
+          attribution: string;
+          commune_code: string;
           commune_id?: string | null;
-          created_at?: string;
-          expires_at?: string | null;
-          flagged_at?: string | null;
-          user_flagged_at?: string | null;
-          hazard?: string | null;
           id?: string;
-          kind?: string;
+          ingested_at?: string;
+          is_calibrated_fuel?: boolean;
           lat: number;
           lon: number;
-          moderation_note?: string | null;
-          note?: string | null;
-          observed_at?: string;
-          photo_url?: string | null;
-          publish_state?: string;
-          reviewed_at?: string | null;
-          reviewed_by?: string | null;
-          sighting?: string;
-          size_hint?: string;
-          status?: string;
-          summary?: string | null;
-          updated_at?: string;
-          user_id: string;
+          ndvi_value?: number | null;
+          observed_at: string;
+          product_version: string;
+          published_at: string;
+          qa_pixel_fraction?: number | null;
+          quality_state?: string;
+          source_key?: string;
+          swi_value?: number | null;
+          wilaya_code: string;
         };
         Update: {
-          classified_at?: string | null;
-          classifier?: string | null;
-          cluster_id?: string | null;
+          attribution?: string;
+          commune_code?: string;
           commune_id?: string | null;
-          created_at?: string;
-          expires_at?: string | null;
-          flagged_at?: string | null;
-          user_flagged_at?: string | null;
-          hazard?: string | null;
           id?: string;
-          kind?: string;
+          ingested_at?: string;
+          is_calibrated_fuel?: boolean;
           lat?: number;
           lon?: number;
-          moderation_note?: string | null;
-          note?: string | null;
+          ndvi_value?: number | null;
           observed_at?: string;
-          photo_url?: string | null;
-          publish_state?: string;
-          reviewed_at?: string | null;
-          reviewed_by?: string | null;
-          sighting?: string;
-          size_hint?: string;
-          status?: string;
-          summary?: string | null;
-          updated_at?: string;
-          user_id?: string;
+          product_version?: string;
+          published_at?: string;
+          qa_pixel_fraction?: number | null;
+          quality_state?: string;
+          source_key?: string;
+          swi_value?: number | null;
+          wilaya_code?: string;
         };
         Relationships: [
           {
-            foreignKeyName: "citizen_reports_cluster_id_fkey";
-            columns: ["cluster_id"];
-            isOneToOne: false;
-            referencedRelation: "fire_clusters";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "citizen_reports_commune_id_fkey";
+            foreignKeyName: "clms_land_indices_commune_id_fkey";
             columns: ["commune_id"];
             isOneToOne: false;
             referencedRelation: "admin_units";
             referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "clms_land_indices_source_key_fkey";
+            columns: ["source_key"];
+            isOneToOne: false;
+            referencedRelation: "source_contracts";
+            referencedColumns: ["key"];
+          },
+          {
+            foreignKeyName: "clms_land_indices_source_key_fkey";
+            columns: ["source_key"];
+            isOneToOne: false;
+            referencedRelation: "source_health";
+            referencedColumns: ["key"];
           },
         ];
       };
@@ -1353,6 +1188,39 @@ export type Database = {
           },
         ];
       };
+      cold_exports: {
+        Row: {
+          bytes: number | null;
+          day: string;
+          exported_at: string;
+          key_digest: string | null;
+          path: string | null;
+          rows: number;
+          sha256: string | null;
+          table_name: string;
+        };
+        Insert: {
+          bytes?: number | null;
+          day: string;
+          exported_at?: string;
+          key_digest?: string | null;
+          path?: string | null;
+          rows: number;
+          sha256?: string | null;
+          table_name: string;
+        };
+        Update: {
+          bytes?: number | null;
+          day?: string;
+          exported_at?: string;
+          key_digest?: string | null;
+          path?: string | null;
+          rows?: number;
+          sha256?: string | null;
+          table_name?: string;
+        };
+        Relationships: [];
+      };
       contribution_idea_votes: {
         Row: {
           created_at: string;
@@ -1380,14 +1248,17 @@ export type Database = {
             referencedRelation: "contribution_ideas";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "contribution_idea_votes_idea_id_fkey";
+            columns: ["idea_id"];
+            isOneToOne: false;
+            referencedRelation: "published_contribution_ideas";
+            referencedColumns: ["id"];
+          },
         ];
       };
       contribution_ideas: {
         Row: {
-          reply: string | null;
-          replied_at: string | null;
-          replied_by: string | null;
-          reply_author_kind: string | null;
           contact: string | null;
           created_at: string;
           id: string;
@@ -1397,14 +1268,14 @@ export type Database = {
           moderated_by: string | null;
           moderation_note: string | null;
           published_at: string | null;
+          replied_at: string | null;
+          replied_by: string | null;
+          reply: string | null;
+          reply_author_kind: string | null;
           score: number;
           status: string;
         };
         Insert: {
-          reply?: string | null;
-          replied_at?: string | null;
-          replied_by?: string | null;
-          reply_author_kind?: string | null;
           contact?: string | null;
           created_at?: string;
           id?: string;
@@ -1414,14 +1285,14 @@ export type Database = {
           moderated_by?: string | null;
           moderation_note?: string | null;
           published_at?: string | null;
+          replied_at?: string | null;
+          replied_by?: string | null;
+          reply?: string | null;
+          reply_author_kind?: string | null;
           score?: number;
           status?: string;
         };
         Update: {
-          reply?: string | null;
-          replied_at?: string | null;
-          replied_by?: string | null;
-          reply_author_kind?: string | null;
           contact?: string | null;
           created_at?: string;
           id?: string;
@@ -1431,6 +1302,10 @@ export type Database = {
           moderated_by?: string | null;
           moderation_note?: string | null;
           published_at?: string | null;
+          replied_at?: string | null;
+          replied_by?: string | null;
+          reply?: string | null;
+          reply_author_kind?: string | null;
           score?: number;
           status?: string;
         };
@@ -1466,6 +1341,45 @@ export type Database = {
         };
         Relationships: [];
       };
+      delivery_channel_settings: {
+        Row: {
+          channel: string;
+          paused: boolean;
+        };
+        Insert: {
+          channel: string;
+          paused?: boolean;
+        };
+        Update: {
+          channel?: string;
+          paused?: boolean;
+        };
+        Relationships: [];
+      };
+      delivery_pipeline_settings: {
+        Row: {
+          enabled: boolean;
+          pause_reason: string | null;
+          paused: boolean;
+          pipeline: string;
+          updated_at: string;
+        };
+        Insert: {
+          enabled?: boolean;
+          pause_reason?: string | null;
+          paused?: boolean;
+          pipeline: string;
+          updated_at?: string;
+        };
+        Update: {
+          enabled?: boolean;
+          pause_reason?: string | null;
+          paused?: boolean;
+          pipeline?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       detections: {
         Row: {
           cluster_id: string | null;
@@ -1476,9 +1390,12 @@ export type Database = {
           fp_reason: string | null;
           frp_mw: number | null;
           id: string;
+          intake_channel: string | null;
           lat: number;
           lon: number;
           natural_key: string;
+          push_product_id: string | null;
+          push_received_at: string | null;
           raw: Json | null;
           sensor: string;
           source: string;
@@ -1492,9 +1409,12 @@ export type Database = {
           fp_reason?: string | null;
           frp_mw?: number | null;
           id?: string;
+          intake_channel?: string | null;
           lat: number;
           lon: number;
           natural_key: string;
+          push_product_id?: string | null;
+          push_received_at?: string | null;
           raw?: Json | null;
           sensor: string;
           source: string;
@@ -1508,9 +1428,12 @@ export type Database = {
           fp_reason?: string | null;
           frp_mw?: number | null;
           id?: string;
+          intake_channel?: string | null;
           lat?: number;
           lon?: number;
           natural_key?: string;
+          push_product_id?: string | null;
+          push_received_at?: string | null;
           raw?: Json | null;
           sensor?: string;
           source?: string;
@@ -1563,6 +1486,89 @@ export type Database = {
           },
         ];
       };
+      earthquakes: {
+        Row: {
+          commune_id: string | null;
+          craag_attribution: string | null;
+          craag_bulletin_id: string | null;
+          craag_depth_km: number | null;
+          craag_magnitude: number | null;
+          craag_magnitude_type: string | null;
+          craag_matched_at: string | null;
+          craag_observed_at: string | null;
+          craag_place: string | null;
+          craag_source_url: string | null;
+          depth_km: number | null;
+          fetched_at: string;
+          id: string;
+          lat: number;
+          lon: number;
+          magnitude: number;
+          magnitude_type: string | null;
+          network: string | null;
+          occurred_at: string;
+          offshore: boolean;
+          region: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          commune_id?: string | null;
+          craag_attribution?: string | null;
+          craag_bulletin_id?: string | null;
+          craag_depth_km?: number | null;
+          craag_magnitude?: number | null;
+          craag_magnitude_type?: string | null;
+          craag_matched_at?: string | null;
+          craag_observed_at?: string | null;
+          craag_place?: string | null;
+          craag_source_url?: string | null;
+          depth_km?: number | null;
+          fetched_at?: string;
+          id: string;
+          lat: number;
+          lon: number;
+          magnitude: number;
+          magnitude_type?: string | null;
+          network?: string | null;
+          occurred_at: string;
+          offshore?: boolean;
+          region?: string | null;
+          updated_at: string;
+        };
+        Update: {
+          commune_id?: string | null;
+          craag_attribution?: string | null;
+          craag_bulletin_id?: string | null;
+          craag_depth_km?: number | null;
+          craag_magnitude?: number | null;
+          craag_magnitude_type?: string | null;
+          craag_matched_at?: string | null;
+          craag_observed_at?: string | null;
+          craag_place?: string | null;
+          craag_source_url?: string | null;
+          depth_km?: number | null;
+          fetched_at?: string;
+          id?: string;
+          lat?: number;
+          lon?: number;
+          magnitude?: number;
+          magnitude_type?: string | null;
+          network?: string | null;
+          occurred_at?: string;
+          offshore?: boolean;
+          region?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "earthquakes_commune_id_fkey";
+            columns: ["commune_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       effis_danger: {
         Row: {
           commune_id: string;
@@ -1595,51 +1601,99 @@ export type Database = {
           },
         ];
       };
-      earthquakes: {
+      email_digest_deliveries: {
         Row: {
-          commune_id: string | null;
-          depth_km: number | null;
-          fetched_at: string;
+          alert_count: number;
+          alert_ids: string[];
+          attempts: number;
+          bounced_at: string | null;
+          created_at: string;
+          dedupe_key: string;
+          digest_kind: string;
           id: string;
-          lat: number;
-          lon: number;
-          magnitude: number;
-          magnitude_type: string | null;
-          network: string | null;
-          occurred_at: string;
-          offshore: boolean;
-          region: string | null;
+          last_error: string | null;
+          lease_token: string | null;
+          lease_until: string | null;
+          locale: string;
+          next_attempt_at: string;
+          provider: string;
+          provider_message_id: string | null;
+          sent_at: string | null;
+          state: string;
+          subject: string | null;
           updated_at: string;
+          urgent_bypass: boolean;
+          user_id: string;
+          window_key: string;
         };
         Insert: {
-          commune_id?: string | null;
-          depth_km?: number | null;
-          fetched_at?: string;
-          id: string;
-          lat: number;
-          lon: number;
-          magnitude: number;
-          magnitude_type?: string | null;
-          network?: string | null;
-          occurred_at: string;
-          offshore?: boolean;
-          region?: string | null;
-          updated_at: string;
+          alert_count?: number;
+          alert_ids?: string[];
+          attempts?: number;
+          bounced_at?: string | null;
+          created_at?: string;
+          dedupe_key: string;
+          digest_kind: string;
+          id?: string;
+          last_error?: string | null;
+          lease_token?: string | null;
+          lease_until?: string | null;
+          locale: string;
+          next_attempt_at?: string;
+          provider?: string;
+          provider_message_id?: string | null;
+          sent_at?: string | null;
+          state?: string;
+          subject?: string | null;
+          updated_at?: string;
+          urgent_bypass?: boolean;
+          user_id: string;
+          window_key: string;
         };
         Update: {
-          commune_id?: string | null;
-          depth_km?: number | null;
-          fetched_at?: string;
+          alert_count?: number;
+          alert_ids?: string[];
+          attempts?: number;
+          bounced_at?: string | null;
+          created_at?: string;
+          dedupe_key?: string;
+          digest_kind?: string;
           id?: string;
-          lat?: number;
-          lon?: number;
-          magnitude?: number;
-          magnitude_type?: string | null;
-          network?: string | null;
-          occurred_at?: string;
-          offshore?: boolean;
-          region?: string | null;
+          last_error?: string | null;
+          lease_token?: string | null;
+          lease_until?: string | null;
+          locale?: string;
+          next_attempt_at?: string;
+          provider?: string;
+          provider_message_id?: string | null;
+          sent_at?: string | null;
+          state?: string;
+          subject?: string | null;
           updated_at?: string;
+          urgent_bypass?: boolean;
+          user_id?: string;
+          window_key?: string;
+        };
+        Relationships: [];
+      };
+      email_digest_suppressions: {
+        Row: {
+          provider_error: string | null;
+          reason: string;
+          suppressed_at: string;
+          user_id: string;
+        };
+        Insert: {
+          provider_error?: string | null;
+          reason: string;
+          suppressed_at?: string;
+          user_id: string;
+        };
+        Update: {
+          provider_error?: string | null;
+          reason?: string;
+          suppressed_at?: string;
+          user_id?: string;
         };
         Relationships: [];
       };
@@ -1667,10 +1721,10 @@ export type Database = {
           resolved_at: string | null;
           resolved_by: string | null;
           short_id: string;
+          soil_moisture_m3m3: number | null;
           sources: string[];
           spread_bearing_deg: number | null;
           state: string;
-          soil_moisture_m3m3: number | null;
           suspected_persistent_source: boolean;
           updated_at: string;
           vpd_kpa: number | null;
@@ -1702,10 +1756,10 @@ export type Database = {
           resolved_at?: string | null;
           resolved_by?: string | null;
           short_id: string;
+          soil_moisture_m3m3?: number | null;
           sources?: string[];
           spread_bearing_deg?: number | null;
           state?: string;
-          soil_moisture_m3m3?: number | null;
           suspected_persistent_source?: boolean;
           updated_at?: string;
           vpd_kpa?: number | null;
@@ -1737,10 +1791,10 @@ export type Database = {
           resolved_at?: string | null;
           resolved_by?: string | null;
           short_id?: string;
+          soil_moisture_m3m3?: number | null;
           sources?: string[];
           spread_bearing_deg?: number | null;
           state?: string;
-          soil_moisture_m3m3?: number | null;
           suspected_persistent_source?: boolean;
           updated_at?: string;
           vpd_kpa?: number | null;
@@ -1755,6 +1809,13 @@ export type Database = {
             columns: ["commune_id"];
             isOneToOne: false;
             referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "fire_clusters_confirmed_mention_id_fkey";
+            columns: ["confirmed_mention_id"];
+            isOneToOne: false;
+            referencedRelation: "incident_mentions";
             referencedColumns: ["id"];
           },
           {
@@ -1843,125 +1904,182 @@ export type Database = {
           },
         ];
       };
-      ingest_runs: {
+      ghsl_exposure: {
         Row: {
-          error: string | null;
-          finished_at: string | null;
+          attribution: string;
+          commune_code: string;
+          commune_id: string | null;
+          conservation_delta: number;
+          crs_code: string;
+          dataset_release: string;
+          epoch_year: number;
+          exposure_label: string;
           id: string;
-          records_in: number;
-          records_new: number;
-          source: string;
-          started_at: string;
-          status: string;
+          ingested_at: string;
+          lat: number;
+          lon: number;
+          modeled_residents: number;
+          published_at: string;
+          resolution_m: number;
+          source_cell_count: number;
+          source_cell_sum: number;
+          source_key: string;
+          wilaya_code: string;
         };
         Insert: {
-          error?: string | null;
-          finished_at?: string | null;
+          attribution: string;
+          commune_code: string;
+          commune_id?: string | null;
+          conservation_delta: number;
+          crs_code: string;
+          dataset_release?: string;
+          epoch_year: number;
+          exposure_label?: string;
           id?: string;
-          records_in?: number;
-          records_new?: number;
-          source: string;
-          started_at?: string;
-          status?: string;
+          ingested_at?: string;
+          lat: number;
+          lon: number;
+          modeled_residents: number;
+          published_at: string;
+          resolution_m: number;
+          source_cell_count: number;
+          source_cell_sum: number;
+          source_key?: string;
+          wilaya_code: string;
         };
         Update: {
-          error?: string | null;
-          finished_at?: string | null;
+          attribution?: string;
+          commune_code?: string;
+          commune_id?: string | null;
+          conservation_delta?: number;
+          crs_code?: string;
+          dataset_release?: string;
+          epoch_year?: number;
+          exposure_label?: string;
           id?: string;
-          records_in?: number;
-          records_new?: number;
-          source?: string;
-          started_at?: string;
-          status?: string;
-        };
-        Relationships: [];
-      };
-      internal_cron_token: {
-        Row: {
-          created_at: string;
-          id: boolean;
-          token: string;
-        };
-        Insert: {
-          created_at?: string;
-          id?: boolean;
-          token: string;
-        };
-        Update: {
-          created_at?: string;
-          id?: boolean;
-          token?: string;
-        };
-        Relationships: [];
-      };
-      admin_audit: {
-        Row: {
-          action: string;
-          actor_kind: string;
-          actor_label: string | null;
-          actor_user_id: string | null;
-          after: Json | null;
-          at: string;
-          before: Json | null;
-          domain: string;
-          id: string;
-          reason: string | null;
-          target_id: string | null;
-          target_table: string;
-        };
-        Insert: {
-          action: string;
-          actor_kind: string;
-          actor_label?: string | null;
-          actor_user_id?: string | null;
-          after?: Json | null;
-          at?: string;
-          before?: Json | null;
-          domain: string;
-          id?: string;
-          reason?: string | null;
-          target_id?: string | null;
-          target_table: string;
-        };
-        Update: {
-          action?: string;
-          actor_kind?: string;
-          actor_label?: string | null;
-          actor_user_id?: string | null;
-          after?: Json | null;
-          at?: string;
-          before?: Json | null;
-          domain?: string;
-          id?: string;
-          reason?: string | null;
-          target_id?: string | null;
-          target_table?: string;
-        };
-        Relationships: [];
-      };
-      admin_unit_aliases: {
-        Row: {
-          admin_unit_id: string;
-          alias_ar: string;
-          source: string;
-        };
-        Insert: {
-          admin_unit_id: string;
-          alias_ar: string;
-          source: string;
-        };
-        Update: {
-          admin_unit_id?: string;
-          alias_ar?: string;
-          source?: string;
+          ingested_at?: string;
+          lat?: number;
+          lon?: number;
+          modeled_residents?: number;
+          published_at?: string;
+          resolution_m?: number;
+          source_cell_count?: number;
+          source_cell_sum?: number;
+          source_key?: string;
+          wilaya_code?: string;
         };
         Relationships: [
           {
-            foreignKeyName: "admin_unit_aliases_admin_unit_id_fkey";
-            columns: ["admin_unit_id"];
+            foreignKeyName: "ghsl_exposure_commune_id_fkey";
+            columns: ["commune_id"];
             isOneToOne: false;
             referencedRelation: "admin_units";
             referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "ghsl_exposure_source_key_fkey";
+            columns: ["source_key"];
+            isOneToOne: false;
+            referencedRelation: "source_contracts";
+            referencedColumns: ["key"];
+          },
+          {
+            foreignKeyName: "ghsl_exposure_source_key_fkey";
+            columns: ["source_key"];
+            isOneToOne: false;
+            referencedRelation: "source_health";
+            referencedColumns: ["key"];
+          },
+        ];
+      };
+      gwis_burned_areas: {
+        Row: {
+          area_ha: number;
+          attribution: string;
+          burn_end_at: string;
+          burn_start_at: string;
+          commune_code: string | null;
+          commune_id: string | null;
+          estimation_basis: string;
+          event_id: string;
+          id: string;
+          ingested_at: string;
+          is_official_confirmation: boolean;
+          is_optical_scar: boolean;
+          lat: number;
+          licence: string;
+          lon: number;
+          perimeter_geojson: Json;
+          product_layer: string;
+          published_at: string;
+          source_key: string;
+          wilaya_code: string | null;
+        };
+        Insert: {
+          area_ha: number;
+          attribution: string;
+          burn_end_at: string;
+          burn_start_at: string;
+          commune_code?: string | null;
+          commune_id?: string | null;
+          estimation_basis?: string;
+          event_id: string;
+          id?: string;
+          ingested_at?: string;
+          is_official_confirmation?: boolean;
+          is_optical_scar?: boolean;
+          lat: number;
+          licence?: string;
+          lon: number;
+          perimeter_geojson: Json;
+          product_layer?: string;
+          published_at: string;
+          source_key?: string;
+          wilaya_code?: string | null;
+        };
+        Update: {
+          area_ha?: number;
+          attribution?: string;
+          burn_end_at?: string;
+          burn_start_at?: string;
+          commune_code?: string | null;
+          commune_id?: string | null;
+          estimation_basis?: string;
+          event_id?: string;
+          id?: string;
+          ingested_at?: string;
+          is_official_confirmation?: boolean;
+          is_optical_scar?: boolean;
+          lat?: number;
+          licence?: string;
+          lon?: number;
+          perimeter_geojson?: Json;
+          product_layer?: string;
+          published_at?: string;
+          source_key?: string;
+          wilaya_code?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "gwis_burned_areas_commune_id_fkey";
+            columns: ["commune_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "gwis_burned_areas_source_key_fkey";
+            columns: ["source_key"];
+            isOneToOne: false;
+            referencedRelation: "source_contracts";
+            referencedColumns: ["key"];
+          },
+          {
+            foreignKeyName: "gwis_burned_areas_source_key_fkey";
+            columns: ["source_key"];
+            isOneToOne: false;
+            referencedRelation: "source_health";
+            referencedColumns: ["key"];
           },
         ];
       };
@@ -2055,6 +2173,300 @@ export type Database = {
           },
         ];
       };
+      ingest_runs: {
+        Row: {
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          records_in: number;
+          records_new: number;
+          source: string;
+          started_at: string;
+          status: string;
+        };
+        Insert: {
+          error?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          records_in?: number;
+          records_new?: number;
+          source: string;
+          started_at?: string;
+          status?: string;
+        };
+        Update: {
+          error?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          records_in?: number;
+          records_new?: number;
+          source?: string;
+          started_at?: string;
+          status?: string;
+        };
+        Relationships: [];
+      };
+      internal_cron_token: {
+        Row: {
+          created_at: string;
+          id: boolean;
+          token: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: boolean;
+          token: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: boolean;
+          token?: string;
+        };
+        Relationships: [];
+      };
+      ita_feed_state: {
+        Row: {
+          checked_at: string | null;
+          etag: string | null;
+          singleton: boolean;
+        };
+        Insert: {
+          checked_at?: string | null;
+          etag?: string | null;
+          singleton?: boolean;
+        };
+        Update: {
+          checked_at?: string | null;
+          etag?: string | null;
+          singleton?: boolean;
+        };
+        Relationships: [];
+      };
+      ita_reports: {
+        Row: {
+          body: string;
+          content_hash: string;
+          extracted_at: string | null;
+          extraction: Json | null;
+          extraction_attempts: number;
+          extraction_error: string | null;
+          extraction_requeued_at: string | null;
+          fetched_at: string;
+          id: string;
+          next_extraction_at: string;
+          published_at: string;
+          raw: Json;
+          recovery_version: string;
+          source_page: string;
+          source_post_id: string;
+          source_url: string;
+        };
+        Insert: {
+          body: string;
+          content_hash: string;
+          extracted_at?: string | null;
+          extraction?: Json | null;
+          extraction_attempts?: number;
+          extraction_error?: string | null;
+          extraction_requeued_at?: string | null;
+          fetched_at?: string;
+          id?: string;
+          next_extraction_at?: string;
+          published_at: string;
+          raw: Json;
+          recovery_version?: string;
+          source_page: string;
+          source_post_id: string;
+          source_url: string;
+        };
+        Update: {
+          body?: string;
+          content_hash?: string;
+          extracted_at?: string | null;
+          extraction?: Json | null;
+          extraction_attempts?: number;
+          extraction_error?: string | null;
+          extraction_requeued_at?: string | null;
+          fetched_at?: string;
+          id?: string;
+          next_extraction_at?: string;
+          published_at?: string;
+          raw?: Json;
+          recovery_version?: string;
+          source_page?: string;
+          source_post_id?: string;
+          source_url?: string;
+        };
+        Relationships: [];
+      };
+      lightning_observations: {
+        Row: {
+          attribution: string;
+          commune_code: string | null;
+          commune_id: string | null;
+          duration_ms: number | null;
+          flash_id: string;
+          group_count: number | null;
+          id: string;
+          ingested_at: string;
+          is_wildfire: boolean;
+          lat: number;
+          lon: number;
+          observation_kind: string;
+          observed_at: string;
+          product_type: string;
+          published_at: string;
+          quality_state: string;
+          radiance_uj_m2: number | null;
+          source_key: string;
+          wilaya_code: string | null;
+        };
+        Insert: {
+          attribution: string;
+          commune_code?: string | null;
+          commune_id?: string | null;
+          duration_ms?: number | null;
+          flash_id: string;
+          group_count?: number | null;
+          id?: string;
+          ingested_at?: string;
+          is_wildfire?: boolean;
+          lat: number;
+          lon: number;
+          observation_kind?: string;
+          observed_at: string;
+          product_type: string;
+          published_at: string;
+          quality_state?: string;
+          radiance_uj_m2?: number | null;
+          source_key?: string;
+          wilaya_code?: string | null;
+        };
+        Update: {
+          attribution?: string;
+          commune_code?: string | null;
+          commune_id?: string | null;
+          duration_ms?: number | null;
+          flash_id?: string;
+          group_count?: number | null;
+          id?: string;
+          ingested_at?: string;
+          is_wildfire?: boolean;
+          lat?: number;
+          lon?: number;
+          observation_kind?: string;
+          observed_at?: string;
+          product_type?: string;
+          published_at?: string;
+          quality_state?: string;
+          radiance_uj_m2?: number | null;
+          source_key?: string;
+          wilaya_code?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "lightning_observations_commune_id_fkey";
+            columns: ["commune_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "lightning_observations_source_key_fkey";
+            columns: ["source_key"];
+            isOneToOne: false;
+            referencedRelation: "source_contracts";
+            referencedColumns: ["key"];
+          },
+          {
+            foreignKeyName: "lightning_observations_source_key_fkey";
+            columns: ["source_key"];
+            isOneToOne: false;
+            referencedRelation: "source_health";
+            referencedColumns: ["key"];
+          },
+        ];
+      };
+      mtg_fci_push_deliveries: {
+        Row: {
+          attribution: string;
+          fallback_contract_key: string;
+          id: string;
+          ingested_at: string;
+          latency_seconds: number;
+          pixels_filtered: number;
+          pixels_seen: number;
+          pixels_stored: number;
+          product_id: string;
+          published_at: string;
+          quality_state: string;
+          received_at: string;
+          slot_time: string;
+          source_key: string;
+        };
+        Insert: {
+          attribution: string;
+          fallback_contract_key?: string;
+          id?: string;
+          ingested_at?: string;
+          latency_seconds: number;
+          pixels_filtered?: number;
+          pixels_seen?: number;
+          pixels_stored?: number;
+          product_id: string;
+          published_at: string;
+          quality_state?: string;
+          received_at: string;
+          slot_time: string;
+          source_key?: string;
+        };
+        Update: {
+          attribution?: string;
+          fallback_contract_key?: string;
+          id?: string;
+          ingested_at?: string;
+          latency_seconds?: number;
+          pixels_filtered?: number;
+          pixels_seen?: number;
+          pixels_stored?: number;
+          product_id?: string;
+          published_at?: string;
+          quality_state?: string;
+          received_at?: string;
+          slot_time?: string;
+          source_key?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "mtg_fci_push_deliveries_fallback_contract_key_fkey";
+            columns: ["fallback_contract_key"];
+            isOneToOne: false;
+            referencedRelation: "source_contracts";
+            referencedColumns: ["key"];
+          },
+          {
+            foreignKeyName: "mtg_fci_push_deliveries_fallback_contract_key_fkey";
+            columns: ["fallback_contract_key"];
+            isOneToOne: false;
+            referencedRelation: "source_health";
+            referencedColumns: ["key"];
+          },
+          {
+            foreignKeyName: "mtg_fci_push_deliveries_source_key_fkey";
+            columns: ["source_key"];
+            isOneToOne: false;
+            referencedRelation: "source_contracts";
+            referencedColumns: ["key"];
+          },
+          {
+            foreignKeyName: "mtg_fci_push_deliveries_source_key_fkey";
+            columns: ["source_key"];
+            isOneToOne: false;
+            referencedRelation: "source_health";
+            referencedColumns: ["key"];
+          },
+        ];
+      };
       official_incidents: {
         Row: {
           as_of: string;
@@ -2134,132 +2546,6 @@ export type Database = {
           },
         ];
       };
-      source_documents: {
-        Row: {
-          body: string;
-          content_hash: string;
-          external_id: string;
-          fetched_at: string;
-          id: string;
-          published_at: string;
-          raw: Json | null;
-          text_source_id: string;
-          url: string;
-        };
-        Insert: {
-          body: string;
-          content_hash: string;
-          external_id: string;
-          fetched_at?: string;
-          id?: string;
-          published_at: string;
-          raw?: Json | null;
-          text_source_id: string;
-          url: string;
-        };
-        Update: {
-          body?: string;
-          content_hash?: string;
-          external_id?: string;
-          fetched_at?: string;
-          id?: string;
-          published_at?: string;
-          raw?: Json | null;
-          text_source_id?: string;
-          url?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "source_documents_text_source_id_fkey";
-            columns: ["text_source_id"];
-            isOneToOne: false;
-            referencedRelation: "text_sources";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      text_sources: {
-        Row: {
-          authority_tier: string;
-          created_at: string;
-          enabled: boolean;
-          id: string;
-          key: string;
-          kind: string;
-          label: string;
-          language: string;
-          template: string | null;
-          url: string;
-          wilaya_id: string | null;
-        };
-        Insert: {
-          authority_tier: string;
-          created_at?: string;
-          enabled?: boolean;
-          id?: string;
-          key: string;
-          kind: string;
-          label: string;
-          language?: string;
-          template?: string | null;
-          url: string;
-          wilaya_id?: string | null;
-        };
-        Update: {
-          authority_tier?: string;
-          created_at?: string;
-          enabled?: boolean;
-          id?: string;
-          key?: string;
-          kind?: string;
-          label?: string;
-          language?: string;
-          template?: string | null;
-          url?: string;
-          wilaya_id?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "text_sources_key_fkey";
-            columns: ["key"];
-            isOneToOne: true;
-            referencedRelation: "source_contracts";
-            referencedColumns: ["key"];
-          },
-          {
-            foreignKeyName: "text_sources_key_fkey";
-            columns: ["key"];
-            isOneToOne: true;
-            referencedRelation: "source_health";
-            referencedColumns: ["key"];
-          },
-          {
-            foreignKeyName: "text_sources_wilaya_id_fkey";
-            columns: ["wilaya_id"];
-            isOneToOne: false;
-            referencedRelation: "admin_units";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      operator_alert_state: {
-        Row: {
-          fingerprint: string;
-          key: string;
-          updated_at: string;
-        };
-        Insert: {
-          fingerprint: string;
-          key: string;
-          updated_at?: string;
-        };
-        Update: {
-          fingerprint?: string;
-          key?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
       official_weather_advice: {
         Row: {
           advice: string;
@@ -2288,14 +2574,40 @@ export type Database = {
           valid_to?: string | null;
           wilaya_ids?: string[];
         };
+        Relationships: [
+          {
+            foreignKeyName: "official_weather_advice_document_id_fkey";
+            columns: ["document_id"];
+            isOneToOne: true;
+            referencedRelation: "source_documents";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      onm_areas: {
+        Row: {
+          id: string;
+          polygon: Json;
+        };
+        Insert: {
+          id: string;
+          polygon: Json;
+        };
+        Update: {
+          id?: string;
+          polygon?: Json;
+        };
         Relationships: [];
       };
       onm_vigilance: {
         Row: {
-          cap_detail_fetched_at: string | null;
           area_desc: string;
           area_id: string | null;
+          cancelled_at: string | null;
+          cancelled_by: string | null;
+          cap_detail_fetched_at: string | null;
           cap_id: string;
+          cap_references: string | null;
           cap_url: string | null;
           certainty: string;
           created_at: string;
@@ -2303,22 +2615,29 @@ export type Database = {
           episode_peak: number;
           event: string;
           expires: string | null;
+          geocodes: string[];
           headline_fr: string | null;
           id: string;
           instruction_fr: string | null;
+          msg_type: string;
           onset: string | null;
+          referenced_cap_ids: string[];
           sent: string;
-          superseded_at: string | null;
           severity: string;
+          superseded_at: string | null;
+          superseded_by: string | null;
           title: string;
           urgency: string;
           wilaya_id: string | null;
         };
         Insert: {
-          cap_detail_fetched_at?: string | null;
           area_desc: string;
           area_id?: string | null;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
+          cap_detail_fetched_at?: string | null;
           cap_id: string;
+          cap_references?: string | null;
           cap_url?: string | null;
           certainty: string;
           created_at?: string;
@@ -2326,22 +2645,29 @@ export type Database = {
           episode_peak?: number;
           event: string;
           expires?: string | null;
+          geocodes?: string[];
           headline_fr?: string | null;
           id?: string;
           instruction_fr?: string | null;
+          msg_type?: string;
           onset?: string | null;
+          referenced_cap_ids?: string[];
           sent: string;
-          superseded_at?: string | null;
           severity: string;
+          superseded_at?: string | null;
+          superseded_by?: string | null;
           title: string;
           urgency: string;
           wilaya_id?: string | null;
         };
         Update: {
-          cap_detail_fetched_at?: string | null;
           area_desc?: string;
           area_id?: string | null;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
+          cap_detail_fetched_at?: string | null;
           cap_id?: string;
+          cap_references?: string | null;
           cap_url?: string | null;
           certainty?: string;
           created_at?: string;
@@ -2349,13 +2675,17 @@ export type Database = {
           episode_peak?: number;
           event?: string;
           expires?: string | null;
+          geocodes?: string[];
           headline_fr?: string | null;
           id?: string;
           instruction_fr?: string | null;
+          msg_type?: string;
           onset?: string | null;
+          referenced_cap_ids?: string[];
           sent?: string;
-          superseded_at?: string | null;
           severity?: string;
+          superseded_at?: string | null;
+          superseded_by?: string | null;
           title?: string;
           urgency?: string;
           wilaya_id?: string | null;
@@ -2366,6 +2696,34 @@ export type Database = {
             columns: ["area_id"];
             isOneToOne: false;
             referencedRelation: "onm_areas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "onm_vigilance_cancelled_by_fkey";
+            columns: ["cancelled_by"];
+            isOneToOne: false;
+            referencedRelation: "onm_vigilance";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "onm_vigilance_cancelled_by_fkey";
+            columns: ["cancelled_by"];
+            isOneToOne: false;
+            referencedRelation: "onm_warning_history";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "onm_vigilance_superseded_by_fkey";
+            columns: ["superseded_by"];
+            isOneToOne: false;
+            referencedRelation: "onm_vigilance";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "onm_vigilance_superseded_by_fkey";
+            columns: ["superseded_by"];
+            isOneToOne: false;
+            referencedRelation: "onm_warning_history";
             referencedColumns: ["id"];
           },
           {
@@ -2436,6 +2794,57 @@ export type Database = {
           },
         ];
       };
+      operational_incidents: {
+        Row: {
+          acknowledged_at: string | null;
+          acknowledged_by: string | null;
+          contract_key: string;
+          first_seen_at: string;
+          id: string;
+          last_seen_at: string;
+          reason_code: string;
+          resolved_at: string | null;
+        };
+        Insert: {
+          acknowledged_at?: string | null;
+          acknowledged_by?: string | null;
+          contract_key: string;
+          first_seen_at?: string;
+          id?: string;
+          last_seen_at?: string;
+          reason_code: string;
+          resolved_at?: string | null;
+        };
+        Update: {
+          acknowledged_at?: string | null;
+          acknowledged_by?: string | null;
+          contract_key?: string;
+          first_seen_at?: string;
+          id?: string;
+          last_seen_at?: string;
+          reason_code?: string;
+          resolved_at?: string | null;
+        };
+        Relationships: [];
+      };
+      operator_alert_state: {
+        Row: {
+          fingerprint: string;
+          key: string;
+          updated_at: string;
+        };
+        Insert: {
+          fingerprint: string;
+          key: string;
+          updated_at?: string;
+        };
+        Update: {
+          fingerprint?: string;
+          key?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       persistent_sources: {
         Row: {
           active_days: number;
@@ -2490,12 +2899,56 @@ export type Database = {
         };
         Relationships: [];
       };
+      privacy_consents: {
+        Row: {
+          consent_type: string;
+          created_at: string;
+          granted_at: string | null;
+          id: string;
+          locale: string;
+          policy_version: string;
+          source_surface: string;
+          status: string;
+          updated_at: string;
+          user_id: string;
+          withdrawn_at: string | null;
+        };
+        Insert: {
+          consent_type: string;
+          created_at?: string;
+          granted_at?: string | null;
+          id?: string;
+          locale?: string;
+          policy_version: string;
+          source_surface?: string;
+          status: string;
+          updated_at?: string;
+          user_id: string;
+          withdrawn_at?: string | null;
+        };
+        Update: {
+          consent_type?: string;
+          created_at?: string;
+          granted_at?: string | null;
+          id?: string;
+          locale?: string;
+          policy_version?: string;
+          source_surface?: string;
+          status?: string;
+          updated_at?: string;
+          user_id?: string;
+          withdrawn_at?: string | null;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           alert_email: boolean;
           alert_push: boolean;
           created_at: string;
           display_name: string | null;
+          email_digest_frequency: string;
+          email_digest_hour_algiers: number;
           id: string;
           locale: string;
           min_confidence: number;
@@ -2510,6 +2963,8 @@ export type Database = {
           alert_push?: boolean;
           created_at?: string;
           display_name?: string | null;
+          email_digest_frequency?: string;
+          email_digest_hour_algiers?: number;
           id: string;
           locale?: string;
           min_confidence?: number;
@@ -2524,6 +2979,8 @@ export type Database = {
           alert_push?: boolean;
           created_at?: string;
           display_name?: string | null;
+          email_digest_frequency?: string;
+          email_digest_hour_algiers?: number;
           id?: string;
           locale?: string;
           min_confidence?: number;
@@ -2534,6 +2991,115 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      push_test_receipts: {
+        Row: {
+          id: string;
+          received_at: string | null;
+          sent_at: string;
+          user_id: string;
+        };
+        Insert: {
+          id?: string;
+          received_at?: string | null;
+          sent_at?: string;
+          user_id: string;
+        };
+        Update: {
+          id?: string;
+          received_at?: string | null;
+          sent_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
+      rainfall_observations: {
+        Row: {
+          accum_mm_30m: number;
+          attribution: string;
+          commune_code: string | null;
+          commune_id: string | null;
+          grid_cell_key: string;
+          id: string;
+          ingested_at: string;
+          is_model: boolean;
+          lat: number;
+          lon: number;
+          observation_kind: string;
+          published_time: string;
+          quality_state: string;
+          rate_mm_h: number;
+          snapshot_id: string | null;
+          source_key: string;
+          valid_time: string;
+          wilaya_code: string | null;
+          window_minutes: number;
+        };
+        Insert: {
+          accum_mm_30m: number;
+          attribution: string;
+          commune_code?: string | null;
+          commune_id?: string | null;
+          grid_cell_key: string;
+          id?: string;
+          ingested_at?: string;
+          is_model?: boolean;
+          lat: number;
+          lon: number;
+          observation_kind?: string;
+          published_time: string;
+          quality_state?: string;
+          rate_mm_h: number;
+          snapshot_id?: string | null;
+          source_key: string;
+          valid_time: string;
+          wilaya_code?: string | null;
+          window_minutes?: number;
+        };
+        Update: {
+          accum_mm_30m?: number;
+          attribution?: string;
+          commune_code?: string | null;
+          commune_id?: string | null;
+          grid_cell_key?: string;
+          id?: string;
+          ingested_at?: string;
+          is_model?: boolean;
+          lat?: number;
+          lon?: number;
+          observation_kind?: string;
+          published_time?: string;
+          quality_state?: string;
+          rate_mm_h?: number;
+          snapshot_id?: string | null;
+          source_key?: string;
+          valid_time?: string;
+          wilaya_code?: string | null;
+          window_minutes?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "rainfall_observations_commune_id_fkey";
+            columns: ["commune_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "rainfall_observations_source_key_fkey";
+            columns: ["source_key"];
+            isOneToOne: false;
+            referencedRelation: "source_contracts";
+            referencedColumns: ["key"];
+          },
+          {
+            foreignKeyName: "rainfall_observations_source_key_fkey";
+            columns: ["source_key"];
+            isOneToOne: false;
+            referencedRelation: "source_health";
+            referencedColumns: ["key"];
+          },
+        ];
       };
       report_witnesses: {
         Row: {
@@ -2554,7 +3120,120 @@ export type Database = {
           user_id?: string;
           vote?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "report_witnesses_report_id_fkey";
+            columns: ["report_id"];
+            isOneToOne: false;
+            referencedRelation: "citizen_reports";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "report_witnesses_report_id_fkey";
+            columns: ["report_id"];
+            isOneToOne: false;
+            referencedRelation: "hazard_reports";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      reporter_blocks: {
+        Row: {
+          blocked_by: string | null;
+          created_at: string;
+          reason: string | null;
+          user_id: string;
+        };
+        Insert: {
+          blocked_by?: string | null;
+          created_at?: string;
+          reason?: string | null;
+          user_id: string;
+        };
+        Update: {
+          blocked_by?: string | null;
+          created_at?: string;
+          reason?: string | null;
+          user_id?: string;
+        };
         Relationships: [];
+      };
+      risk_forecast_snapshot_runs: {
+        Row: {
+          base_date: string;
+          created_at: string;
+          finished_at: string | null;
+          heartbeat_at: string;
+          scheduled_for: string;
+          snapshot_id: string;
+          status: string;
+        };
+        Insert: {
+          base_date: string;
+          created_at?: string;
+          finished_at?: string | null;
+          heartbeat_at?: string;
+          scheduled_for: string;
+          snapshot_id: string;
+          status?: string;
+        };
+        Update: {
+          base_date?: string;
+          created_at?: string;
+          finished_at?: string | null;
+          heartbeat_at?: string;
+          scheduled_for?: string;
+          snapshot_id?: string;
+          status?: string;
+        };
+        Relationships: [];
+      };
+      risk_forecast_staging: {
+        Row: {
+          commune_id: string;
+          components: Json | null;
+          danger_level: number;
+          forecast_date: string;
+          fuel_limited: boolean;
+          fwi: number;
+          fwi_percentile: number | null;
+          horizon_days: number;
+          snapshot_id: string;
+          staged_at: string;
+        };
+        Insert: {
+          commune_id: string;
+          components?: Json | null;
+          danger_level: number;
+          forecast_date: string;
+          fuel_limited?: boolean;
+          fwi: number;
+          fwi_percentile?: number | null;
+          horizon_days: number;
+          snapshot_id: string;
+          staged_at?: string;
+        };
+        Update: {
+          commune_id?: string;
+          components?: Json | null;
+          danger_level?: number;
+          forecast_date?: string;
+          fuel_limited?: boolean;
+          fwi?: number;
+          fwi_percentile?: number | null;
+          horizon_days?: number;
+          snapshot_id?: string;
+          staged_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "risk_forecast_staging_commune_id_fkey";
+            columns: ["commune_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       risk_forecasts: {
         Row: {
@@ -2616,6 +3295,65 @@ export type Database = {
           },
         ];
       };
+      risk_publication_checkpoint: {
+        Row: {
+          base_date: string;
+          coverage_status: string;
+          key: string;
+          published_at: string;
+          scheduled_for: string;
+          snapshot_id: string;
+        };
+        Insert: {
+          base_date: string;
+          coverage_status?: string;
+          key: string;
+          published_at: string;
+          scheduled_for: string;
+          snapshot_id: string;
+        };
+        Update: {
+          base_date?: string;
+          coverage_status?: string;
+          key?: string;
+          published_at?: string;
+          scheduled_for?: string;
+          snapshot_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "risk_publication_checkpoint_snapshot_id_fkey";
+            columns: ["snapshot_id"];
+            isOneToOne: false;
+            referencedRelation: "risk_publications";
+            referencedColumns: ["snapshot_id"];
+          },
+        ];
+      };
+      risk_publications: {
+        Row: {
+          base_date: string;
+          published_at: string;
+          row_count: number;
+          scheduled_for: string;
+          snapshot_id: string;
+        };
+        Insert: {
+          base_date: string;
+          published_at: string;
+          row_count: number;
+          scheduled_for: string;
+          snapshot_id: string;
+        };
+        Update: {
+          base_date?: string;
+          published_at?: string;
+          row_count?: number;
+          scheduled_for?: string;
+          snapshot_id?: string;
+        };
+        Relationships: [];
+      };
       settlements: {
         Row: {
           commune_id: string | null;
@@ -2662,6 +3400,78 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      source_captures: {
+        Row: {
+          attempt: number | null;
+          byte_length: number | null;
+          code_revision: string | null;
+          contract_version: number | null;
+          endpoint: string;
+          error_code: string | null;
+          fetched_at: string;
+          http_status: number | null;
+          id: string;
+          job_id: string | null;
+          media_type: string | null;
+          parser_version: string | null;
+          recorded_at: string;
+          request_params: Json;
+          requested_at: string;
+          response_headers: Json;
+          sha256: string | null;
+          source_key: string;
+          source_origin: string;
+          status: string;
+          storage_path: string | null;
+        };
+        Insert: {
+          attempt?: number | null;
+          byte_length?: number | null;
+          code_revision?: string | null;
+          contract_version?: number | null;
+          endpoint: string;
+          error_code?: string | null;
+          fetched_at: string;
+          http_status?: number | null;
+          id?: string;
+          job_id?: string | null;
+          media_type?: string | null;
+          parser_version?: string | null;
+          recorded_at?: string;
+          request_params?: Json;
+          requested_at: string;
+          response_headers?: Json;
+          sha256?: string | null;
+          source_key: string;
+          source_origin: string;
+          status: string;
+          storage_path?: string | null;
+        };
+        Update: {
+          attempt?: number | null;
+          byte_length?: number | null;
+          code_revision?: string | null;
+          contract_version?: number | null;
+          endpoint?: string;
+          error_code?: string | null;
+          fetched_at?: string;
+          http_status?: number | null;
+          id?: string;
+          job_id?: string | null;
+          media_type?: string | null;
+          parser_version?: string | null;
+          recorded_at?: string;
+          request_params?: Json;
+          requested_at?: string;
+          response_headers?: Json;
+          sha256?: string | null;
+          source_key?: string;
+          source_origin?: string;
+          status?: string;
+          storage_path?: string | null;
+        };
+        Relationships: [];
       };
       source_checkpoints: {
         Row: {
@@ -2856,6 +3666,50 @@ export type Database = {
           warning_after_minutes?: number;
         };
         Relationships: [];
+      };
+      source_documents: {
+        Row: {
+          body: string;
+          content_hash: string;
+          external_id: string;
+          fetched_at: string;
+          id: string;
+          published_at: string;
+          raw: Json | null;
+          text_source_id: string;
+          url: string;
+        };
+        Insert: {
+          body: string;
+          content_hash: string;
+          external_id: string;
+          fetched_at?: string;
+          id?: string;
+          published_at: string;
+          raw?: Json | null;
+          text_source_id: string;
+          url: string;
+        };
+        Update: {
+          body?: string;
+          content_hash?: string;
+          external_id?: string;
+          fetched_at?: string;
+          id?: string;
+          published_at?: string;
+          raw?: Json | null;
+          text_source_id?: string;
+          url?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "source_documents_text_source_id_fkey";
+            columns: ["text_source_id"];
+            isOneToOne: false;
+            referencedRelation: "text_sources";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       source_gaps: {
         Row: {
@@ -3121,6 +3975,21 @@ export type Database = {
           },
         ];
       };
+      source_run_retired_keys: {
+        Row: {
+          idempotency_key: string;
+          retired_at: string;
+        };
+        Insert: {
+          idempotency_key: string;
+          retired_at?: string;
+        };
+        Update: {
+          idempotency_key?: string;
+          retired_at?: string;
+        };
+        Relationships: [];
+      };
       source_runs: {
         Row: {
           attempt: number | null;
@@ -3256,6 +4125,70 @@ export type Database = {
           },
         ];
       };
+      text_sources: {
+        Row: {
+          authority_tier: string;
+          created_at: string;
+          enabled: boolean;
+          id: string;
+          key: string;
+          kind: string;
+          label: string;
+          language: string;
+          template: string | null;
+          url: string;
+          wilaya_id: string | null;
+        };
+        Insert: {
+          authority_tier: string;
+          created_at?: string;
+          enabled?: boolean;
+          id?: string;
+          key: string;
+          kind: string;
+          label: string;
+          language?: string;
+          template?: string | null;
+          url: string;
+          wilaya_id?: string | null;
+        };
+        Update: {
+          authority_tier?: string;
+          created_at?: string;
+          enabled?: boolean;
+          id?: string;
+          key?: string;
+          kind?: string;
+          label?: string;
+          language?: string;
+          template?: string | null;
+          url?: string;
+          wilaya_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "text_sources_key_fkey";
+            columns: ["key"];
+            isOneToOne: true;
+            referencedRelation: "source_contracts";
+            referencedColumns: ["key"];
+          },
+          {
+            foreignKeyName: "text_sources_key_fkey";
+            columns: ["key"];
+            isOneToOne: true;
+            referencedRelation: "source_health";
+            referencedColumns: ["key"];
+          },
+          {
+            foreignKeyName: "text_sources_wilaya_id_fkey";
+            columns: ["wilaya_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       translation_suggestions: {
         Row: {
           created_at: string;
@@ -3325,6 +4258,24 @@ export type Database = {
         };
         Relationships: [];
       };
+      user_report_blocks: {
+        Row: {
+          author: string;
+          blocker: string;
+          created_at: string;
+        };
+        Insert: {
+          author: string;
+          blocker: string;
+          created_at?: string;
+        };
+        Update: {
+          author?: string;
+          blocker?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       user_roles: {
         Row: {
           created_at: string;
@@ -3345,6 +4296,48 @@ export type Database = {
           user_id?: string;
         };
         Relationships: [];
+      };
+      weather_snapshots: {
+        Row: {
+          commune_id: string;
+          evidence: Json;
+          fetched_at: string;
+          id: string;
+          job_id: string | null;
+          scheduled_at: string;
+        };
+        Insert: {
+          commune_id: string;
+          evidence: Json;
+          fetched_at: string;
+          id?: string;
+          job_id?: string | null;
+          scheduled_at: string;
+        };
+        Update: {
+          commune_id?: string;
+          evidence?: Json;
+          fetched_at?: string;
+          id?: string;
+          job_id?: string | null;
+          scheduled_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "weather_snapshots_commune_id_fkey";
+            columns: ["commune_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "weather_snapshots_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "source_jobs";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       webhook_deliveries: {
         Row: {
@@ -3442,6 +4435,131 @@ export type Database = {
         };
         Relationships: [];
       };
+      webhook_outbox: {
+        Row: {
+          alert_id: string;
+          attempts: number;
+          available_at: string;
+          created_at: string;
+          endpoint_id: string;
+          id: string;
+          lease_token: string | null;
+          lease_until: string | null;
+          payload: Json;
+          state: string;
+          user_id: string;
+        };
+        Insert: {
+          alert_id: string;
+          attempts?: number;
+          available_at?: string;
+          created_at?: string;
+          endpoint_id: string;
+          id?: string;
+          lease_token?: string | null;
+          lease_until?: string | null;
+          payload: Json;
+          state?: string;
+          user_id: string;
+        };
+        Update: {
+          alert_id?: string;
+          attempts?: number;
+          available_at?: string;
+          created_at?: string;
+          endpoint_id?: string;
+          id?: string;
+          lease_token?: string | null;
+          lease_until?: string | null;
+          payload?: Json;
+          state?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "webhook_outbox_alert_id_fkey";
+            columns: ["alert_id"];
+            isOneToOne: false;
+            referencedRelation: "alerts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "webhook_outbox_endpoint_id_fkey";
+            columns: ["endpoint_id"];
+            isOneToOne: false;
+            referencedRelation: "webhook_endpoints";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      whatsapp_channel_deliveries: {
+        Row: {
+          attempts: number;
+          broadcast_id: string;
+          channel_target: string;
+          created_at: string;
+          dedupe_key: string;
+          delivered_at: string | null;
+          expires_at: string;
+          id: string;
+          last_error: string | null;
+          lease_token: string | null;
+          lease_until: string | null;
+          locale: string;
+          next_attempt_at: string;
+          payload: Json;
+          provider_message_id: string | null;
+          state: string;
+          updated_at: string;
+        };
+        Insert: {
+          attempts?: number;
+          broadcast_id: string;
+          channel_target: string;
+          created_at?: string;
+          dedupe_key: string;
+          delivered_at?: string | null;
+          expires_at?: string;
+          id?: string;
+          last_error?: string | null;
+          lease_token?: string | null;
+          lease_until?: string | null;
+          locale?: string;
+          next_attempt_at?: string;
+          payload?: Json;
+          provider_message_id?: string | null;
+          state?: string;
+          updated_at?: string;
+        };
+        Update: {
+          attempts?: number;
+          broadcast_id?: string;
+          channel_target?: string;
+          created_at?: string;
+          dedupe_key?: string;
+          delivered_at?: string | null;
+          expires_at?: string;
+          id?: string;
+          last_error?: string | null;
+          lease_token?: string | null;
+          lease_until?: string | null;
+          locale?: string;
+          next_attempt_at?: string;
+          payload?: Json;
+          provider_message_id?: string | null;
+          state?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_channel_deliveries_broadcast_id_fkey";
+            columns: ["broadcast_id"];
+            isOneToOne: false;
+            referencedRelation: "broadcasts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       zones: {
         Row: {
           active: boolean;
@@ -3513,157 +4631,22 @@ export type Database = {
           },
         ];
       };
-
-      risk_forecast_snapshot_runs: {
-        Row: {
-          base_date: string;
-          created_at: string;
-          finished_at: string | null;
-          heartbeat_at: string;
-          scheduled_for: string;
-          snapshot_id: string;
-          status: string;
-        };
-        Insert: {
-          base_date: string;
-          created_at?: string;
-          finished_at?: string | null;
-          heartbeat_at?: string;
-          scheduled_for: string;
-          snapshot_id: string;
-          status?: string;
-        };
-        Update: {
-          base_date?: string;
-          created_at?: string;
-          finished_at?: string | null;
-          heartbeat_at?: string;
-          scheduled_for?: string;
-          snapshot_id?: string;
-          status?: string;
-        };
-        Relationships: [];
-      };
-      risk_forecast_staging: {
-        Row: {
-          commune_id: string;
-          components: Json | null;
-          danger_level: number;
-          forecast_date: string;
-          fuel_limited: boolean;
-          fwi: number;
-          fwi_percentile: number | null;
-          horizon_days: number;
-          snapshot_id: string;
-          staged_at: string;
-        };
-        Insert: {
-          commune_id: string;
-          components?: Json | null;
-          danger_level: number;
-          forecast_date: string;
-          fuel_limited?: boolean;
-          fwi: number;
-          fwi_percentile?: number | null;
-          horizon_days: number;
-          snapshot_id: string;
-          staged_at?: string;
-        };
-        Update: {
-          commune_id?: string;
-          components?: Json | null;
-          danger_level?: number;
-          forecast_date?: string;
-          fuel_limited?: boolean;
-          fwi?: number;
-          fwi_percentile?: number | null;
-          horizon_days?: number;
-          snapshot_id?: string;
-          staged_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "risk_forecast_staging_commune_id_fkey";
-            columns: ["commune_id"];
-            isOneToOne: false;
-            referencedRelation: "admin_units";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      risk_publication_checkpoint: {
-        Row: {
-          base_date: string;
-          coverage_status: string;
-          key: string;
-          published_at: string;
-          scheduled_for: string;
-          snapshot_id: string;
-        };
-        Insert: {
-          base_date: string;
-          coverage_status?: string;
-          key: string;
-          published_at: string;
-          scheduled_for: string;
-          snapshot_id: string;
-        };
-        Update: {
-          base_date?: string;
-          coverage_status?: string;
-          key?: string;
-          published_at?: string;
-          scheduled_for?: string;
-          snapshot_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "risk_publication_checkpoint_snapshot_id_fkey";
-            columns: ["snapshot_id"];
-            isOneToOne: false;
-            referencedRelation: "risk_publications";
-            referencedColumns: ["snapshot_id"];
-          },
-        ];
-      };
-      risk_publications: {
-        Row: {
-          base_date: string;
-          published_at: string;
-          row_count: number;
-          scheduled_for: string;
-          snapshot_id: string;
-        };
-        Insert: {
-          base_date: string;
-          published_at: string;
-          row_count: number;
-          scheduled_for: string;
-          snapshot_id: string;
-        };
-        Update: {
-          base_date?: string;
-          published_at?: string;
-          row_count?: number;
-          scheduled_for?: string;
-          snapshot_id?: string;
-        };
-        Relationships: [];
-      };
     };
     Views: {
-      hazard_history: {
+      admin_audit_timeline: {
         Row: {
-          area_ha: number | null;
+          action: string | null;
+          actor_kind: string | null;
+          actor_label: string | null;
+          actor_user_id: string | null;
+          after: Json | null;
           at: string | null;
-          event: string | null;
-          hazard: string | null;
+          before: Json | null;
+          domain: string | null;
           id: string | null;
-          severity: string | null;
-          short_id: string | null;
-          state: string | null;
-          summary: string | null;
-          wilaya_id: string | null;
+          reason: string | null;
+          target_id: string | null;
+          target_table: string | null;
         };
         Relationships: [];
       };
@@ -3684,13 +4667,6 @@ export type Database = {
         };
         Relationships: [];
       };
-      onm_wilaya_outlines: {
-        Row: {
-          polygon: Json | null;
-          wilaya_id: string | null;
-        };
-        Relationships: [];
-      };
       delivery_queue_health: {
         Row: {
           channel: string | null;
@@ -3701,20 +4677,18 @@ export type Database = {
         };
         Relationships: [];
       };
-      admin_audit_timeline: {
+      hazard_history: {
         Row: {
-          action: string | null;
-          actor_kind: string | null;
-          actor_label: string | null;
-          actor_user_id: string | null;
-          after: Json | null;
+          area_ha: number | null;
           at: string | null;
-          before: Json | null;
-          domain: string | null;
+          event: string | null;
+          hazard: string | null;
           id: string | null;
-          reason: string | null;
-          target_id: string | null;
-          target_table: string | null;
+          severity: string | null;
+          short_id: string | null;
+          state: string | null;
+          summary: string | null;
+          wilaya_id: string | null;
         };
         Relationships: [];
       };
@@ -3747,7 +4721,7 @@ export type Database = {
           sighting?: string | null;
           status?: string | null;
           summary?: string | null;
-          witnesses?: number | null;
+          witnesses?: never;
         };
         Update: {
           commune_id?: string | null;
@@ -3762,9 +4736,17 @@ export type Database = {
           sighting?: string | null;
           status?: string | null;
           summary?: string | null;
-          witnesses?: number | null;
+          witnesses?: never;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "citizen_reports_commune_id_fkey";
+            columns: ["commune_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       official_incident_recall_daily: {
         Row: {
@@ -3783,6 +4765,53 @@ export type Database = {
           severity: string | null;
           starts_at: string | null;
           wilaya_id: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "onm_vigilance_wilaya_id_fkey";
+            columns: ["wilaya_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      onm_wilaya_outlines: {
+        Row: {
+          polygon: Json | null;
+          wilaya_id: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "onm_vigilance_wilaya_id_fkey";
+            columns: ["wilaya_id"];
+            isOneToOne: false;
+            referencedRelation: "admin_units";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      published_contribution_ideas: {
+        Row: {
+          id: string | null;
+          lane: string | null;
+          message: string | null;
+          published_at: string | null;
+          score: number | null;
+        };
+        Insert: {
+          id?: string | null;
+          lane?: string | null;
+          message?: string | null;
+          published_at?: string | null;
+          score?: number | null;
+        };
+        Update: {
+          id?: string | null;
+          lane?: string | null;
+          message?: string | null;
+          published_at?: string | null;
+          score?: number | null;
         };
         Relationships: [];
       };
@@ -3835,89 +4864,19 @@ export type Database = {
         };
         Relationships: [];
       };
-
-      published_contribution_ideas: {
-        Row: {
-          id: string | null;
-          lane: string | null;
-          message: string | null;
-          published_at: string | null;
-          score: number | null;
-        };
-        Insert: {
-          id?: string | null;
-          lane?: string | null;
-          message?: string | null;
-          published_at?: string | null;
-          score?: number | null;
-        };
-        Update: {
-          id?: string | null;
-          lane?: string | null;
-          message?: string | null;
-          published_at?: string | null;
-          score?: number | null;
-        };
-        Relationships: [];
-      };
     };
     Functions: {
-      hazard_history_summary: {
-        Args: {
-          _hazard?: string;
-          _now?: string;
-          _official_kinds?: string[];
-          _wilaya?: string;
-          _year?: number;
-        };
-        Returns: Json;
-      };
-      translation_queue_counts: { Args: never; Returns: Json };
-      idea_queue_counts: { Args: never; Returns: Json };
-      member_counts_for_admin: { Args: never; Returns: Json };
-      list_members_page: {
-        Args: {
-          _limit?: number;
-          _offset?: number;
-          _role?: string;
-          _search?: string;
-          _sort?: string;
-        };
-        Returns: {
-          created_at: string;
-          display_name: string;
-          email: string;
-          id: string;
-          last_sign_in_at: string;
-          locale: string;
-          matching: number;
-          report_count: number;
-          roles: Database["public"]["Enums"]["app_role"][];
-          zone_count: number;
-        }[];
-      };
-      onm_suppressions_logged: { Args: { _ids: string[] }; Returns: string[] };
-      store_onm_detail: {
-        Args: {
-          _headline_fr?: string;
-          _id: string;
-          _instruction_fr?: string;
-          _polygon?: Json;
-        };
+      acknowledge_operational_incident: {
+        Args: { _id: string };
         Returns: undefined;
       };
-      cold_pending_days: { Args: { _table: string }; Returns: string[] };
-      cold_archive_commit: {
-        Args: {
-          _bytes?: number;
-          _day: string;
-          _key_digest?: string;
-          _path?: string;
-          _rows: number;
-          _sha256?: string;
-          _table: string;
-        };
-        Returns: number;
+      admin_attention_counts: {
+        Args: never;
+        Returns: {
+          count: number;
+          item: string;
+          oldest: string | null;
+        }[];
       };
       admin_push_delivery: {
         Args: { _days?: number };
@@ -3929,36 +4888,98 @@ export type Database = {
           sent: number;
         }[];
       };
-      supersede_onm_absent: {
-        Args: { _feed_cap_ids: string[]; _feed_sent: string };
+      apply_craag_earthquake_attribution: {
+        Args: {
+          _attribution?: string;
+          _bulletin_id: string;
+          _commune_id?: string | null;
+          _depth_km?: number | null;
+          _lat?: number | null;
+          _lon?: number | null;
+          _magnitude?: number | null;
+          _magnitude_type?: string | null;
+          _matched_earthquake_id?: string | null;
+          _observed_at?: string | null;
+          _offshore?: boolean;
+          _place?: string | null;
+          _source_url?: string | null;
+        };
+        Returns: Json;
+      };
+      apply_onm_cap_chain: { Args: { _cap_ids: string[] }; Returns: Json };
+      assert_ita_facebook_lease: {
+        Args: { _attempt: number; _job: string };
+        Returns: undefined;
+      };
+      assert_ita_source_lease: {
+        Args: { _attempt: number; _job: string };
+        Returns: undefined;
+      };
+      begin_risk_forecast_snapshot: {
+        Args: {
+          _base_date: string;
+          _scheduled_for: string;
+          _snapshot_id: string;
+          _stale_before: string;
+        };
         Returns: number;
       };
-      search_civil_official_evidence: {
-        Args: { _query?: string | null; _area?: string | null };
+      block_report_author: { Args: { _report: string }; Returns: undefined };
+      block_reporter: {
+        Args: { _reason: string | null; _report: string };
+        Returns: undefined;
+      };
+      bump_official_incident: {
+        Args: { _id: string; _patch: Json };
+        Returns: undefined;
+      };
+      citizen_report_flag_summary: {
+        Args: { _report: string };
         Returns: {
-          id: string;
-          mention_id: string;
-          evidence: string;
-          status: string;
-          as_of: string;
-          kind: string;
-          place_text: string | null;
-          wilaya_id: string;
-          commune_id: string | null;
-          source_url: string;
-          source_published_at: string;
+          flags: number;
+          reason: string;
         }[];
       };
-      finish_civil_investigation: {
-        Args: {
-          _attempt: number;
-          _error: string | null;
-          _id: string;
-          _investigation_attempt: number;
-          _job: string;
-          _result: Json;
+      civil_lease: { Args: { _hazard: string }; Returns: string };
+      claim_alert_pushes: {
+        Args: { _limit?: number };
+        Returns: {
+          body: string;
+          cap_alert_id: string | null;
+          cluster_id: string | null;
+          commune_id: string | null;
+          created_at: string;
+          dedupe_key: string;
+          delivered_email: boolean;
+          delivered_webhook: boolean;
+          distance_km: number | null;
+          id: string;
+          kind: string;
+          payload: Json | null;
+          push_attempts: number;
+          push_claimed_at: string | null;
+          push_received_at: string | null;
+          push_state: string;
+          read_at: string | null;
+          severity: number;
+          source_id: string | null;
+          source_table: string | null;
+          title: string;
+          user_id: string;
+          zone_id: string | null;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "alerts";
+          isOneToOne: false;
+          isSetofReturn: true;
         };
-        Returns: undefined;
+      };
+      claim_broadcast_delivery: {
+        Args: { _channel: string; _limit?: number };
+        Returns: {
+          job: Json;
+        }[];
       };
       claim_civil_investigations: {
         Args: { _attempt: number; _job: string; _limit?: number };
@@ -3982,132 +5003,22 @@ export type Database = {
           isSetofReturn: true;
         };
       };
-      publish_ita_publication: {
+      claim_email_digest_delivery: {
         Args: {
-          _area_id: string;
-          _expires_at: string;
-          _hazard: string;
-          _incident_index: number;
-          _reason: string;
-          _report_id: string;
-          _summary: string;
+          _alert_ids: string[];
+          _dedupe_key: string;
+          _digest_kind: string;
+          _locale: string;
+          _subject: string;
+          _urgent_bypass: boolean;
+          _user_id: string;
+          _window_key: string;
         };
         Returns: {
-          area_id: string;
-          cap_references: Json;
-          expires_at: string;
-          hazard: string;
-          id: string;
-          incident_index: number;
-          ita_report_id: string;
-          published_at: string;
-          revision: number;
-          source_name: string;
-          source_published_at: string;
-          source_url: string;
-          state: string;
-          summary: string;
-          updated_at: string;
-        };
-        SetofOptions: {
-          from: "*";
-          to: "civil_publications";
-          isOneToOne: true;
-          isSetofReturn: false;
-        };
-      };
-      revise_civil_publication: {
-        Args: {
-          _action: string;
-          _expected_revision: number;
-          _id: string;
-          _patch: Json;
-          _reason: string;
-        };
-        Returns: {
-          area_id: string;
-          cap_references: Json;
-          expires_at: string;
-          hazard: string;
-          id: string;
-          incident_index: number;
-          ita_report_id: string;
-          published_at: string;
-          revision: number;
-          source_name: string;
-          source_published_at: string;
-          source_url: string;
-          state: string;
-          summary: string;
-          updated_at: string;
-        };
-        SetofOptions: {
-          from: "*";
-          to: "civil_publications";
-          isOneToOne: true;
-          isSetofReturn: false;
-        };
-      };
-      retry_text_document: { Args: { _id: string }; Returns: undefined };
-      prepare_source_recovery: {
-        Args: {
-          _attempt: number;
-          _job: string;
-          _key: string;
-          _parser_version?: string;
-        };
-        Returns: number;
-      };
-      source_processing_health: {
-        Args: never;
-        Returns: {
-          collection_at: string;
-          key: string;
-          pending: number;
-          quarantined: number;
-        }[];
-      };
-      current_weather_snapshot: {
-        Args: { _commune_id: string };
-        Returns: Json;
-      };
-      save_weather_snapshots: {
-        Args: { _job: string; _attempt: number; _snapshots: Json };
-        Returns: number;
-      };
-      write_text_source: {
-        Args: {
-          _attempt?: number | null;
-          _job?: string | null;
-          _key: string;
-          _operation: string;
-          _payload: Json;
-        };
-        Returns: Json;
-      };
-      retry_ita_report: { Args: { _id: string }; Returns: undefined };
-      finish_webhook_delivery: {
-        Args: {
-          _error: string | null;
-          _id: string;
-          _status: number | null;
-          _token: string;
-        };
-        Returns: boolean;
-      };
-      claim_webhook_delivery: {
-        Args: never;
-        Returns: {
+          attempts: number;
           id: string;
           lease_token: string;
-          payload: Json;
-          secret: string;
-          url: string;
         }[];
-      };
-      assert_ita_source_lease: {
-        Args: { _attempt: number; _job: string };
-        Returns: undefined;
       };
       claim_ita_extractions: {
         Args: { _attempt: number; _job: string; _limit?: number };
@@ -4135,87 +5046,6 @@ export type Database = {
           isOneToOne: false;
           isSetofReturn: true;
         };
-      };
-      finish_ita_extraction: {
-        Args: {
-          _attempt: number;
-          _error: string | null;
-          _extraction: Json;
-          _id: string;
-          _job: string;
-        };
-        Returns: undefined;
-      };
-      release_civil_investigation: {
-        Args: {
-          _attempt: number;
-          _delay_seconds?: number;
-          _id: string;
-          _investigation_attempt: number;
-          _job: string;
-        };
-        Returns: undefined;
-      };
-      release_ita_extraction: {
-        Args: {
-          _attempt: number;
-          _delay_seconds?: number;
-          _id: string;
-          _job: string;
-        };
-        Returns: undefined;
-      };
-      save_ita_facebook_posts: {
-        Args: { _attempt: number; _job: string; _posts: Json };
-        Returns: number;
-      };
-      save_ita_feed: {
-        Args: {
-          _attempt: number;
-          _etag: string | null;
-          _job: string;
-          _not_modified: boolean;
-          _posts: Json;
-        };
-        Returns: number;
-      };
-
-      set_source_paused: {
-        Args: { _key: string; _paused: boolean; _reason?: string | null };
-        Returns: undefined;
-      };
-      acknowledge_operational_incident: {
-        Args: { _id: string };
-        Returns: undefined;
-      };
-      claim_broadcast_delivery: {
-        Args: { _channel: string; _limit?: number };
-        Returns: {
-          job: Json;
-        }[];
-      };
-      finish_broadcast_delivery: {
-        Args: {
-          _broadcast_id: string;
-          _channel: string;
-          _count: number | null;
-          _error?: string | null;
-          _lease_token: string;
-        };
-        Returns: boolean;
-      };
-      refresh_operational_incidents: { Args: never; Returns: undefined };
-      renew_broadcast_delivery: {
-        Args: { _broadcast_id: string; _channel: string; _lease_token: string };
-        Returns: boolean;
-      };
-      set_delivery_channel_paused: {
-        Args: { _channel: string; _paused: boolean; _reason?: string | null };
-        Returns: undefined;
-      };
-      bump_official_incident: {
-        Args: { _id: string; _patch: Json };
-        Returns: undefined;
       };
       claim_source_job: {
         Args: {
@@ -4257,6 +5087,57 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      claim_webhook_delivery: {
+        Args: never;
+        Returns: {
+          id: string;
+          lease_token: string;
+          payload: Json;
+          secret: string;
+          url: string;
+        }[];
+      };
+      claim_whatsapp_deliveries: {
+        Args: { _limit?: number };
+        Returns: {
+          attempts: number;
+          broadcast_id: string;
+          channel_target: string;
+          created_at: string;
+          dedupe_key: string;
+          delivered_at: string | null;
+          expires_at: string;
+          id: string;
+          last_error: string | null;
+          lease_token: string | null;
+          lease_until: string | null;
+          locale: string;
+          next_attempt_at: string;
+          payload: Json;
+          provider_message_id: string | null;
+          state: string;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "whatsapp_channel_deliveries";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      cold_archive_commit: {
+        Args: {
+          _bytes?: number;
+          _day: string;
+          _key_digest?: string;
+          _path?: string;
+          _rows: number;
+          _sha256?: string;
+          _table: string;
+        };
+        Returns: number;
+      };
+      cold_pending_days: { Args: { _table: string }; Returns: string[] };
       complete_source_job: {
         Args: {
           _attempt: number;
@@ -4317,214 +5198,6 @@ export type Database = {
         Args: { _bucket: string; _limit: number; _window_seconds: number };
         Returns: boolean;
       };
-      enqueue_due_source_jobs: {
-        Args: { _enqueued_by: string; _observed_at: string };
-        Returns: number;
-      };
-      enqueue_source_replay: {
-        Args: { _gap_id: string; _requested_at?: string };
-        Returns: string | null;
-      };
-      grant_user_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"];
-          _user: string;
-        };
-        Returns: undefined;
-      };
-      has_any_role: {
-        Args: {
-          _roles: Database["public"]["Enums"]["app_role"][];
-          _user_id: string;
-        };
-        Returns: boolean;
-      };
-      record_admin_audit: {
-        Args: {
-          _action: string;
-          _actor_label?: string | null;
-          _after?: Json | null;
-          _before?: Json | null;
-          _domain: string;
-          _reason?: string | null;
-          _target_id?: string | null;
-          _target_table: string;
-        };
-        Returns: string;
-      };
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"];
-          _user_id: string;
-        };
-        Returns: boolean;
-      };
-      reply_to_contribution_idea: {
-        Args: {
-          _actor_label?: string | null;
-          _author_kind: string;
-          _idea: string;
-          _reply: string;
-        };
-        Returns: undefined;
-      };
-      replay_source_gap: {
-        Args: { _gap_id: string; _reason?: string | null };
-        Returns: string;
-      };
-      claim_alert_pushes: {
-        Args: { _limit?: number };
-        Returns: Database["public"]["Tables"]["alerts"]["Row"][];
-      };
-      admin_attention_counts: {
-        Args: never;
-        Returns: {
-          count: number;
-          item: string;
-          oldest: string | null;
-        }[];
-      };
-      dismiss_civil_investigation: {
-        Args: { _id: string; _reason: string };
-        Returns: undefined;
-      };
-      list_risk_snapshot_runs: {
-        Args: never;
-        Returns: {
-          base_date: string;
-          created_at: string;
-          finished_at: string | null;
-          heartbeat_at: string;
-          scheduled_for: string;
-          snapshot_id: string;
-          status: string;
-        }[];
-      };
-      my_contribution: {
-        Args: never;
-        Returns: Json;
-      };
-      witness_report: {
-        Args: {
-          _lat: number;
-          _lon: number;
-          _report: string;
-          _vote: string;
-        };
-        Returns: number;
-      };
-      flag_citizen_report: {
-        Args: { _reason: string; _report: string };
-        Returns: undefined;
-      };
-      block_report_author: {
-        Args: { _report: string };
-        Returns: undefined;
-      };
-      block_reporter: {
-        Args: { _reason: string | null; _report: string };
-        Returns: undefined;
-      };
-      citizen_report_flag_summary: {
-        Args: { _report: string };
-        Returns: {
-          flags: number;
-          reason: string;
-        }[];
-      };
-      moderate_citizen_report: {
-        Args: {
-          _cluster: string | null;
-          _id: string;
-          _note?: string | null;
-          _status: string;
-        };
-        Returns: undefined;
-      };
-      relay_authority_warning: {
-        Args: {
-          _body: string;
-          _received_via: string;
-          _severity: string;
-          _source: string;
-          _wilaya: string;
-        };
-        Returns: string;
-      };
-      resolve_fire: {
-        Args: {
-          _cluster: string;
-          _expected_updated_at?: string | null;
-          _actor_label?: string | null;
-          _note?: string | null;
-          _reason?: string | null;
-          _state: string;
-        };
-        Returns: undefined;
-      };
-      revoke_user_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"];
-          _user: string;
-        };
-        Returns: undefined;
-      };
-      record_source_run: {
-        Args: {
-          _contract_key: string;
-          _coverage_status: string;
-          _data_from: string | null;
-          _data_through: string | null;
-          _finished_at: string;
-          _idempotency_key: string;
-          _outcome: string;
-          _private_diagnostic: string | null;
-          _public_reason_code: string | null;
-          _published_at: string | null;
-          _quality_checks: Json;
-          _records_expected: number | null;
-          _records_inserted: number;
-          _records_rejected: number;
-          _records_seen: number;
-          _records_updated: number;
-          _scheduled_for: string;
-          _started_at: string;
-          _trigger_kind: string;
-          _upstream_published_at: string | null;
-          _validated_at: string | null;
-        };
-        Returns: string;
-      };
-      source_contract_is_backfilling: {
-        Args: { _contract_key: string };
-        Returns: boolean;
-      };
-      source_job_queue_has_pending: {
-        Args: {
-          _contract_key?: string;
-          _execution_target: string;
-          _now?: string;
-        };
-        Returns: boolean;
-      };
-      verify_open_area: {
-        Args: { _area: string; _note?: string | null; _verified?: boolean };
-        Returns: undefined;
-      };
-      vote_on_idea: {
-        Args: { _idea: string; _value: number; _voter: string };
-        Returns: number;
-      };
-
-      begin_risk_forecast_snapshot: {
-        Args: {
-          _base_date: string;
-          _scheduled_for: string;
-          _snapshot_id: string;
-          _stale_before: string;
-        };
-        Returns: number;
-      };
       current_risk_forecasts: {
         Args: never;
         Returns: {
@@ -4547,6 +5220,10 @@ export type Database = {
           source: string;
         }[];
       };
+      current_weather_snapshot: {
+        Args: { _commune_id: string };
+        Returns: Json;
+      };
       discard_risk_forecast_snapshot: {
         Args: {
           _base_date: string;
@@ -4555,6 +5232,128 @@ export type Database = {
         };
         Returns: boolean;
       };
+      dismiss_civil_investigation: {
+        Args: { _id: string; _reason: string };
+        Returns: undefined;
+      };
+      enqueue_due_source_jobs: {
+        Args: { _enqueued_by: string; _observed_at: string };
+        Returns: number;
+      };
+      enqueue_source_replay: {
+        Args: { _gap_id: string; _requested_at?: string };
+        Returns: string | null;
+      };
+      enqueue_whatsapp_broadcast: {
+        Args: {
+          _broadcast_id: string;
+          _channel_target: string;
+          _dedupe_key: string;
+          _expires_at?: string | null;
+          _locale: string;
+          _payload?: Json;
+        };
+        Returns: string | null;
+      };
+      finish_broadcast_delivery: {
+        Args: {
+          _broadcast_id: string;
+          _channel: string;
+          _count: number | null;
+          _error?: string | null;
+          _lease_token: string;
+        };
+        Returns: boolean;
+      };
+      finish_civil_investigation: {
+        Args: {
+          _attempt: number;
+          _error: string | null;
+          _id: string;
+          _investigation_attempt: number;
+          _job: string;
+          _result: Json;
+        };
+        Returns: undefined;
+      };
+      finish_email_digest_delivery: {
+        Args: {
+          _bounced?: boolean;
+          _error?: string | null;
+          _id: string;
+          _lease_token: string;
+          _permanent?: boolean;
+          _provider_message_id?: string | null;
+          _retry_after_seconds?: number | null;
+          _sent: boolean;
+        };
+        Returns: boolean;
+      };
+      finish_ita_extraction: {
+        Args: {
+          _attempt: number;
+          _error: string | null;
+          _extraction: Json;
+          _id: string;
+          _job: string;
+        };
+        Returns: undefined;
+      };
+      finish_webhook_delivery: {
+        Args: {
+          _error: string | null;
+          _id: string;
+          _status: number | null;
+          _token: string;
+        };
+        Returns: boolean;
+      };
+      finish_whatsapp_delivery: {
+        Args: {
+          _delivered: boolean;
+          _error?: string | null;
+          _id: string;
+          _lease_token: string;
+          _permanent?: boolean;
+          _provider_message_id?: string | null;
+          _retry_after_seconds?: number | null;
+        };
+        Returns: boolean;
+      };
+      flag_citizen_report: {
+        Args: { _reason: string; _report: string };
+        Returns: undefined;
+      };
+      grant_user_role: {
+        Args: { _role: Database["public"]["Enums"]["app_role"]; _user: string };
+        Returns: undefined;
+      };
+      has_any_role: {
+        Args: {
+          _roles: Database["public"]["Enums"]["app_role"][];
+          _user_id: string;
+        };
+        Returns: boolean;
+      };
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"];
+          _user_id: string;
+        };
+        Returns: boolean;
+      };
+      hazard_history_summary: {
+        Args: {
+          _hazard?: string;
+          _now?: string;
+          _official_kinds?: string[];
+          _wilaya?: string;
+          _year?: number;
+        };
+        Returns: Json;
+      };
+      idea_queue_counts: { Args: never; Returns: Json };
+      ita_text_key: { Args: { _body: string }; Returns: string };
       list_contribution_ideas_for_moderation: {
         Args: { _limit?: number; _offset?: number; _status?: string };
         Returns: {
@@ -4582,7 +5381,7 @@ export type Database = {
         };
       };
       list_members_for_admin: {
-        Args: Record<PropertyKey, never>;
+        Args: never;
         Returns: {
           created_at: string;
           display_name: string | null;
@@ -4595,9 +5394,113 @@ export type Database = {
           zone_count: number;
         }[];
       };
-      member_detail_for_admin: {
-        Args: { _user: string };
-        Returns: Json;
+      list_members_page: {
+        Args: {
+          _limit?: number;
+          _offset?: number;
+          _role?: string;
+          _search?: string;
+          _sort?: string;
+        };
+        Returns: {
+          created_at: string;
+          display_name: string;
+          email: string;
+          id: string;
+          last_sign_in_at: string;
+          locale: string;
+          matching: number;
+          report_count: number;
+          roles: Database["public"]["Enums"]["app_role"][];
+          zone_count: number;
+        }[];
+      };
+      list_pending_email_digest_users: {
+        Args: { _after_user_id?: string | null; _limit?: number };
+        Returns: {
+          display_name: string | null;
+          email: string;
+          email_digest_frequency: string;
+          email_digest_hour_algiers: number;
+          last_sent_at: string | null;
+          locale: string;
+          quiet_hours_end: number | null;
+          quiet_hours_start: number | null;
+          user_id: string;
+        }[];
+      };
+      list_pending_whatsapp_broadcasts: {
+        Args: { _channel_target: string; _limit?: number; _locale?: string };
+        Returns: {
+          cap_area_desc: string | null;
+          cap_description: string | null;
+          cap_expires: string | null;
+          cap_headline: string | null;
+          cap_sent: string | null;
+          cluster_id: string | null;
+          commune_codes: string[];
+          created_at: string;
+          earthquake_id: string | null;
+          fire_area_label: string | null;
+          fire_confirmed_at: string | null;
+          fire_detection_count: number | null;
+          fire_last_detected_at: string | null;
+          fire_short_id: string | null;
+          fire_sources: string[] | null;
+          fire_state: string | null;
+          fire_suspected_persistent: boolean | null;
+          hazard: string | null;
+          id: string;
+          incident_area_label: string | null;
+          incident_as_of: string | null;
+          incident_authority_tier: string | null;
+          incident_evidence: string | null;
+          incident_kind: string | null;
+          incident_place_text: string | null;
+          incident_source_key: string | null;
+          incident_source_label: string | null;
+          incident_status: string | null;
+          incident_unlisted_at: string | null;
+          kind: string;
+          metadata: Json;
+          official_incident_id: string | null;
+          onm_area_desc: string | null;
+          onm_cancelled_at: string | null;
+          onm_event: string | null;
+          onm_expires: string | null;
+          onm_headline_fr: string | null;
+          onm_msg_type: string | null;
+          onm_onset: string | null;
+          onm_sent: string | null;
+          onm_superseded_by: string | null;
+          onm_title: string | null;
+          onm_vigilance_id: string | null;
+          phase: string;
+          quake_magnitude: number | null;
+          quake_network: string | null;
+          quake_occurred_at: string | null;
+          quake_region: string | null;
+          severity: string;
+          source_key: string | null;
+        }[];
+      };
+      list_risk_snapshot_runs: {
+        Args: never;
+        Returns: {
+          base_date: string;
+          created_at: string;
+          finished_at: string | null;
+          heartbeat_at: string;
+          scheduled_for: string;
+          snapshot_id: string;
+          status: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "risk_forecast_snapshot_runs";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
       };
       list_translation_suggestions_for_moderation: {
         Args: {
@@ -4629,6 +5532,17 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      member_counts_for_admin: { Args: never; Returns: Json };
+      member_detail_for_admin: { Args: { _user: string }; Returns: Json };
+      moderate_citizen_report: {
+        Args: {
+          _cluster: string | null;
+          _id: string;
+          _note?: string | null;
+          _status: string;
+        };
+        Returns: undefined;
+      };
       moderate_contribution_idea: {
         Args: { _idea: string; _moderation_note?: string; _status: string };
         Returns: undefined;
@@ -4641,6 +5555,26 @@ export type Database = {
         };
         Returns: undefined;
       };
+      my_contribution: { Args: never; Returns: Json };
+      nearest_commune: {
+        Args: { _lat: number; _lon: number };
+        Returns: string;
+      };
+      onm_delivery_deadline: {
+        Args: { _expires: string; _onset: string; _sent: string };
+        Returns: string;
+      };
+      onm_episode_of: {
+        Args: {
+          _warning: Database["public"]["Tables"]["onm_vigilance"]["Row"];
+        };
+        Returns: {
+          episode_id: string;
+          episode_peak: number;
+        }[];
+      };
+      onm_severity_rank: { Args: { _severity: string }; Returns: number };
+      onm_suppressions_logged: { Args: { _ids: string[] }; Returns: string[] };
       operator_discard_risk_snapshot: {
         Args: {
           _base_date: string;
@@ -4663,6 +5597,49 @@ export type Database = {
         };
         Returns: Json;
       };
+      prepare_source_recovery: {
+        Args: {
+          _attempt: number;
+          _job: string;
+          _key: string;
+          _parser_version?: string;
+        };
+        Returns: number;
+      };
+      publish_ita_publication: {
+        Args: {
+          _area_id: string;
+          _expires_at: string;
+          _hazard: string;
+          _incident_index: number;
+          _reason: string;
+          _report_id: string;
+          _summary: string;
+        };
+        Returns: {
+          area_id: string;
+          cap_references: Json;
+          expires_at: string;
+          hazard: string;
+          id: string;
+          incident_index: number;
+          ita_report_id: string;
+          published_at: string;
+          revision: number;
+          source_name: string;
+          source_published_at: string;
+          source_url: string;
+          state: string;
+          summary: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "civil_publications";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       publish_risk_forecast_snapshot: {
         Args: {
           _base_date: string;
@@ -4671,13 +5648,288 @@ export type Database = {
         };
         Returns: Json;
       };
+      record_admin_audit: {
+        Args: {
+          _action: string;
+          _actor_label?: string | null;
+          _after?: Json | null;
+          _before?: Json | null;
+          _domain: string;
+          _reason?: string | null;
+          _target_id?: string | null;
+          _target_table: string;
+        };
+        Returns: string;
+      };
+      record_mtg_fci_push_delivery: {
+        Args: {
+          _attribution?: string;
+          _fallback_contract_key?: string;
+          _latency_seconds: number;
+          _pixels_filtered?: number;
+          _pixels_seen?: number;
+          _pixels_stored?: number;
+          _product_id: string;
+          _published_at: string;
+          _quality_state?: string;
+          _received_at: string;
+          _slot_time: string;
+        };
+        Returns: Json;
+      };
+      record_source_run: {
+        Args: {
+          _contract_key: string;
+          _coverage_status: string;
+          _data_from: string | null;
+          _data_through: string | null;
+          _finished_at: string;
+          _idempotency_key: string;
+          _outcome: string;
+          _private_diagnostic: string | null;
+          _public_reason_code: string | null;
+          _published_at: string | null;
+          _quality_checks: Json;
+          _records_expected: number | null;
+          _records_inserted: number;
+          _records_rejected: number;
+          _records_seen: number;
+          _records_updated: number;
+          _scheduled_for: string;
+          _started_at: string;
+          _trigger_kind: string;
+          _upstream_published_at: string | null;
+          _validated_at: string | null;
+        };
+        Returns: string;
+      };
+      refresh_operational_incidents: { Args: never; Returns: undefined };
+      relay_authority_warning: {
+        Args: {
+          _body: string;
+          _received_via: string;
+          _severity: string;
+          _source: string;
+          _wilaya: string;
+        };
+        Returns: string;
+      };
+      release_civil_investigation: {
+        Args: {
+          _attempt: number;
+          _delay_seconds?: number;
+          _id: string;
+          _investigation_attempt: number;
+          _job: string;
+        };
+        Returns: undefined;
+      };
+      release_ita_extraction: {
+        Args: {
+          _attempt: number;
+          _delay_seconds?: number;
+          _id: string;
+          _job: string;
+        };
+        Returns: undefined;
+      };
+      renew_broadcast_delivery: {
+        Args: { _broadcast_id: string; _channel: string; _lease_token: string };
+        Returns: boolean;
+      };
+      renew_source_job_lease: {
+        Args: {
+          _attempt: number;
+          _job_id: string;
+          _lease_seconds?: number | null;
+          _now?: string;
+          _worker_id: string;
+        };
+        Returns: string;
+      };
+      replay_source_gap: {
+        Args: { _gap_id: string; _reason?: string | null };
+        Returns: string;
+      };
+      reply_to_contribution_idea: {
+        Args: {
+          _actor_label?: string | null;
+          _author_kind: string;
+          _idea: string;
+          _reply: string;
+        };
+        Returns: undefined;
+      };
+      requeue_expired_source_jobs: { Args: { _now?: string }; Returns: number };
+      resolve_fire: {
+        Args: {
+          _actor_label?: string | null;
+          _cluster: string;
+          _expected_updated_at?: string | null;
+          _note?: string | null;
+          _reason?: string | null;
+          _state: string;
+        };
+        Returns: undefined;
+      };
+      retry_ita_report: { Args: { _id: string }; Returns: undefined };
+      retry_text_document: { Args: { _id: string }; Returns: undefined };
+      revise_civil_publication: {
+        Args: {
+          _action: string;
+          _expected_revision: number;
+          _id: string;
+          _patch: Json;
+          _reason: string;
+        };
+        Returns: {
+          area_id: string;
+          cap_references: Json;
+          expires_at: string;
+          hazard: string;
+          id: string;
+          incident_index: number;
+          ita_report_id: string;
+          published_at: string;
+          revision: number;
+          source_name: string;
+          source_published_at: string;
+          source_url: string;
+          state: string;
+          summary: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "civil_publications";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      revoke_user_role: {
+        Args: { _role: Database["public"]["Enums"]["app_role"]; _user: string };
+        Returns: undefined;
+      };
+      save_ita_facebook_posts: {
+        Args: { _attempt: number; _job: string; _posts: Json };
+        Returns: number;
+      };
+      save_ita_feed: {
+        Args: {
+          _attempt: number;
+          _etag: string | null;
+          _job: string;
+          _not_modified: boolean;
+          _posts: Json;
+        };
+        Returns: number;
+      };
+      save_weather_snapshots: {
+        Args: { _attempt: number; _job: string; _snapshots: Json };
+        Returns: number;
+      };
+      search_civil_official_evidence: {
+        Args: { _area?: string | null; _query?: string | null };
+        Returns: {
+          as_of: string;
+          commune_id: string | null;
+          evidence: string;
+          id: string;
+          kind: string;
+          mention_id: string;
+          place_text: string | null;
+          source_published_at: string;
+          source_url: string;
+          status: string;
+          wilaya_id: string;
+        }[];
+      };
       set_broadcast_enabled: {
         Args: { _enabled: boolean; _note?: string | null };
         Returns: Json;
       };
+      set_delivery_channel_paused: {
+        Args: { _channel: string; _paused: boolean; _reason?: string | null };
+        Returns: undefined;
+      };
+      set_delivery_pipeline_state: {
+        Args: {
+          _enabled?: boolean | null;
+          _pause_reason?: string | null;
+          _paused?: boolean | null;
+          _pipeline: string;
+        };
+        Returns: boolean;
+      };
+      set_source_paused: {
+        Args: { _key: string; _paused: boolean; _reason?: string | null };
+        Returns: undefined;
+      };
+      source_contract_is_backfilling: {
+        Args: { _contract_key: string };
+        Returns: boolean;
+      };
+      source_job_queue_has_pending: {
+        Args: {
+          _contract_key?: string;
+          _execution_target: string;
+          _now?: string;
+        };
+        Returns: boolean;
+      };
+      source_processing_health: {
+        Args: never;
+        Returns: {
+          collection_at: string;
+          key: string;
+          pending: number;
+          quarantined: number;
+        }[];
+      };
       stage_risk_forecast_batch: {
         Args: { _rows: Json; _snapshot_id: string };
         Returns: number;
+      };
+      store_onm_detail: {
+        Args: {
+          _cap_references?: string;
+          _geocodes?: string[];
+          _headline_fr?: string;
+          _id: string;
+          _instruction_fr?: string;
+          _msg_type?: string;
+          _polygon?: Json;
+          _referenced_cap_ids?: string[];
+        };
+        Returns: undefined;
+      };
+      supersede_onm_absent: {
+        Args: { _feed_cap_ids: string[]; _feed_sent: string };
+        Returns: number;
+      };
+      text_array_distinct: { Args: { _values: string[] }; Returns: boolean };
+      translation_queue_counts: { Args: never; Returns: Json };
+      verify_open_area: {
+        Args: { _area: string; _note?: string | null; _verified?: boolean };
+        Returns: undefined;
+      };
+      vote_on_idea: {
+        Args: { _idea: string; _value: number; _voter: string };
+        Returns: number;
+      };
+      witness_report: {
+        Args: { _lat: number; _lon: number; _report: string; _vote: string };
+        Returns: number;
+      };
+      write_text_source: {
+        Args: {
+          _attempt?: number | null;
+          _job?: string | null;
+          _key: string;
+          _operation: string;
+          _payload: Json;
+        };
+        Returns: Json;
       };
     };
     Enums: {

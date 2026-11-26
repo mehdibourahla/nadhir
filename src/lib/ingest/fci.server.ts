@@ -70,6 +70,46 @@ export type FciRow = {
   natural_key: string;
 };
 
+const ISO_TIMESTAMP_RE =
+  /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|([+-])(\d{2}):(\d{2}))$/i;
+
+function parseStrictIsoTimestamp(value: string): number {
+  const m = ISO_TIMESTAMP_RE.exec(value);
+  if (!m) return Number.NaN;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const second = Number(m[6]);
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31 ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59
+  ) {
+    return Number.NaN;
+  }
+  if (m[10] !== undefined && m[11] !== undefined) {
+    const tzHour = Number(m[10]);
+    const tzMinute = Number(m[11]);
+    if (tzHour > 23 || tzMinute > 59) return Number.NaN;
+  }
+  const check = new Date(Date.UTC(year, month - 1, day));
+  if (
+    check.getUTCFullYear() !== year ||
+    check.getUTCMonth() !== month - 1 ||
+    check.getUTCDate() !== day
+  ) {
+    return Number.NaN;
+  }
+  const ms = Date.parse(value.replace(" ", "T"));
+  return Number.isFinite(ms) ? ms : Number.NaN;
+}
+
 export function parseFciFeatures(json: FciFeatureCollection) {
   return parseWfsFireFeatures(json, MTG_FCI);
 }
@@ -87,10 +127,29 @@ export function parseWfsFireFeatures(
   let outside = 0;
   let filtered = 0;
   let latestSlot: string | null = null;
-  for (const f of json.features ?? []) {
-    const [lon, lat] = f.geometry?.coordinates ?? [NaN, NaN];
-    const slot = f.properties?.time ?? "";
-    if (!Number.isFinite(lat) || !Number.isFinite(lon) || !slot) continue;
+  let latestSlotMs = Number.NEGATIVE_INFINITY;
+  if (!json || typeof json !== "object" || !Array.isArray(json.features)) {
+    return { rows, outside, filtered, latestSlot };
+  }
+  for (const f of json.features) {
+    if (!f || typeof f !== "object") continue;
+    const coords = f.geometry?.coordinates;
+    const [lon, lat] = Array.isArray(coords) ? coords : [NaN, NaN];
+    const slot =
+      typeof f.properties?.time === "string" ? f.properties.time : "";
+    const slotMs = parseStrictIsoTimestamp(slot);
+    if (
+      typeof lat !== "number" ||
+      typeof lon !== "number" ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon) ||
+      lat < -90 ||
+      lat > 90 ||
+      lon < -180 ||
+      lon > 180 ||
+      !Number.isFinite(slotMs)
+    )
+      continue;
     if (
       lat < WATCH.south ||
       lat > WATCH.north ||
@@ -102,17 +161,26 @@ export function parseWfsFireFeatures(
     }
     // upstream freshness, so it must not depend on anything being alight inside
     // the watch area — a quiet night would otherwise read as a stalled feed
-    if (!latestSlot || slot > latestSlot) latestSlot = slot;
+    if (latestSlot === null || slotMs > latestSlotMs) {
+      latestSlot = slot;
+      latestSlotMs = slotMs;
+    }
     if (!isInWatchArea(lat, lon)) {
       filtered += 1;
       continue;
     }
-    const pixelMs = Date.parse(
-      `${f.properties.Datetime ?? ""}Z`.replace(" ", "T"),
-    );
-    const detectedMs = Number.isFinite(pixelMs) ? pixelMs : Date.parse(slot);
-    if (!Number.isFinite(detectedMs)) continue;
+    const rawDatetime = f.properties?.Datetime;
+    const pixelMs =
+      typeof rawDatetime === "string"
+        ? parseStrictIsoTimestamp(
+            /(?:Z|[+-]\d{2}:\d{2})$/i.test(rawDatetime)
+              ? rawDatetime
+              : `${rawDatetime}Z`,
+          )
+        : Number.NaN;
+    const detectedMs = Number.isFinite(pixelMs) ? pixelMs : slotMs;
     const conf = f.properties.Confidence;
+    const frp = f.properties.FRP;
     const sza = f.properties.SZA;
     const sensor = layer.sensor(f.properties.Satellite);
     rows.push({
@@ -122,9 +190,16 @@ export function parseWfsFireFeatures(
       lat,
       lon,
       confidence_raw:
-        conf === undefined ? 0.5 : Math.max(0, Math.min(1, conf / 100)),
-      frp_mw: Number.isFinite(f.properties.FRP) ? f.properties.FRP! : null,
-      daynight: sza === undefined ? null : sza < 90 ? "D" : "N",
+        typeof conf === "number" && Number.isFinite(conf)
+          ? Math.max(0, Math.min(1, conf / 100))
+          : 0.5,
+      frp_mw: typeof frp === "number" && Number.isFinite(frp) ? frp : null,
+      daynight:
+        typeof sza === "number" && Number.isFinite(sza)
+          ? sza < 90
+            ? "D"
+            : "N"
+          : null,
       natural_key: `${layer.source}:${sensor}:${lat.toFixed(5)}:${lon.toFixed(5)}:${slot}`,
     });
   }

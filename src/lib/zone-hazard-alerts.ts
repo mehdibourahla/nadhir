@@ -2,6 +2,15 @@ import { ar } from "@/i18n/locales/ar";
 import { en, type Translation } from "@/i18n/locales/en";
 import { fr } from "@/i18n/locales/fr";
 import { kab } from "@/i18n/locales/kab";
+import {
+  KNOWN_SOURCE_ATTRIBUTIONS,
+  provenanceForWatchZoneAlert,
+  toProvenancePayload,
+} from "@/lib/alert-provenance";
+import {
+  EARTHQUAKE_BROADCAST_MIN_MAGNITUDE,
+  EARTHQUAKE_BROADCAST_RADIUS_KM,
+} from "@/lib/broadcast-rules";
 import { haversineKm } from "@/lib/nadhir";
 import {
   authorityConcernsZone,
@@ -35,6 +44,7 @@ export type HazardContext = {
     severity: string;
     event: string;
     onset: string | null;
+    sent?: string | null;
     title: string;
     headline_fr: string | null;
     polygon: [number, number][] | null;
@@ -42,6 +52,9 @@ export type HazardContext = {
     expires: string;
     alert_key: string;
     advice: string | null;
+    msg_type?: string | null;
+    cancelled_at?: string | null;
+    superseded_by?: string | null;
   }[];
   official: {
     id: string;
@@ -50,6 +63,8 @@ export type HazardContext = {
     wilaya_id: string | null;
     place_text: string | null;
     last_reported_at: string;
+    source_key?: string | null;
+    source_label?: string | null;
   }[];
   authority: {
     id: string;
@@ -66,6 +81,7 @@ export type HazardContext = {
     area_id: string;
     source_name: string;
     expires_at: string;
+    updated_at?: string | null;
   }[];
   citizen: {
     id: string;
@@ -75,6 +91,7 @@ export type HazardContext = {
     lat: number;
     lon: number;
     expires_at: string;
+    observed_at?: string | null;
     witnesses: string[];
   }[];
   earthquakes: {
@@ -207,8 +224,8 @@ const OFFICIAL_HAZARD_NAME: Partial<
   other: "other",
 };
 
-export const QUAKE_ALERT_MAGNITUDE = 4;
-const QUAKE_ALERT_KM = 100;
+export const QUAKE_ALERT_MAGNITUDE = EARTHQUAKE_BROADCAST_MIN_MAGNITUDE;
+const QUAKE_ALERT_KM = EARTHQUAKE_BROADCAST_RADIUS_KM;
 
 const AUTHORITY_SEVERITY: Record<string, number> = { Severe: 4, Extreme: 5 };
 
@@ -270,6 +287,12 @@ export function hazardAlerts(
 
     if (zone.notify_weather)
       for (const warning of context.weather) {
+        if (
+          warning.cancelled_at ||
+          warning.superseded_by ||
+          warning.msg_type === "Cancel"
+        )
+          continue;
         if (!weatherConcernsZone(area, warning)) continue;
         const severity = ONM_SEVERITY[warning.severity] ?? 2;
         if (severity < threshold) continue;
@@ -292,6 +315,16 @@ export function hazardAlerts(
               onm_severity: warning.severity,
               expires_at: warning.expires,
               map_event: `weather:${warning.id}`,
+              ...toProvenancePayload(
+                provenanceForWatchZoneAlert({
+                  kind: "weather",
+                  sourceTable: "onm_vigilance",
+                  severity: warning.severity,
+                  areaLabel: zone.name,
+                  radiusKm: zone.radius_km,
+                  observedAt: warning.sent ?? warning.onset ?? warning.expires,
+                }),
+              ),
             },
           },
           warning.severity === "Extreme",
@@ -301,22 +334,72 @@ export function hazardAlerts(
     if (zone.notify_official) {
       for (const incident of context.official) {
         if (!officialConcernsZone(area, incident)) continue;
+        const customSourceLabel = incident.source_label?.trim() || null;
+        const customSourceKey = incident.source_key?.trim() || null;
+        const isDefaultDgpc =
+          customSourceKey === "dgpc_telegram" ||
+          (!customSourceKey && !customSourceLabel);
+        const canonicalCustomSource =
+          customSourceKey &&
+          Object.hasOwn(
+            KNOWN_SOURCE_ATTRIBUTIONS,
+            customSourceKey.toLowerCase(),
+          )
+            ? KNOWN_SOURCE_ATTRIBUTIONS[customSourceKey.toLowerCase()]!
+            : null;
+        const displaySource = isDefaultDgpc
+          ? null
+          : (customSourceLabel ?? canonicalCustomSource);
+        const hazardText =
+          hazardNames[OFFICIAL_HAZARD_NAME[incident.kind] ?? "fire"];
+        const placeText = incident.place_text ?? zone.name;
+        const title = isDefaultDgpc
+          ? fill(copy.officialTitle, { zone: zone.name })
+          : locale === "ar"
+            ? `بلاغ ${displaySource ?? "مصدر رسمي"} بخصوص ${zone.name}`
+            : locale === "en"
+              ? `${displaySource ?? "Official"} report for ${zone.name}`
+              : `Signalement ${displaySource ?? "officiel"} pour ${zone.name}`;
+        const body = isDefaultDgpc
+          ? fill(copy.officialBody, {
+              place: placeText,
+              hazard: hazardText,
+            })
+          : locale === "ar"
+            ? `بلاغ ${displaySource ?? "مصدر رسمي"}، ${placeText}: ${hazardText}.`
+            : locale === "en"
+              ? `${displaySource ?? "Official"} report, ${placeText}: ${hazardText}.`
+              : `Signalement ${displaySource ?? "officiel"}, ${placeText} : ${hazardText}.`;
         add(
           {
             kind: "official",
             severity: 4,
             dedupe_key: `official:${incident.id}`,
-            title: fill(copy.officialTitle, { zone: zone.name }),
-            body: fill(copy.officialBody, {
-              place: incident.place_text ?? zone.name,
-              hazard:
-                hazardNames[OFFICIAL_HAZARD_NAME[incident.kind] ?? "fire"],
-            }),
+            title,
+            body,
             source_table: "official_incidents",
             source_id: incident.id,
             payload: {
+              hazard: incident.kind,
+              ...(customSourceKey ? { source_key: customSourceKey } : {}),
+              ...(customSourceLabel ? { source_label: customSourceLabel } : {}),
               expires_at: later(incident.last_reported_at, 72),
               map_event: `official:${incident.id}`,
+              ...toProvenancePayload(
+                provenanceForWatchZoneAlert({
+                  kind: "official",
+                  sourceTable: "official_incidents",
+                  sourceKey: customSourceKey ?? undefined,
+                  sourceAttribution: isDefaultDgpc
+                    ? undefined
+                    : (displaySource ?? undefined),
+                  severity: 4,
+                  hazard: incident.kind,
+                  areaLabel: zone.name,
+                  radiusKm: zone.radius_km,
+                  observedAt: incident.last_reported_at,
+                }),
+              ),
             },
           },
           true,
@@ -339,6 +422,18 @@ export function hazardAlerts(
             payload: {
               authority: warning.source,
               expires_at: later(warning.created_at, 24),
+              ...toProvenancePayload(
+                provenanceForWatchZoneAlert({
+                  kind: "official",
+                  sourceTable: "authority_warnings",
+                  severity: warning.severity,
+                  sourceKey: "authority",
+                  sourceAttribution: warning.source,
+                  areaLabel: zone.name,
+                  radiusKm: zone.radius_km,
+                  observedAt: warning.created_at,
+                }),
+              ),
             },
           },
           true,
@@ -364,6 +459,16 @@ export function hazardAlerts(
             payload: {
               expires_at: publication.expires_at,
               map_event: `civil:${publication.id}`,
+              ...toProvenancePayload(
+                provenanceForWatchZoneAlert({
+                  kind: "road",
+                  sourceTable: "civil_publications",
+                  sourceAttribution: publication.source_name,
+                  areaLabel: zone.name,
+                  radiusKm: zone.radius_km,
+                  observedAt: publication.updated_at ?? publication.expires_at,
+                }),
+              ),
             },
           },
           false,
@@ -408,6 +513,15 @@ export function hazardAlerts(
               witnesses: count,
               expires_at: report.expires_at,
               map_event: `report:${report.id}`,
+              ...toProvenancePayload(
+                provenanceForWatchZoneAlert({
+                  kind: "citizen",
+                  sourceTable: "citizen_reports",
+                  areaLabel: zone.name,
+                  radiusKm: zone.radius_km,
+                  observedAt: report.observed_at ?? report.expires_at,
+                }),
+              ),
             },
           },
           false,
@@ -442,6 +556,16 @@ export function hazardAlerts(
                 Date.parse(quake.occurred_at) + 72 * HOUR,
               ).toISOString(),
               map_event: `quake:${quake.id}`,
+              ...toProvenancePayload(
+                provenanceForWatchZoneAlert({
+                  kind: "earthquake",
+                  magnitude: quake.magnitude,
+                  sourceAttribution: quake.network ?? "EMSC",
+                  areaLabel: zone.name,
+                  radiusKm: zone.radius_km,
+                  observedAt: quake.occurred_at,
+                }),
+              ),
             },
           },
           quake.magnitude >= 5,

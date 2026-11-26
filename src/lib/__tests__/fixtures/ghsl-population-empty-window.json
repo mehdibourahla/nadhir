@@ -1,0 +1,10 @@
+{
+  "epoch_year": 2025,
+  "dataset_release": "GHS-POP-R2023A",
+  "crs_code": "EPSG:4326",
+  "resolution_m": 1000,
+  "exposure_label": "modeled_residents",
+  "published_at": "2025-01-15T00:00:00Z",
+  "tile_total_residents": 0,
+  "communes": []
+}

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_channel_urgent_name">Alertes urgentes</string>
+    <string name="notification_channel_urgent_description">Vigilances ONM extrêmes, incidents actifs de la Protection Civile, séismes M5+ et incendies probables.</string>
+    <string name="notification_channel_official_name">Bulletins officiels</string>
+    <string name="notification_channel_official_description">Vigilances météo ONM sévères et mises à jour officielles sur les inondations, tempêtes et routes.</string>
+    <string name="notification_channel_earthquakes_name">Séismes</string>
+    <string name="notification_channel_earthquakes_description">Séismes de magnitude 4,0 à 4,9 enregistrés près des communes suivies.</string>
+    <string name="notification_channel_civil_name">Mises à jour civiles et résumés</string>
+    <string name="notification_channel_civil_description">Mises à jour civiles générales, avis routiers et résumés de suivi.</string>
+    <string name="notification_channel_test_name">Tests de notification</string>
+    <string name="notification_channel_test_description">Notifications de test que vous lancez pour vérifier la réception sur cet appareil.</string>
+    <string name="notification_channel_legacy_name">Alertes Nadhir</string>
+    <string name="notification_channel_legacy_description">Canal de secours conservé pour la compatibilité avec les versions antérieures.</string>
+</resources>

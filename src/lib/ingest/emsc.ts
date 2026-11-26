@@ -1,5 +1,7 @@
 import { haversineKm } from "@/lib/nadhir";
 
+export const EMSC_MIN_MAGNITUDE = 2;
+
 export type EmscEvent = {
   id: string;
   occurred_at: string;
@@ -15,28 +17,93 @@ export type EmscEvent = {
 
 // known and suspected earthquakes; blasts and unknown events are not earthquakes
 const EARTHQUAKE_TYPES = new Set(["ke", "se"]);
+const EMSC_PLAUSIBLE_MIN_MAGNITUDE = -2;
+const EMSC_PLAUSIBLE_MAX_MAGNITUDE = 10;
 
 const finite = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 
-export function parseEmsc(body: unknown): EmscEvent[] {
+const ISO_TIMESTAMP_RE =
+  /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|([+-])(\d{2}):(\d{2}))$/i;
+
+function isStrictIsoTimestamp(value: string): boolean {
+  const m = ISO_TIMESTAMP_RE.exec(value);
+  if (!m) return false;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const second = Number(m[6]);
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31 ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59
+  ) {
+    return false;
+  }
+  if (m[10] !== undefined && m[11] !== undefined) {
+    const tzHour = Number(m[10]);
+    const tzMinute = Number(m[11]);
+    if (tzHour > 23 || tzMinute > 59) return false;
+  }
+  const check = new Date(Date.UTC(year, month - 1, day));
+  if (
+    check.getUTCFullYear() !== year ||
+    check.getUTCMonth() !== month - 1 ||
+    check.getUTCDate() !== day
+  ) {
+    return false;
+  }
+  return Number.isFinite(Date.parse(value.replace(" ", "T")));
+}
+
+export type ParseEmscOptions = {
+  minMagnitude?: number;
+};
+
+export function parseEmsc(
+  body: unknown,
+  options: ParseEmscOptions = {},
+): EmscEvent[] {
   // FDSN answers 204 with no body when nothing matched
   if (body === null || body === undefined) return [];
   const features = (body as { features?: unknown }).features;
   if (!Array.isArray(features))
     throw new Error("EMSC returned an unexpected shape");
+  const minMag = options.minMagnitude;
   return features.flatMap((feature) => {
+    if (!feature || typeof feature !== "object") return [];
     const p = (feature as { properties?: Record<string, unknown> }).properties;
     if (
       !p ||
       typeof p["unid"] !== "string" ||
+      p["unid"].trim().length === 0 ||
       typeof p["time"] !== "string" ||
+      !isStrictIsoTimestamp(p["time"]) ||
       !finite(p["lat"]) ||
+      p["lat"] < -90 ||
+      p["lat"] > 90 ||
       !finite(p["lon"]) ||
+      p["lon"] < -180 ||
+      p["lon"] > 180 ||
       !finite(p["mag"]) ||
+      p["mag"] < EMSC_PLAUSIBLE_MIN_MAGNITUDE ||
+      p["mag"] > EMSC_PLAUSIBLE_MAX_MAGNITUDE ||
       !EARTHQUAKE_TYPES.has(String(p["evtype"] ?? "ke"))
     )
       return [];
+    if (minMag !== undefined && p["mag"] < minMag) return [];
+    const magnitude = Math.round(p["mag"] * 10) / 10;
+    const updatedAt =
+      typeof p["lastupdate"] === "string" &&
+      isStrictIsoTimestamp(p["lastupdate"])
+        ? p["lastupdate"]
+        : p["time"];
     return [
       {
         id: p["unid"],
@@ -44,16 +111,33 @@ export function parseEmsc(body: unknown): EmscEvent[] {
         lat: p["lat"],
         lon: p["lon"],
         depth_km: finite(p["depth"]) ? p["depth"] : null,
-        magnitude: Math.round(p["mag"] * 10) / 10,
+        magnitude,
         magnitude_type: typeof p["magtype"] === "string" ? p["magtype"] : null,
         region:
           typeof p["flynn_region"] === "string" ? p["flynn_region"] : null,
         network: typeof p["auth"] === "string" ? p["auth"] : null,
-        updated_at:
-          typeof p["lastupdate"] === "string" ? p["lastupdate"] : p["time"],
+        updated_at: updatedAt,
       },
     ];
   });
+}
+
+// Pre-filter freshness watermark across all fetched EMSC events BEFORE Algeria location filtering
+export function extractEmscWatermark(
+  events: readonly EmscEvent[],
+): string | null {
+  let latestMs = Number.NEGATIVE_INFINITY;
+  let latestIso: string | null = null;
+  for (const event of events) {
+    for (const candidate of [event.updated_at, event.occurred_at]) {
+      const ms = Date.parse(candidate);
+      if (Number.isFinite(ms) && ms > latestMs) {
+        latestMs = ms;
+        latestIso = new Date(ms).toISOString();
+      }
+    }
+  }
+  return latestIso;
 }
 
 const NEAR_ALGERIA_KM = 100;
@@ -62,8 +146,11 @@ export function locateEvents(
   events: EmscEvent[],
   communes: readonly { id: string; lat: number; lon: number }[],
   maxKm = NEAR_ALGERIA_KM,
+  options: { minMagnitude?: number } = {},
 ): (EmscEvent & { commune_id: string; offshore: boolean })[] {
+  const minMag = options.minMagnitude;
   return events.flatMap((event) => {
+    if (minMag !== undefined && event.magnitude < minMag) return [];
     let nearest: { id: string; km: number } | null = null;
     for (const c of communes) {
       const km = haversineKm(event.lat, event.lon, c.lat, c.lon);

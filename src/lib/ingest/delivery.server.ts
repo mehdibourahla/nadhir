@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   fcmMessagesForAuthority,
+  fcmMessagesForEarthquake,
   fcmMessagesForFire,
   fcmMessagesForOfficial,
   fcmMessagesForOnm,
@@ -31,6 +32,7 @@ type PendingRow = {
   id: string;
   lease_token: string;
   kind: string;
+  phase?: string | null;
   severity: string;
   commune_codes: string[];
   push_codes: string[];
@@ -38,6 +40,12 @@ type PendingRow = {
   cap_alert_id: string | null;
   onm_vigilance_id: string | null;
   authority_warning_id: string | null;
+  official_incident_id?: string | null;
+  earthquake_id?: string | null;
+  hazard?: string | null;
+  source_key?: string | null;
+  created_at?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 type CapText = {
@@ -45,11 +53,19 @@ type CapText = {
   headline: string;
   description: string;
   parameter?: { valueName: string; value: string }[];
+  area?: { areaDesc?: string }[];
 };
 
 type DeliveryContext = {
   infoByCap: Map<string, CapText[]>;
-  shortIdByCluster: Map<string, string>;
+  clusterById: Map<
+    string,
+    {
+      short_id: string;
+      last_detected_at?: string | null;
+      confirmed_at?: string | null;
+    }
+  >;
   onmById: Map<
     string,
     {
@@ -57,9 +73,21 @@ type DeliveryContext = {
       headline_fr: string | null;
       wilaya_id: string | null;
       event: string;
+      msg_type?: string | null;
+      cancelled_at?: string | null;
+      instruction_fr?: string | null;
+      sent?: string | null;
+      area_desc?: string | null;
     }
   >;
-  authorityById: Map<string, { source: string; body: string }>;
+  authorityById: Map<
+    string,
+    { source: string; body: string; created_at?: string | null }
+  >;
+  earthquakeById: Map<
+    string,
+    { magnitude: number; network: string | null; occurred_at: string }
+  >;
 };
 
 async function claimDelivery(channel: Channel): Promise<PendingRow | null> {
@@ -116,12 +144,23 @@ async function failDelivery(
   }
 }
 
+function capParam(
+  info: CapText[] | null | undefined,
+  name: string,
+): string | null {
+  const first = info?.[0];
+  if (!first?.parameter?.length) return null;
+  const hit = first.parameter.find((p) => p.valueName === name);
+  return hit?.value ?? null;
+}
+
 async function loadContext(rows: PendingRow[]): Promise<DeliveryContext> {
   const context: DeliveryContext = {
     infoByCap: new Map(),
-    shortIdByCluster: new Map(),
+    clusterById: new Map(),
     onmById: new Map(),
     authorityById: new Map(),
+    earthquakeById: new Map(),
   };
 
   const capIds = rows
@@ -143,11 +182,10 @@ async function loadContext(rows: PendingRow[]): Promise<DeliveryContext> {
   if (clusterIds.length) {
     const { data, error } = await supabaseAdmin
       .from("fire_clusters")
-      .select("id, short_id")
+      .select("id, short_id, last_detected_at, confirmed_at")
       .in("id", clusterIds);
     if (error) throw new Error(error.message);
-    for (const row of data ?? [])
-      context.shortIdByCluster.set(row.id, row.short_id);
+    for (const row of data ?? []) context.clusterById.set(row.id, row);
   }
 
   const onmIds = rows
@@ -156,7 +194,9 @@ async function loadContext(rows: PendingRow[]): Promise<DeliveryContext> {
   if (onmIds.length) {
     const { data, error } = await supabaseAdmin
       .from("onm_vigilance")
-      .select("id, title, headline_fr, wilaya_id, event")
+      .select(
+        "id, title, headline_fr, wilaya_id, event, msg_type, cancelled_at, instruction_fr, sent, area_desc",
+      )
       .in("id", onmIds);
     if (error) throw new Error(error.message);
     for (const row of data ?? []) context.onmById.set(row.id, row);
@@ -168,13 +208,36 @@ async function loadContext(rows: PendingRow[]): Promise<DeliveryContext> {
   if (authorityIds.length) {
     const { data, error } = await supabaseAdmin
       .from("authority_warnings")
-      .select("id, source, body")
+      .select("id, source, body, created_at")
       .in("id", authorityIds);
     if (error) throw new Error(error.message);
     for (const row of data ?? []) context.authorityById.set(row.id, row);
   }
 
+  const earthquakeIds = rows
+    .map((p) => p.earthquake_id)
+    .filter((id): id is string => Boolean(id));
+  if (earthquakeIds.length) {
+    const { data, error } = await supabaseAdmin
+      .from("earthquakes")
+      .select("id, magnitude, network, occurred_at")
+      .in("id", earthquakeIds);
+    if (error) throw new Error(error.message);
+    for (const row of data ?? [])
+      context.earthquakeById.set(row.id, {
+        magnitude: Number(row.magnitude),
+        network: row.network,
+        occurred_at: row.occurred_at,
+      });
+  }
+
   return context;
+}
+
+function capAreaDesc(info: CapText[] | null | undefined): string | null {
+  const first = info?.[0];
+  const area = first?.area?.[0]?.areaDesc;
+  return typeof area === "string" && area.trim().length > 0 ? area : null;
 }
 
 function fcmMessagesFor(
@@ -185,16 +248,26 @@ function fcmMessagesFor(
     const info = row.cap_alert_id
       ? context.infoByCap.get(row.cap_alert_id)
       : null;
-    const shortId = row.cluster_id
-      ? context.shortIdByCluster.get(row.cluster_id)
+    const cluster = row.cluster_id
+      ? context.clusterById.get(row.cluster_id)
       : null;
-    if (!info || !shortId) return null;
+    if (!info || !cluster?.short_id) return null;
     return fcmMessagesForFire({
       broadcastId: row.id,
       severity: row.severity,
       communeCodes: row.push_codes,
-      shortId,
+      shortId: cluster.short_id,
       info,
+      phase: row.phase ?? capParam(info, "broadcast_phase"),
+      observedAt:
+        cluster.last_detected_at ??
+        capParam(info, "observed_at") ??
+        row.created_at ??
+        null,
+      areaLabel: capParam(info, "area_label") ?? capAreaDesc(info),
+      confirmed: Boolean(cluster.confirmed_at),
+      sourceKey: row.source_key ?? capParam(info, "source_key"),
+      sourceAttribution: capParam(info, "source_attribution"),
     });
   }
   if (row.kind === "onm") {
@@ -202,6 +275,8 @@ function fcmMessagesFor(
       ? context.onmById.get(row.onm_vigilance_id)
       : null;
     if (!onm) return null;
+    // Defense-in-depth: never send FCM pushes for explicitly cancelled ONM warnings
+    if (Boolean(onm.cancelled_at) || onm.msg_type === "Cancel") return [];
     return fcmMessagesForOnm({
       broadcastId: row.id,
       severity: row.severity,
@@ -210,6 +285,9 @@ function fcmMessagesFor(
       headlineFr: onm.headline_fr,
       wilayaId: onm.wilaya_id,
       event: onm.event,
+      phase: row.phase ?? null,
+      observedAt: onm.sent ?? row.created_at ?? null,
+      areaLabel: onm.area_desc ?? null,
     });
   }
   if (row.kind === "official") {
@@ -222,6 +300,51 @@ function fcmMessagesFor(
       severity: row.severity,
       communeCodes: row.push_codes,
       info,
+      incidentId:
+        row.official_incident_id ?? capParam(info, "official_incident_id"),
+      phase: row.phase ?? capParam(info, "broadcast_phase"),
+      hazard: row.hazard ?? capParam(info, "hazard_kind"),
+      status: capParam(info, "incident_status"),
+      sourceKey: row.source_key ?? capParam(info, "source_key"),
+      sourceAttribution: capParam(info, "source_attribution"),
+      observedAt: capParam(info, "observed_at") ?? row.created_at ?? null,
+      areaLabel: capParam(info, "area_label") ?? capAreaDesc(info),
+    });
+  }
+  if (row.kind === "earthquake") {
+    const info = row.cap_alert_id
+      ? context.infoByCap.get(row.cap_alert_id)
+      : null;
+    const earthquakeId = row.earthquake_id ?? capParam(info, "earthquake_id");
+    if (!info || !earthquakeId) return null;
+    const quake = context.earthquakeById.get(earthquakeId);
+    const paramMag = capParam(info, "magnitude");
+    const quakeMag =
+      quake && Number.isFinite(quake.magnitude) ? quake.magnitude : null;
+    const magnitude =
+      quakeMag ??
+      (paramMag !== null &&
+      paramMag.trim().length > 0 &&
+      Number.isFinite(Number(paramMag))
+        ? Number(paramMag)
+        : null);
+    if (magnitude === null) return null;
+    return fcmMessagesForEarthquake({
+      broadcastId: row.id,
+      severity: row.severity,
+      communeCodes: row.push_codes,
+      earthquakeId,
+      magnitude,
+      info,
+      sourceKey: row.source_key ?? capParam(info, "source_key") ?? "emsc",
+      sourceAttribution:
+        capParam(info, "source_attribution") ?? quake?.network ?? "EMSC",
+      observedAt:
+        capParam(info, "observed_at") ??
+        quake?.occurred_at ??
+        row.created_at ??
+        null,
+      areaLabel: capParam(info, "area_label") ?? capAreaDesc(info),
     });
   }
   if (row.kind === "authority") {
@@ -235,6 +358,8 @@ function fcmMessagesFor(
       communeCodes: row.push_codes,
       source: warning.source,
       body: warning.body,
+      observedAt: warning.created_at ?? row.created_at ?? null,
+      areaLabel: null,
     });
   }
   return null;
@@ -256,6 +381,15 @@ async function deliverFcm(errors: string[]): Promise<{
     if (!row) break;
     try {
       const context = await loadContext([row]);
+      if (row.kind === "onm") {
+        const onm = row.onm_vigilance_id
+          ? context.onmById.get(row.onm_vigilance_id)
+          : null;
+        if (onm && (Boolean(onm.cancelled_at) || onm.msg_type === "Cancel")) {
+          await finishDelivery(row, "fcm", null, "cap_cancelled");
+          continue;
+        }
+      }
       const messages = fcmMessagesFor(row, context);
       if (messages === null) throw new Error("fcm delivery context missing");
       const delivered = await deliveryReceipts(row.id, "fcm");

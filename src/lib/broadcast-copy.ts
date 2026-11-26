@@ -1,4 +1,5 @@
 import type { BroadcastPhase, CapText } from "@/lib/cap";
+import type { NonFireBroadcastKind } from "@/lib/broadcast-rules";
 
 export type BroadcastVars = {
   place: string;
@@ -339,6 +340,239 @@ export function officialTexts(
       headline: fill(copy.headline, slots),
       description: fill(copy.body, slots) + (detected ? "" : copy.noDetection),
       instruction: COPY[locale].instruction,
+    };
+  });
+}
+
+export type OfficialHazardVars = {
+  kind: NonFireBroadcastKind;
+  phase?: "initial" | "end";
+  commune: string;
+  wilaya: string;
+  place?: string | null;
+  source: string;
+  asOf: string;
+  evidence?: string | null;
+};
+
+type OfficialHazardCopy = {
+  events: Record<NonFireBroadcastKind, string>;
+  initialHeadline: string;
+  endHeadline: string;
+  initialBody: string;
+  endBody: string;
+  placeJoin: string;
+  evidencePrefix: string;
+};
+
+const OFFICIAL_HAZARD: Record<Locale, OfficialHazardCopy> = {
+  ar: {
+    events: {
+      flood: "فيضانات وتجمع مياه",
+      storm: "اضطراب جوي وعاصفة",
+      road: "اضطراب مروري وقطع طريق",
+      structure: "خطر إنشائي أو انهيار",
+    },
+    initialHeadline: "الحماية المدنية: {{event}} في {{location}}",
+    endHeadline: "الحماية المدنية: انتهاء التدخل ({{event}}) في {{location}}",
+    initialBody:
+      "تدخل جارٍ حسب نشرية {{asOf}} (توقيت الجزائر). المصدر: {{source}}.",
+    endBody:
+      "أعلنت الحماية المدنية انتهاء الوضع المسجّل حسب نشرية {{asOf}} (توقيت الجزائر). المصدر: {{source}}.",
+    placeJoin: "، ",
+    evidencePrefix: " نص البلاغ: ",
+  },
+  fr: {
+    events: {
+      flood: "Inondation et montée des eaux",
+      storm: "Intempéries et tempête",
+      road: "Axe routier perturbé ou coupé",
+      structure: "Incident structurel",
+    },
+    initialHeadline: "Protection civile : {{event}} à {{location}}",
+    endHeadline:
+      "Protection civile : fin d'intervention ({{event}}) à {{location}}",
+    initialBody:
+      "Intervention en cours selon le bulletin de {{asOf}} (heure d'Alger). Source : {{source}}.",
+    endBody:
+      "Situation déclarée levée par l'autorité selon le bulletin de {{asOf}} (heure d'Alger). Source : {{source}}.",
+    placeJoin: ", ",
+    evidencePrefix: " Extrait officiel : ",
+  },
+  en: {
+    events: {
+      flood: "Flooding and water accumulation",
+      storm: "Severe storm impact",
+      road: "Road disruption or closure",
+      structure: "Structural hazard",
+    },
+    initialHeadline: "Civil Protection: {{event}} in {{location}}",
+    endHeadline:
+      "Civil Protection: incident cleared ({{event}}) in {{location}}",
+    initialBody:
+      "Ongoing official incident as of the {{asOf}} bulletin (Algiers time). Source: {{source}}.",
+    endBody:
+      "Authority reported the incident cleared as of the {{asOf}} bulletin (Algiers time). Source: {{source}}.",
+    placeJoin: ", ",
+    evidencePrefix: " Official excerpt: ",
+  },
+  kab: {
+    events: {
+      flood: "Iḥemmalen d unekcum n waman",
+      storm: "Tagnit n tegnawt qessiḥen",
+      road: "Abrid yergel neɣ yeqqel d amihi",
+      structure: "Amihi deg yixeddim neɣ lebni",
+    },
+    initialHeadline: "Tɣellist Tagdudant: {{event}} deg {{location}}",
+    endHeadline:
+      "Tɣellist Tagdudant: tfuk tgermant ({{event}}) deg {{location}}",
+    initialBody:
+      "Tagermant mazal-itt teddu akken i d-yenna ulɣu n {{asOf}} (akud n Lezzayer). Aɣbalu: {{source}}.",
+    endBody:
+      "Tɣellist Tagdudant tenna-d belli yekfa wugur akken i d-yenna ulɣu n {{asOf}} (akud n Lezzayer). Aɣbalu: {{source}}.",
+    placeJoin: ", ",
+    evidencePrefix: " Aḍris unṣib: ",
+  },
+};
+
+function excerptEvidence(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const clean = raw.replace(/\s+/g, " ").trim();
+  if (!clean) return "";
+  return clean.length > 180 ? `${clean.slice(0, 177).trimEnd()}...` : clean;
+}
+
+/**
+ * Multi-hazard DGPC official incident copy (flood, storm, road, structure).
+ * Strictly attribution-first, zero em dashes, zero "safe"/"all-clear" labels,
+ * zero satellite fire text, and instruction === "" (ADR-0002 / ADR-0003).
+ */
+export function officialHazardTexts(vars: OfficialHazardVars): CapText[] {
+  const phase = vars.phase ?? "initial";
+  const excerpt = excerptEvidence(vars.evidence);
+  return (Object.keys(OFFICIAL_HAZARD) as Locale[]).map((locale) => {
+    const copy = OFFICIAL_HAZARD[locale];
+    const location = [vars.place?.trim(), vars.commune, vars.wilaya]
+      .filter((part): part is string => Boolean(part && part.trim()))
+      .join(copy.placeJoin);
+    const event = copy.events[vars.kind];
+    const slots = {
+      event,
+      location,
+      source: vars.source,
+      asOf: vars.asOf,
+    };
+    const headline = fill(
+      phase === "end" ? copy.endHeadline : copy.initialHeadline,
+      slots,
+    );
+    const baseBody = fill(
+      phase === "end" ? copy.endBody : copy.initialBody,
+      slots,
+    );
+    return {
+      language: LANGUAGE[locale],
+      event,
+      headline,
+      description: excerpt
+        ? `${baseBody}${copy.evidencePrefix}${excerpt}`
+        : baseBody,
+      instruction: "",
+    };
+  });
+}
+
+export type EarthquakeVars = {
+  magnitude: number;
+  place: string;
+  wilaya?: string | null;
+  depthKm?: number | null;
+  network: string;
+  asOf: string;
+  offshore?: boolean;
+};
+
+type EarthquakeCopy = {
+  event: string;
+  headline: string;
+  headlineOffshore: string;
+  body: string;
+  depthPart: string;
+  placeJoin: string;
+};
+
+const EARTHQUAKE_COPY: Record<Locale, EarthquakeCopy> = {
+  ar: {
+    event: "هزة أرضية",
+    headline: "{{network}}: هزة أرضية بقوة {{mag}} قرب {{location}}",
+    headlineOffshore:
+      "{{network}}: هزة أرضية بقوة {{mag}} في عرض البحر قرب {{location}}",
+    body: "سُجّلت هزة أرضية بقوة {{mag}} في {{asOf}} (توقيت الجزائر) قرب {{location}}{{depth}}. المصدر: {{network}}.",
+    depthPart: " على عمق {{depth}} كلم",
+    placeJoin: "، ",
+  },
+  fr: {
+    event: "Séisme",
+    headline: "{{network}} : séisme de magnitude {{mag}} près de {{location}}",
+    headlineOffshore:
+      "{{network}} : séisme en mer de magnitude {{mag}} près de {{location}}",
+    body: "Séisme de magnitude {{mag}} enregistré à {{asOf}} (heure d'Alger) près de {{location}}{{depth}}. Source : {{network}}.",
+    depthPart: " à {{depth}} km de profondeur",
+    placeJoin: ", ",
+  },
+  en: {
+    event: "Earthquake",
+    headline: "{{network}}: M{{mag}} earthquake near {{location}}",
+    headlineOffshore:
+      "{{network}}: M{{mag}} offshore earthquake near {{location}}",
+    body: "Magnitude {{mag}} earthquake recorded at {{asOf}} (Algiers time) near {{location}}{{depth}}. Source: {{network}}.",
+    depthPart: " at {{depth}} km depth",
+    placeJoin: ", ",
+  },
+  kab: {
+    event: "Zzelzla",
+    headline: "{{network}}: zzelzla n tezmert {{mag}} ɣer {{location}}",
+    headlineOffshore:
+      "{{network}}: zzelzla deg yilel n tezmert {{mag}} ɣer {{location}}",
+    body: "Zzelzla n tezmert {{mag}} tettwakles ɣef {{asOf}} (akud n Lezzayer) ɣer {{location}}{{depth}}. Aɣbalu: {{network}}.",
+    depthPart: " ɣef telqey n {{depth}} km",
+    placeJoin: ", ",
+  },
+};
+
+/**
+ * Multi-locale M4+ earthquake alert copy for accountless commune topics.
+ * Attribution-first, Algiers clock, zero em dashes, zero "safe", instruction === "".
+ */
+export function earthquakeTexts(vars: EarthquakeVars): CapText[] {
+  const mag = vars.magnitude.toFixed(1);
+  const depthValue =
+    vars.depthKm != null && Number.isFinite(vars.depthKm) && vars.depthKm >= 0
+      ? Math.round(vars.depthKm)
+      : null;
+  return (Object.keys(EARTHQUAKE_COPY) as Locale[]).map((locale) => {
+    const copy = EARTHQUAKE_COPY[locale];
+    const location = [vars.place, vars.wilaya]
+      .filter((part): part is string => Boolean(part && part.trim()))
+      .join(copy.placeJoin);
+    const depth =
+      depthValue !== null ? fill(copy.depthPart, { depth: depthValue }) : "";
+    const slots = {
+      network: vars.network,
+      mag,
+      location,
+      asOf: vars.asOf,
+      depth,
+    };
+    return {
+      language: LANGUAGE[locale],
+      event: copy.event,
+      headline: fill(
+        vars.offshore ? copy.headlineOffshore : copy.headline,
+        slots,
+      ),
+      description: fill(copy.body, slots),
+      instruction: "",
     };
   });
 }
