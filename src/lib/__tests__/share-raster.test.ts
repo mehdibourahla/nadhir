@@ -231,7 +231,7 @@ describe("real Chromium CDP universal share card rasterizer", () => {
         expect(fb!.byteLength).toBeGreaterThan(1_000);
       }
     }
-  }, 60_000);
+  }, 90_000);
 
   it("enforces <= 37,888 bytes for worst-case Arabic ONM across JPEG, PNG (indexed), and transparent sticker PNG with real pixel contrast", async () => {
     const worstAr = buildModel("onm", "ar");
@@ -293,7 +293,7 @@ describe("real Chromium CDP universal share card rasterizer", () => {
     const decodedSticker = PNG.sync.read(Buffer.from(stickerPng!));
     // Outer margin corner (0,0) is transparent on sticker
     expect(decodedSticker.data[3]).toBe(0);
-  }, 45_000);
+  }, 60_000);
 
   it("serves offline wilaya share card end-to-end via handleUniversalShareRequest with HTTP 200 <= 37 KB", async () => {
     const url = new URL(

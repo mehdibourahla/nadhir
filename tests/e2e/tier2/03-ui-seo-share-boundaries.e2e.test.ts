@@ -18,15 +18,13 @@ import {
   findBannedSafeLabels,
   findEmDashesInText,
   measureHorizontalOverflow,
+  stripHtmlForTextScan,
   VIEWPORTS,
   withBrowserPage,
 } from "../lib/playwright.ts";
 
 function stripHtmlToVisibleText(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
+  return stripHtmlForTextScan(html)
     .replace(/&nbsp;/gi, " ")
     .replace(/&mdash;|&#8212;|&#x2014;/gi, "\u2014")
     .replace(/\s+/g, " ")

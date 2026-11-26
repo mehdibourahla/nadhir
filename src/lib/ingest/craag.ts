@@ -79,18 +79,28 @@ function normalizeDigits(input: string): string {
     .replace(/٫/g, ".");
 }
 
+const HTML_ENTITY_MAP: Record<string, string> = {
+  "&nbsp;": " ",
+  "&amp;": "&",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&quot;": '"',
+  "&#39;": "'",
+  "&deg;": "°",
+};
+
 function decodeHtmlEntities(input: string): string {
-  return input
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&deg;/gi, "°")
-    .replace(/&#(\d+);/g, (_, code: string) =>
-      String.fromCharCode(Number(code)),
-    );
+  return input.replace(
+    /&(?:nbsp|amp|lt|gt|quot|deg);|&#(\d+);/gi,
+    (match, decimalCode?: string) => {
+      const named = HTML_ENTITY_MAP[match.toLowerCase()];
+      if (named !== undefined) return named;
+      if (decimalCode !== undefined) {
+        return String.fromCharCode(Number(decimalCode));
+      }
+      return match;
+    },
+  );
 }
 
 function stripTags(html: string): string {

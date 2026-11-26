@@ -17,7 +17,20 @@ function readRepoFile(relativePath: string): string {
 }
 
 function stripXmlComments(xml: string): string {
-  return xml.replace(/<!--[\s\S]*?-->/g, "");
+  let out = "";
+  let cursor = 0;
+  while (cursor < xml.length) {
+    const start = xml.indexOf("<!--", cursor);
+    if (start === -1) {
+      out += xml.slice(cursor);
+      break;
+    }
+    out += xml.slice(cursor, start);
+    const end = xml.indexOf("-->", start + 4);
+    if (end === -1) break;
+    cursor = end + 3;
+  }
+  return out;
 }
 
 function stripLineAndBlockComments(source: string): string {

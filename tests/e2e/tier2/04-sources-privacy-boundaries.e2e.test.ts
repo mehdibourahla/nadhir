@@ -21,7 +21,11 @@ import {
 import { fetchText, startMockHttpServer } from "../lib/http.ts";
 import { decodeRasterDimensions } from "../lib/image.ts";
 import { psqlJson } from "../lib/pg.ts";
-import { findBannedSafeLabels, findEmDashesInText } from "../lib/playwright.ts";
+import {
+  findBannedSafeLabels,
+  findEmDashesInText,
+  stripHtmlForTextScan,
+} from "../lib/playwright.ts";
 
 type AnyFn = (...args: unknown[]) => unknown;
 
@@ -50,11 +54,7 @@ function findExportedFn(
 }
 
 function stripHtmlToVisibleText(html: string): string {
-  return html
-    .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
+  return stripHtmlForTextScan(html)
     .replace(/&nbsp;/gi, " ")
     .replace(/&mdash;|&#8212;|&#x2014;/gi, "\u2014")
     .replace(/\s+/g, " ")

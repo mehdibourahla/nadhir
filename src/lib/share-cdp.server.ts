@@ -154,8 +154,8 @@ interface PendingRpc {
 }
 
 const IDLE_SHUTDOWN_MS = 30_000;
-const RPC_TIMEOUT_MS = 15_000;
-const LAUNCH_TIMEOUT_MS = 15_000;
+const RPC_TIMEOUT_MS = 30_000;
+const LAUNCH_TIMEOUT_MS = 45_000;
 
 class LocalCdpBrowser {
   private readonly proc: import("node:child_process").ChildProcess;

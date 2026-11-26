@@ -52,6 +52,7 @@ import {
   measureContrastViolations,
   measureHorizontalOverflow,
   measureTouchTargets,
+  stripHtmlForTextScan,
   withBrowserPage,
 } from "../lib/playwright.ts";
 
@@ -269,13 +270,7 @@ interface EmscMod extends Record<string, unknown> {
 }
 
 function stripHtmlToText(html: string): string {
-  return html
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
-    .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return stripHtmlForTextScan(html);
 }
 
 /**

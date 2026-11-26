@@ -220,15 +220,21 @@ function extractJsxUserStringAttrs(tsxSource: string): string[] {
   return attrs;
 }
 
+const ANDROID_XML_ENTITIES: Record<string, string> = {
+  "&amp;": "&",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&quot;": '"',
+  "&apos;": "'",
+};
+
 function unescapeAndroidXml(raw: string): string {
   return raw
-    .replace(/\\'/g, "'")
-    .replace(/\\"/g, '"')
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'");
+    .replace(/\\(['"])/g, "$1")
+    .replace(
+      /&(?:amp|lt|gt|quot|apos);/g,
+      (entity) => ANDROID_XML_ENTITIES[entity] ?? entity,
+    );
 }
 
 function parseXmlStrings(xml: string): Map<string, string> {
@@ -936,6 +942,7 @@ describe("Invariant 6 — Zero forbidden external-company / hub / workflow refer
       const stdout = execFileSync("git", args, {
         cwd: REPO_ROOT,
         encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
       });
       return stdout
         .split(/\r?\n/)
@@ -943,13 +950,37 @@ describe("Invariant 6 — Zero forbidden external-company / hub / workflow refer
         .filter((line) => line.length > 0);
     };
 
-    const files = new Set<string>([
-      ...collect(["diff", "--name-only", "origin/main..HEAD"]),
+    const tryCollect = (args: string[]): string[] | null => {
+      try {
+        return collect(args);
+      } catch {
+        return null;
+      }
+    };
+
+    const branchDiff = tryCollect(["diff", "--name-only", "origin/main..HEAD"]);
+    const workingDiff = [
       ...collect(["diff", "--name-only"]),
       ...collect(["diff", "--cached", "--name-only"]),
-    ]);
-    return [...files]
-      .filter((relPath) => existsSync(join(REPO_ROOT, relPath)))
+    ];
+
+    // On shallow CI clones (fetch-depth: 1) where origin/main is absent, or on
+    // push-to-main runs where origin/main..HEAD is empty, scan every tracked
+    // repository file (strictly broader than the branch diff).
+    const candidates =
+      branchDiff !== null && branchDiff.length > 0
+        ? [...branchDiff, ...workingDiff]
+        : [...collect(["ls-files"]), ...workingDiff];
+
+    return [...new Set(candidates)]
+      .filter((relPath) => {
+        const fullPath = join(REPO_ROOT, relPath);
+        try {
+          return existsSync(fullPath) && statSync(fullPath).isFile();
+        } catch {
+          return false;
+        }
+      })
       .sort();
   }
 

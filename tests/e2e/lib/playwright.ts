@@ -658,14 +658,73 @@ export function findEmDashesInText(text: string): EmDashReport {
 }
 
 export function stripHtmlForTextScan(html: string): string {
-  return html
-    .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
-    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const lower = html.toLowerCase();
+  const len = html.length;
+  const out: string[] = [];
+  let i = 0;
+
+  const skipRawElement = (tagName: string, openEnd: number): number => {
+    const closeNeedle = `</${tagName}`;
+    let searchFrom = openEnd + 1;
+    while (searchFrom < len) {
+      const closeStart = lower.indexOf(closeNeedle, searchFrom);
+      if (closeStart === -1) return len;
+      const afterName = closeStart + closeNeedle.length;
+      const boundaryChar = lower[afterName];
+      if (
+        boundaryChar === ">" ||
+        boundaryChar === " " ||
+        boundaryChar === "\t" ||
+        boundaryChar === "\n" ||
+        boundaryChar === "\r" ||
+        boundaryChar === "/"
+      ) {
+        const closeEnd = html.indexOf(">", afterName);
+        return closeEnd === -1 ? len : closeEnd + 1;
+      }
+      searchFrom = afterName;
+    }
+    return len;
+  };
+
+  while (i < len) {
+    if (html[i] === "<") {
+      if (html.startsWith("<!--", i)) {
+        const endComment = html.indexOf("-->", i + 4);
+        out.push(" ");
+        i = endComment === -1 ? len : endComment + 3;
+        continue;
+      }
+      const tagEnd = html.indexOf(">", i + 1);
+      if (tagEnd === -1) {
+        out.push(html.slice(i));
+        break;
+      }
+      const header = lower.slice(i + 1, tagEnd).trimStart();
+      const rawTag = (["script", "style", "noscript"] as const).find(
+        (name) =>
+          header.startsWith(name) &&
+          (header.length === name.length ||
+            /[\s/>]/.test(header[name.length]!)),
+      );
+      out.push(" ");
+      if (rawTag && !header.endsWith("/")) {
+        i = skipRawElement(rawTag, tagEnd);
+      } else {
+        i = tagEnd + 1;
+      }
+      continue;
+    }
+    const nextLt = html.indexOf("<", i);
+    if (nextLt === -1) {
+      out.push(html.slice(i));
+      break;
+    }
+    out.push(html.slice(i, nextLt));
+    i = nextLt;
+  }
+
+  return out.join("").replace(/\s+/g, " ").trim();
 }
 
 const ALLOWED_SAFE_PATTERNS: RegExp[] = [
