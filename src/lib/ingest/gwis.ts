@@ -275,9 +275,9 @@ function normalizeEffisRestToFeatureCollection(
     type: "FeatureCollection",
     licence: GWIS_LICENCE,
     product_layer: "nrt.ba",
-    published_at: latestUpdate
-      ? new Date(Date.parse(latestUpdate)).toISOString()
-      : new Date().toISOString(),
+    ...(latestUpdate
+      ? { published_at: new Date(Date.parse(latestUpdate)).toISOString() }
+      : {}),
     features,
   };
 }

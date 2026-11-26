@@ -215,23 +215,46 @@ export async function ingestCraag(
         lat: number;
         lon: number;
       }[] = [];
+      let mapFetchFailures = 0;
       for (const row of candidateRows) {
         if (!row.sourceUrl) continue;
         try {
           const mapRes = await deps.fetchMap(row.sourceUrl);
-          if (!mapRes.ok) continue;
+          if (!mapRes.ok) {
+            mapFetchFailures += 1;
+            continue;
+          }
           const coords = parseCraagMapCoordinates(await mapRes.text());
           if (coords) {
             resolved.push({ summary: row, lat: coords.lat, lon: coords.lon });
+          } else {
+            mapFetchFailures += 1;
           }
         } catch (mapErr) {
           if (mapErr instanceof ArchiveFailure) throw mapErr;
+          mapFetchFailures += 1;
         }
+      }
+      if (
+        candidateRows.length > 0 &&
+        resolved.length === 0 &&
+        mapFetchFailures > 0
+      ) {
+        throw new Error(
+          `CRAAG map coordinate resolution failed for all ${mapFetchFailures} eligible summary rows`,
+          { cause: primaryError },
+        );
       }
       parsed = buildCraagParseResultFromResolved(resolved);
       if (parsed.bulletins.length === 0 && summaryRows.length > 0) {
-        parsed.emptyPage = true;
-        parsed.upstreamPublishedAt = summaryRows[0]!.observedAt;
+        parsed.emptyPage = resolved.length === 0;
+        let maxIso = parsed.upstreamPublishedAt;
+        for (const r of summaryRows) {
+          if (!maxIso || Date.parse(r.observedAt) > Date.parse(maxIso)) {
+            maxIso = r.observedAt;
+          }
+        }
+        parsed.upstreamPublishedAt = maxIso;
       }
     }
 

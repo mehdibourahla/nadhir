@@ -121,24 +121,27 @@ function buildLiWmsMapUrl(timeIso: string): string {
 
 async function fetchLatestLiWms(
   fallbackSlotIso: string,
+  isReplay = false,
 ): Promise<Awaited<ReturnType<typeof parseMtgLightningWmsGeoTiff>>> {
   let timeIso = fallbackSlotIso;
-  try {
-    const capRes = await fetch(EUMETSAT_LI_CAPS_URL, {
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (capRes.ok) {
-      const capXml = await capRes.text();
-      const idx = capXml.indexOf("<Name>li_afa</Name>");
-      if (idx !== -1) {
-        const m = capXml
-          .slice(idx, idx + 3500)
-          .match(/<Dimension[^>]*name="time"[^>]*default="([^"]+)"/i);
-        if (m?.[1]) timeIso = m[1];
+  if (!isReplay) {
+    try {
+      const capRes = await fetch(EUMETSAT_LI_CAPS_URL, {
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (capRes.ok) {
+        const capXml = await capRes.text();
+        const idx = capXml.indexOf("<Name>li_afa</Name>");
+        if (idx !== -1) {
+          const m = capXml
+            .slice(idx, idx + 3500)
+            .match(/<Dimension[^>]*name="time"[^>]*default="([^"]+)"/i);
+          if (m?.[1]) timeIso = m[1];
+        }
       }
+    } catch {
+      // Fall back to floored slot time
     }
-  } catch {
-    // Fall back to floored slot time
   }
   const res = await archivedFetch(
     MTG_LIGHTNING_SOURCE_KEY,
@@ -223,22 +226,31 @@ export async function ingestMtgLightning(
 
   if (!baseUrl) {
     try {
-      const parsed = await deps.fetchDefaultWms(slotIso);
-      const communes = parsed.observations.length ? await deps.communes() : [];
-      const rows = toDbRows(parsed.observations, communes);
+      const parsed = await deps.fetchDefaultWms(slotIso, Boolean(interval));
+      const bounded = interval
+        ? parsed.observations.filter((obs) => {
+            const ms = Date.parse(obs.observedAt);
+            return (
+              ms >= Date.parse(interval.dataFrom) &&
+              ms <= Date.parse(interval.dataThrough)
+            );
+          })
+        : parsed.observations;
+      const communes = bounded.length ? await deps.communes() : [];
+      const rows = toDbRows(bounded, communes);
       const stored = rows.length ? await deps.upsert(rows) : 0;
       return {
         fetched: parsed.flashesSeen,
         stored,
         outside: parsed.flashesOutsideAlgeria,
-        quietSlot: parsed.observations.length === 0,
+        quietSlot: bounded.length === 0,
         upstreamPublishedAt: parsed.upstreamPublishedAt,
-        dataFrom:
-          interval?.dataFrom ??
+        dataFrom: interval?.dataFrom ?? parsed.upstreamPublishedAt,
+        dataThrough:
+          interval?.dataThrough ??
           new Date(
-            Date.parse(parsed.upstreamPublishedAt) - 5 * 60_000,
+            Date.parse(parsed.upstreamPublishedAt) + 5 * 60_000,
           ).toISOString(),
-        dataThrough: interval?.dataThrough ?? parsed.upstreamPublishedAt,
       };
     } catch (error) {
       if (error instanceof ArchiveFailure) throw error;

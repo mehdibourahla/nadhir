@@ -10,7 +10,8 @@
 
 update public.onm_vigilance
 set cap_url = null
-where cap_url ilike '%ametvigilance-pprod%';
+where cap_url ilike '%ametvigilance-pprod%'
+   or cap_url ~* '^https?://[^/]*pprod';
 
 update public.onm_vigilance as v
 set wilaya_id = w.id

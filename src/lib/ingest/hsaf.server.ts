@@ -119,24 +119,27 @@ function buildHsafWmsMapUrl(timeIso: string): string {
 
 async function fetchLatestHsafWms(
   fallbackSlotIso: string,
+  isReplay = false,
 ): Promise<Awaited<ReturnType<typeof parseHsafWmsGeoTiff>>> {
   let timeIso = fallbackSlotIso;
-  try {
-    const capRes = await fetch(EUMETSAT_H60B_CAPS_URL, {
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (capRes.ok) {
-      const capXml = await capRes.text();
-      const idx = capXml.indexOf("<Name>h60b</Name>");
-      if (idx !== -1) {
-        const m = capXml
-          .slice(idx, idx + 2500)
-          .match(/<Dimension[^>]*name="time"[^>]*default="([^"]+)"/i);
-        if (m?.[1]) timeIso = m[1];
+  if (!isReplay) {
+    try {
+      const capRes = await fetch(EUMETSAT_H60B_CAPS_URL, {
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (capRes.ok) {
+        const capXml = await capRes.text();
+        const idx = capXml.indexOf("<Name>h60b</Name>");
+        if (idx !== -1) {
+          const m = capXml
+            .slice(idx, idx + 2500)
+            .match(/<Dimension[^>]*name="time"[^>]*default="([^"]+)"/i);
+          if (m?.[1]) timeIso = m[1];
+        }
       }
+    } catch {
+      // Fall back to floored slot time
     }
-  } catch {
-    // Fall back to floored slot time
   }
   const res = await archivedFetch(
     HSAF_SOURCE_KEY,
@@ -207,7 +210,7 @@ export async function ingestHsaf(
 
   if (!baseUrl) {
     try {
-      const parsed = await deps.fetchDefaultWms(slotIso);
+      const parsed = await deps.fetchDefaultWms(slotIso, Boolean(interval));
       const communes = parsed.observations.length ? await deps.communes() : [];
       const rows = toDbRows(parsed.observations, communes);
       const stored = rows.length ? await deps.upsert(rows) : 0;

@@ -132,27 +132,35 @@ function buildGibsImergUrl(timeIso: string): string {
 
 async function fetchLatestImergGibs(
   nowMs: number,
+  replaySlotIso?: string,
 ): Promise<Awaited<ReturnType<typeof parseImergGibsTiff>>> {
-  // IMERG Early latency is ~4-6 hours; discover exact latest slot from GIBS GetCapabilities
-  const fallbackMs =
-    Math.floor((nowMs - 6 * 3_600_000) / (30 * 60_000)) * (30 * 60_000);
-  let timeIso = new Date(fallbackMs).toISOString();
-  try {
-    const capRes = await fetch(GIBS_IMERG_CAPS_URL, {
-      signal: AbortSignal.timeout(20_000),
-    });
-    if (capRes.ok) {
-      const capXml = await capRes.text();
-      const idx = capXml.indexOf("<Name>IMERG_Precipitation_Rate_30min</Name>");
-      if (idx !== -1) {
-        const m = capXml
-          .slice(idx, idx + 2500)
-          .match(/<Dimension[^>]*name="time"[^>]*default="([^"]+)"/i);
-        if (m?.[1]) timeIso = m[1];
+  let timeIso: string;
+  if (replaySlotIso) {
+    timeIso = replaySlotIso;
+  } else {
+    // IMERG Early latency is ~4-6 hours; discover exact latest slot from GIBS GetCapabilities
+    const fallbackMs =
+      Math.floor((nowMs - 6 * 3_600_000) / (30 * 60_000)) * (30 * 60_000);
+    timeIso = new Date(fallbackMs).toISOString();
+    try {
+      const capRes = await fetch(GIBS_IMERG_CAPS_URL, {
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (capRes.ok) {
+        const capXml = await capRes.text();
+        const idx = capXml.indexOf(
+          "<Name>IMERG_Precipitation_Rate_30min</Name>",
+        );
+        if (idx !== -1) {
+          const m = capXml
+            .slice(idx, idx + 2500)
+            .match(/<Dimension[^>]*name="time"[^>]*default="([^"]+)"/i);
+          if (m?.[1]) timeIso = m[1];
+        }
       }
+    } catch {
+      // Use 6-hour-lagged 30-min slot fallback
     }
-  } catch {
-    // Use 6-hour-lagged 30-min slot fallback
   }
 
   if (!cachedGibsColormap) {
@@ -162,7 +170,11 @@ async function fetchLatestImergGibs(
     if (!cmRes.ok) {
       throw new Error(`IMERG GIBS colormap HTTP ${cmRes.status}`);
     }
-    cachedGibsColormap = parseGibsRainColormapXml(await cmRes.text());
+    const parsedColormap = parseGibsRainColormapXml(await cmRes.text());
+    if (!parsedColormap.length) {
+      throw new Error("IMERG GIBS colormap XML returned zero entries");
+    }
+    cachedGibsColormap = parsedColormap;
   }
 
   const res = await archivedFetch(
@@ -237,7 +249,10 @@ export async function ingestImerg(
 
   if (!baseUrl) {
     try {
-      const parsed = await deps.fetchDefaultGibs(now());
+      const parsed = await deps.fetchDefaultGibs(
+        now(),
+        interval ? slotIso : undefined,
+      );
       const communes = parsed.observations.length ? await deps.communes() : [];
       const rows = toDbRows(parsed.observations, communes);
       const stored = rows.length ? await deps.upsert(rows) : 0;

@@ -801,7 +801,10 @@ export function parseCraagSummaryTable(
       if (thCells.length >= 4 && !matched) {
         thCells.forEach((rawH, idx) => {
           const h = rawH.toLowerCase();
-          if (/(?:\b(?:utc|gmt|tu)\b(?!\s*[+-]\d))|غرينتش|عالمي/i.test(h)) {
+          if (
+            !/(?:utc|gmt|tu)\s*[+-]\s*\d/i.test(h) &&
+            /(?:\b(?:utc|gmt|tu)\b)|غرينتش|عالمي/i.test(h)
+          ) {
             defaultOffset = "Z";
           }
           if (/date|تاريخ/i.test(h)) dateCol = idx;

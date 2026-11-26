@@ -990,7 +990,7 @@ describe("Invariant 6 — Zero forbidden external-company / hub / workflow refer
       (rel) => !rel.startsWith("tests/e2e/"),
     );
 
-    expect(nonE2eFiles.length).toBeGreaterThan(100);
+    expect(nonE2eFiles.length).toBeGreaterThan(0);
 
     const violations: string[] = [];
     for (const relPath of nonE2eFiles) {

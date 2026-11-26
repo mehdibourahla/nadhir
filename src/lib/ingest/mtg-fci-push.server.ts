@@ -61,6 +61,7 @@ async function fetchLatestEumetsatFciCap(
   consumerKey: string,
   consumerSecret: string,
   receivedAt: string,
+  interval?: SourceReplayInterval,
 ): Promise<ReturnType<typeof parseEumetsatFciCapXml>> {
   const basic = btoa(`${consumerKey}:${consumerSecret}`);
   const tokRes = await fetch(EUMETSAT_TOKEN_URL, {
@@ -80,7 +81,10 @@ async function fetchLatestEumetsatFciCap(
     throw new Error("EUMETSAT token response missing access_token");
   }
   const authHeaders = { Authorization: `Bearer ${tokJson.access_token}` };
-  const searchRes = await fetch(EUMETSAT_FCI_CAP_SEARCH_URL, {
+  const searchUrl = interval
+    ? `${EUMETSAT_FCI_CAP_SEARCH_URL}&dtstart=${encodeURIComponent(interval.dataFrom)}&dtend=${encodeURIComponent(interval.dataThrough)}`
+    : EUMETSAT_FCI_CAP_SEARCH_URL;
+  const searchRes = await fetch(searchUrl, {
     headers: authHeaders,
     signal: AbortSignal.timeout(15_000),
   });
@@ -215,7 +219,12 @@ export async function ingestMtgFciPush(
     if (key && secret) {
       const receivedAt = new Date(nowMs).toISOString();
       try {
-        const parsed = await deps.fetchEumetsatCap(key, secret, receivedAt);
+        const parsed = await deps.fetchEumetsatCap(
+          key,
+          secret,
+          receivedAt,
+          interval,
+        );
         const boundedRows = interval
           ? parsed.rows.filter((row) => {
               const ms = Date.parse(row.detected_at);
