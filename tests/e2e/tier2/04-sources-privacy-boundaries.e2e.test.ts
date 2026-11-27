@@ -1471,8 +1471,8 @@ describe("Tier 2 Boundaries — F18–F24: M6 New-Source Gate, Tariki, CRAAG/EMS
 
     it("TurnstileWidget component exists and Turnstile is wired to write endpoints without gating public read APIs", () => {
       expect(
-        repoFileExists("src/ui/turnstile.tsx"),
-        "Expected Turnstile React widget at src/ui/turnstile.tsx",
+        repoFileExists("src/components/TurnstileWidget.tsx"),
+        "Expected Turnstile React widget at src/components/TurnstileWidget.tsx",
       ).toBe(true);
 
       const publicV1Files = listRepoFiles("src/routes/api/public/v1", ".ts");

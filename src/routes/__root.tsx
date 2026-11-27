@@ -1,39 +1,107 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
-  HeadContent,
-  Link,
   Outlet,
-  Scripts,
+  Link,
   createRootRouteWithContext,
+  useRouter,
+  useRouterState,
+  HeadContent,
+  Scripts,
   redirect,
-  useLocation,
 } from "@tanstack/react-router";
 import { useEffect, useMemo, type ReactNode } from "react";
 import { I18nextProvider, useTranslation } from "react-i18next";
-import { Toaster } from "sonner";
 
+import { TooltipProvider } from "@/components/ui/tooltip";
+
+import appCss from "../styles.css?url";
 import {
-  RTL_LOCALES,
   headTranslator,
   initLocale,
   localeInstance,
   readActiveLocale,
+  RTL_LOCALES,
   syncClientLocale,
-  type AnyLocale,
-} from "@/i18n";
+} from "../i18n";
+import { THEME_BOOT_SCRIPT, applyTheme, readThemeCookie } from "../lib/theme";
+import { SiteHeader, SiteFooter, BottomTabs } from "../components/SiteChrome";
+import { AlertNotifier } from "../components/AlertNotifier";
 import { watchAuthCache } from "@/lib/auth-cache";
 import { NATIVE, openOnWeb, webOnlyPath } from "@/lib/platform";
-import { THEME_BOOT_SCRIPT, applyTheme, readThemeCookie } from "@/lib/theme";
-import appCss from "@/styles.css?url";
-import { AtlasShell } from "@/ui/app-shell";
-import { AtlasButton, AtlasPanel } from "@/ui/primitives";
 
-const ATLAS_FONTS_URL =
-  "https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap";
+function NotFoundComponent() {
+  const { t } = useTranslation();
+
+  // no route matched, so no route head can title this page
+  useEffect(() => {
+    document.title = t("notFound.metaTitle");
+  }, [t]);
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="max-w-md text-center">
+        <h1 className="text-7xl font-bold text-foreground">404</h1>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">
+          {t("notFound.title")}
+        </h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {t("notFound.body")}
+        </p>
+        <div className="mt-6">
+          <Link
+            to="/"
+            className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            {t("notFound.home")}
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+  console.error(error);
+  const router = useRouter();
+  const { t } = useTranslation();
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="max-w-md text-center">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+          {t("errorPage.title")}
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {t("errorPage.body")}
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <button
+            onClick={() => {
+              router.invalidate();
+              reset();
+            }}
+            className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            {t("common.retry")}
+          </button>
+          <a
+            href="/"
+            className="inline-flex min-h-11 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            {t("notFound.home")}
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   {
+    // Isomorphic: resolves the same locale on the server and on the client, so the
+    // SSR markup and the hydrated tree render identical text.
     beforeLoad: ({ location }) => {
+      // the SPA shell is prerendered on the server, where there is no window
       if (
         NATIVE &&
         typeof window !== "undefined" &&
@@ -49,6 +117,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         { charSet: "utf-8" },
         { name: "viewport", content: "width=device-width, initial-scale=1" },
         { name: "author", content: "Nadhir" },
+        // deepest match wins, so this only titles pages that set none (404 included)
         { title: headTranslator()("meta.defaultTitle") },
         { property: "og:type", content: "website" },
         { name: "twitter:card", content: "summary_large_image" },
@@ -61,7 +130,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           href: "https://fonts.gstatic.com",
           crossOrigin: "anonymous",
         },
-        { rel: "stylesheet", href: ATLAS_FONTS_URL },
+        {
+          rel: "stylesheet",
+          href: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap",
+        },
         { rel: "icon", href: "/favicon.ico", sizes: "48x48" },
         {
           rel: "icon",
@@ -73,33 +145,29 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         { rel: "manifest", href: "/site.webmanifest" },
       ],
     }),
-    shellComponent: RootDocument,
-    component: RootApp,
-    notFoundComponent: RootNotFound,
-    errorComponent: RootError,
+    shellComponent: RootShell,
+    component: RootComponent,
+    notFoundComponent: NotFoundComponent,
+    errorComponent: ErrorComponent,
   },
 );
 
-function RootDocument({ children }: { children: ReactNode }) {
-  const ctx = Route.useRouteContext();
-  const locale: AnyLocale = ctx?.locale ?? readActiveLocale();
-  const dir = (RTL_LOCALES as readonly string[]).includes(locale)
-    ? "rtl"
-    : "ltr";
-  const initialTheme = readThemeCookie();
-
+function RootShell({ children }: { children: ReactNode }) {
+  const locale = readActiveLocale();
+  const theme = readThemeCookie();
   return (
     <html
       lang={locale}
-      dir={dir}
-      className={initialTheme === "dark" ? "dark" : undefined}
+      dir={(RTL_LOCALES as readonly string[]).includes(locale) ? "rtl" : "ltr"}
+      className={theme === "dark" ? "dark" : undefined}
       suppressHydrationWarning
     >
       <head>
-        <HeadContent />
+        {/* Must run before paint: SSR cannot know prefers-color-scheme for "system". */}
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        <HeadContent />
       </head>
-      <body className="bg-canvas text-ink antialiased">
+      <body>
         {children}
         <Scripts />
       </body>
@@ -107,86 +175,117 @@ function RootDocument({ children }: { children: ReactNode }) {
   );
 }
 
-function RootApp() {
+function RootComponent() {
   const { queryClient, locale } = Route.useRouteContext();
-  const location = useLocation();
-  const i18n = useMemo(() => localeInstance(locale), [locale]);
+  const i18nInstance = useMemo(() => localeInstance(locale), [locale]);
+  const router = useRouter();
+  useEffect(() => watchAuthCache(queryClient), [queryClient]);
+  // Survival Mode owns the whole screen: no header, tabs or footer competing for it.
+  const survival = useRouterState({
+    select: (s) =>
+      s.location.pathname === "/survival" ||
+      s.location.pathname.startsWith("/survival/"),
+  });
+  const liveMap = useRouterState({
+    select: (s) => s.location.pathname === "/",
+  });
+  // share cards are screenshotted: nothing but the card may paint
+  const bare = useRouterState({
+    select: (s) => s.location.pathname.startsWith("/share-card/"),
+  });
 
   useEffect(() => {
+    // Keeps <html lang/dir> aligned with the active locale after hydration and ?lang= navigation.
     syncClientLocale(locale);
-    applyTheme(readThemeCookie());
-    return watchAuthCache(queryClient);
-  }, [locale, queryClient]);
+  }, [locale]);
 
-  const isBareRoute =
-    location.pathname.startsWith("/admin") ||
-    location.pathname.startsWith("/share-card");
-  const isLiveMap = location.pathname === "/";
+  useEffect(() => {
+    if (bare || NATIVE) return;
+    void import("@/integrations/supabase/legacy-session")
+      .then(({ migrateLegacySession }) => migrateLegacySession())
+      .catch(() => undefined);
+  }, [bare]);
 
-  return (
-    <QueryClientProvider client={queryClient}>
-      <I18nextProvider i18n={i18n}>
-        {isBareRoute ? (
+  useEffect(() => {
+    if (bare) return;
+    if (import.meta.env.PROD && !NATIVE && "serviceWorker" in navigator)
+      void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+  }, [bare]);
+
+  useEffect(() => {
+    if (!NATIVE) return;
+    void Promise.all([import("@/lib/push-native"), import("@/lib/push")])
+      .then(([{ startNativePush }, { syncSubscription, syncUserPush }]) =>
+        startNativePush({
+          channelName: i18nInstance.t("push.channelName"),
+          translate: (key) => i18nInstance.t(key),
+          navigate: (path) => void router.navigate({ href: path }),
+          onToken: () => {
+            void syncUserPush().catch(() => undefined);
+            void syncSubscription().catch(() => undefined);
+          },
+        }),
+      )
+      .catch((error: unknown) =>
+        console.error("native push unavailable", error),
+      );
+  }, [router, i18nInstance]);
+
+  useEffect(() => {
+    if (bare) return;
+    // ADR-0004: the client re-asserts its FCM topics on load (token refresh path)
+    void import("@/lib/push").then(({ syncSubscription, syncUserPush }) => {
+      syncSubscription().catch(() => undefined);
+      syncUserPush().catch(() => undefined);
+    });
+  }, [bare]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => {
+      if (readThemeCookie() === "system") applyTheme("system");
+    };
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+
+  if (bare)
+    return (
+      <I18nextProvider i18n={i18nInstance}>
+        <QueryClientProvider client={queryClient}>
           <Outlet />
-        ) : (
-          <AtlasShell fullBleed={isLiveMap}>
-            <Outlet />
-          </AtlasShell>
-        )}
-        <Toaster position="top-center" richColors />
+        </QueryClientProvider>
       </I18nextProvider>
-    </QueryClientProvider>
-  );
-}
+    );
 
-function RootNotFound() {
-  const { t } = useTranslation();
   return (
-    <div className="mx-auto max-w-xl px-4 py-20">
-      <AtlasPanel className="space-y-4 text-center">
-        <div className="font-mono text-xs text-ink-muted">404</div>
-        <h1 className="font-display text-3xl font-semibold text-ink">
-          {t("notFound.title")}
-        </h1>
-        <p className="text-sm text-ink-secondary">{t("notFound.body")}</p>
-        <div className="pt-2">
-          <Link to="/">
-            <AtlasButton variant="primary">{t("notFound.home")}</AtlasButton>
-          </Link>
-        </div>
-      </AtlasPanel>
-    </div>
-  );
-}
-
-function RootError({ error }: { error: unknown }) {
-  const { t } = useTranslation();
-  const message = error instanceof Error ? error.message : "";
-  return (
-    <div className="mx-auto max-w-xl px-4 py-20">
-      <AtlasPanel className="space-y-4">
-        <div className="font-mono text-xs text-hazard-extreme">ERROR</div>
-        <h1 className="font-display text-2xl font-semibold text-ink">
-          {t("errorPage.title")}
-        </h1>
-        <p className="text-sm text-ink-secondary">{t("errorPage.body")}</p>
-        {message && (
-          <pre className="overflow-x-auto rounded-lg bg-surface-raised p-3 font-mono text-xs text-ink-secondary">
-            {message}
-          </pre>
-        )}
-        <div className="flex items-center gap-2 pt-2">
-          <AtlasButton
-            variant="primary"
-            onClick={() => window.location.reload()}
+    <I18nextProvider i18n={i18nInstance}>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider delayDuration={200}>
+          <div
+            className={
+              liveMap
+                ? "flex h-dvh min-h-0 flex-col overflow-hidden [&>header]:shrink-0 [&>nav]:shrink-0"
+                : "flex min-h-screen flex-col"
+            }
           >
-            {t("common.retry")}
-          </AtlasButton>
-          <Link to="/">
-            <AtlasButton variant="secondary">{t("notFound.home")}</AtlasButton>
-          </Link>
-        </div>
-      </AtlasPanel>
-    </div>
+            <AlertNotifier />
+            {survival ? null : <SiteHeader />}
+            <main
+              className={liveMap ? "min-h-0 flex-1 overflow-hidden" : "flex-1"}
+            >
+              {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+              <Outlet />
+            </main>
+            {survival ? null : (
+              <>
+                {liveMap ? null : <SiteFooter />}
+                <BottomTabs />
+              </>
+            )}
+          </div>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </I18nextProvider>
   );
 }

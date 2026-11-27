@@ -940,10 +940,14 @@ describe("Tier 3 — Cross-Feature Pairwise Combinations (All 24 Features)", () 
       "alerts_test",
     );
 
-    const pushTestComponent = readRepoFile("src/ui/push-diagnostics.tsx");
+    const pushTestComponent = readRepoFile(
+      "src/components/nadhir/UserPushTest.tsx",
+    );
     expect(pushTestComponent.length).toBeGreaterThan(80);
 
-    const oemGuideComponent = readRepoFile("src/ui/push-diagnostics.tsx");
+    const oemGuideComponent = readRepoFile(
+      "src/components/nadhir/OemBatteryGuide.tsx",
+    );
     const track2Ar = readRepoFile("src/i18n/modules/track2/ar.ts");
     const track2Fr = readRepoFile("src/i18n/modules/track2/fr.ts");
     const combinedOem = `${oemGuideComponent}\n${track2Ar}\n${track2Fr}`;
@@ -1637,7 +1641,9 @@ describe("Tier 3 — Cross-Feature Pairwise Combinations (All 24 Features)", () 
         expect(findBannedSafeLabels(bodyText)).toEqual([]);
 
         // Verify AlertProvenance component is integrated into alert views
-        const provenanceComponent = readRepoFile("src/ui/alert-provenance.tsx");
+        const provenanceComponent = readRepoFile(
+          "src/components/nadhir/AlertProvenance.tsx",
+        );
         expect(provenanceComponent.length).toBeGreaterThan(100);
       },
     );
@@ -2029,7 +2035,10 @@ describe("Tier 3 — Cross-Feature Pairwise Combinations (All 24 Features)", () 
 
   // 19. F14 + F2
   it("19. [F14+F2] Hazard-agnostic Emergency 14 / Position Card / Check-In sheet obeys ADR-0002, ADR-0003 & isolates fire-only guidance", async () => {
-    const survivalFiles = [...listRepoFiles("src/routes/survival", ".tsx")];
+    const survivalFiles = [
+      ...listRepoFiles("src/routes/survival", ".tsx"),
+      ...listRepoFiles("src/components/survival", ".tsx"),
+    ];
     expect(survivalFiles.length).toBeGreaterThan(0);
 
     const combinedCode = survivalFiles.map((f) => readRepoFile(f)).join("\n");
@@ -2086,7 +2095,9 @@ describe("Tier 3 — Cross-Feature Pairwise Combinations (All 24 Features)", () 
 
     const forecastCode = [
       readRepoFile("src/routes/forecast.tsx"),
-      readRepoFile("src/routes/index.tsx"),
+      ...listRepoFiles("src/components/forecast", ".tsx").map((f) =>
+        readRepoFile(f),
+      ),
     ].join("\n");
     expect(forecastCode).toMatch(/imerg|observed|satellite|rain|pluie/i);
   });
@@ -2569,7 +2580,7 @@ describe("Tier 3 — Cross-Feature Pairwise Combinations (All 24 Features)", () 
     }
 
     // Verify Turnstile widget exists for write surfaces
-    expect(repoFileExists("src/ui/turnstile.tsx")).toBe(true);
+    expect(repoFileExists("src/components/TurnstileWidget.tsx")).toBe(true);
 
     // Zero Paraito references across new source/worker/docs files
     const checkPaths = [

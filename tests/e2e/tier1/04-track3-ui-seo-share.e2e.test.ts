@@ -106,9 +106,13 @@ describe("Tier 1 — F14: High-Craft UI/UX Overhaul (Mobile & Desktop, AR RTL & 
     }
   });
 
-  it("F14.3: mobile map peek sheet exposes accessible expand controls and renders cleanly on mobile 390x844", async () => {
-    const panelSrc = readRepoFile("src/routes/index.tsx");
-    expect(panelSrc).toMatch(/mobileSheetExpanded/);
+  it("F14.3: 3-detent map bottom sheet (peek/half/full) exposes accessible detent controls and cycles states smoothly on mobile 390x844", async () => {
+    const panelSrc = readRepoFile(
+      "src/components/nadhir/MapWorkspacePanel.tsx",
+    );
+    expect(panelSrc).toMatch(/peek/);
+    expect(panelSrc).toMatch(/half/);
+    expect(panelSrc).toMatch(/full/);
 
     await withBrowserPage(
       { locale: "fr", viewport: "mobile" },
@@ -190,8 +194,8 @@ describe("Tier 1 — F14: High-Craft UI/UX Overhaul (Mobile & Desktop, AR RTL & 
   });
 
   it("F14.5: 2-second alert card hierarchy renders with zero bare 'safe' status labels and zero em dashes", async () => {
-    const alertsSrc = readRepoFile("src/routes/_authenticated/alerts.tsx");
-    expect(alertsSrc).toMatch(/AlertProvenance|provenance/i);
+    const civilSrc = readRepoFile("src/components/nadhir/CivilSituation.tsx");
+    expect(civilSrc).toMatch(/AlertProvenance|provenance/i);
 
     await withBrowserPage(
       { locale: "fr", viewport: "mobile" },
@@ -299,8 +303,7 @@ describe("Tier 1 — F15: Multi-Hazard /forecast View", () => {
   it("F15.2: /forecast source & view cover ONM warnings, fire danger, weather, air quality, and observed rainfall/lightning context", () => {
     const forecastFiles = [
       "src/routes/forecast.tsx",
-      "src/routes/wilaya.$slug.tsx",
-      "src/routes/index.tsx",
+      ...listRepoFiles("src/components/forecast"),
     ].filter((f) => repoFileExists(f));
     expect(forecastFiles.length).toBeGreaterThan(0);
 

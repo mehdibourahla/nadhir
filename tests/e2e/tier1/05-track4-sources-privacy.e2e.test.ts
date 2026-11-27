@@ -1065,9 +1065,9 @@ describe("Tier 1 — F24: Cloudflare Turnstile CAPTCHA Protection", () => {
     }
   });
 
-  it("F24.4: src/ui/turnstile.tsx exists and wires cf-turnstile-response into forms", () => {
-    expect(repoFileExists("src/ui/turnstile.tsx")).toBe(true);
-    const widgetSrc = readRepoFile("src/ui/turnstile.tsx");
+  it("F24.4: src/components/TurnstileWidget.tsx exists and wires cf-turnstile-response into forms", () => {
+    expect(repoFileExists("src/components/TurnstileWidget.tsx")).toBe(true);
+    const widgetSrc = readRepoFile("src/components/TurnstileWidget.tsx");
     expect(widgetSrc).toMatch(/turnstile/i);
     expect(widgetSrc).toMatch(/cf-turnstile-response|onVerify|onToken|token/i);
   });

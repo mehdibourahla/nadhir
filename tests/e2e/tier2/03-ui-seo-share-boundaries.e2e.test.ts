@@ -170,7 +170,8 @@ describe("Tier 2 Boundaries — F14–F17: UI/UX RTL, Survival Mode, Antislop, /
 
     it("Edge Case #16 (Flood / Earthquake Guidance Isolation): Emergency/Survival guidance isolates wildfire text from flood & earthquake modes and scopes tsunami strictly to offshore M5+", async () => {
       const survivalFiles = [
-        ...listRepoFiles("src/routes/survival", ".tsx"),
+        ...listRepoFiles("src/components/survival", ".tsx"),
+        ...listRepoFiles("src/components/survival", ".ts"),
         "src/lib/survival.ts",
       ].filter((p) => repoFileExists(p));
 
@@ -381,13 +382,27 @@ describe("Tier 2 Boundaries — F14–F17: UI/UX RTL, Survival Mode, Antislop, /
       });
       expect(deduped.map((r) => r.id)).toEqual(["a", "b", "c"]);
 
-      // Map list panel enforces 20/group cap on active live map drawer
-      const mapPanelFiles = ["src/routes/index.tsx"].filter((p) =>
-        repoFileExists(p),
-      );
+      // Map list panel enforces 20/group cap across workspace, views, and civil situation (directly or via ShowMore default step=20).
+      const mapPanelFiles = [
+        "src/components/nadhir/MapWorkspacePanel.tsx",
+        "src/components/nadhir/MapPanelViews.tsx",
+        "src/components/nadhir/CivilSituation.tsx",
+      ].filter((p) => repoFileExists(p));
       expect(mapPanelFiles.length).toBeGreaterThan(0);
       const mapPanelSrc = mapPanelFiles.map((p) => readRepoFile(p)).join("\n");
-      expect(mapPanelSrc).toMatch(/\b20\b/);
+      const showMoreMatch = /<ShowMore\b([^>]*)>/.exec(mapPanelSrc);
+      if (showMoreMatch) {
+        const explicitStep = /\bstep=\{(\d+)\}/.exec(showMoreMatch[1] ?? "");
+        if (explicitStep) {
+          expect(Number(explicitStep[1])).toBeLessThanOrEqual(20);
+        } else {
+          expect(repoFileExists("src/components/ShowMore.tsx")).toBe(true);
+          const showMoreSrc = readRepoFile("src/components/ShowMore.tsx");
+          expect(showMoreSrc).toMatch(/\bstep\s*=\s*20\b/);
+        }
+      } else {
+        expect(mapPanelSrc).toMatch(/\b20\b/);
+      }
     });
   });
 

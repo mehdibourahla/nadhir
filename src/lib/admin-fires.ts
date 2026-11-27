@@ -2,7 +2,7 @@ import { useQuery, infiniteQueryOptions } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { Tone } from "@/lib/admin-format";
+import type { Tone } from "@/components/admin/kit/StatusBadge";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { AnyLocale } from "@/i18n";
@@ -113,5 +113,5 @@ export function usePlace() {
     [fire.commune_id, fire.wilaya_id]
       .map((id) => (id ? names.get(id) : undefined))
       .filter(Boolean)
-      .join(" · ") || `${fire.lat.toFixed(3)}, ${fire.lon.toFixed(3)}`;
+      .join(" — ") || `${fire.lat.toFixed(3)}, ${fire.lon.toFixed(3)}`;
 }

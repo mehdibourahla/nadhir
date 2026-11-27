@@ -658,8 +658,10 @@ describe("Tier 1 — F10: 'Why am I seeing this?' Trigger Provenance Footer", ()
   });
 
   it("F10.5: AlertProvenance component & live rendered view expose focusable 'Why am I seeing this?' disclosure with Escape dismissal", async () => {
-    expect(repoFileExists("src/ui/alert-provenance.tsx")).toBe(true);
-    const compSrc = readRepoFile("src/ui/alert-provenance.tsx");
+    expect(repoFileExists("src/components/nadhir/AlertProvenance.tsx")).toBe(
+      true,
+    );
+    const compSrc = readRepoFile("src/components/nadhir/AlertProvenance.tsx");
     expect(compSrc).toMatch(/Escape/);
     expect(compSrc).toMatch(/tabIndex|aria-expanded|<button|<details/i);
 
@@ -856,8 +858,10 @@ describe("Tier 1 — F12: User-Facing 'Test my notifications' & AR/FR OEM Batter
   });
 
   it("F12.3: OemBatteryGuide component covers major Algerian-market Android OEMs (Xiaomi, Samsung, Huawei/Honor, Oppo/Realme, Tecno/Infinix)", () => {
-    expect(repoFileExists("src/ui/push-diagnostics.tsx")).toBe(true);
-    const guideSrc = readRepoFile("src/ui/push-diagnostics.tsx");
+    expect(repoFileExists("src/components/nadhir/OemBatteryGuide.tsx")).toBe(
+      true,
+    );
+    const guideSrc = readRepoFile("src/components/nadhir/OemBatteryGuide.tsx");
     const track2En = readRepoFile("src/i18n/modules/track2/en.ts");
     const combined = `${guideSrc}\n${track2En}`.toLowerCase();
 
@@ -882,8 +886,8 @@ describe("Tier 1 — F12: User-Facing 'Test my notifications' & AR/FR OEM Batter
   });
 
   it("F12.5: UserPushTest UI component exists with >=44px accessible trigger, receipt/countdown state, and translated error state", () => {
-    expect(repoFileExists("src/ui/push-diagnostics.tsx")).toBe(true);
-    const uiSrc = readRepoFile("src/ui/push-diagnostics.tsx");
+    expect(repoFileExists("src/components/nadhir/UserPushTest.tsx")).toBe(true);
+    const uiSrc = readRepoFile("src/components/nadhir/UserPushTest.tsx");
 
     expect(uiSrc).toMatch(/min-h-11|h-11|44px/);
     expect(uiSrc).toMatch(/receipt|countdown|timeout|received|sent/i);
