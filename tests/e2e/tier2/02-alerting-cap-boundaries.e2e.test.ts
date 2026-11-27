@@ -1336,8 +1336,10 @@ describe("Tier 2 Boundaries — F7–F13: ONM CAP Chains, DGPC Non-Fire, Account
     });
 
     it("AlertProvenance component exists and provenance i18n keys exist across ar, fr, en, kab with zero em dashes", async () => {
-      expect(repoFileExists("src/ui/alert-provenance.tsx")).toBe(true);
-      const compSrc = readRepoFile("src/ui/alert-provenance.tsx");
+      expect(repoFileExists("src/components/nadhir/AlertProvenance.tsx")).toBe(
+        true,
+      );
+      const compSrc = readRepoFile("src/components/nadhir/AlertProvenance.tsx");
       expect(findEmDashesInText(compSrc).count).toBe(0);
 
       const i18nMod = await importRepoModule<{
@@ -1587,7 +1589,7 @@ describe("Tier 2 Boundaries — F7–F13: ONM CAP Chains, DGPC Non-Fire, Account
     });
 
     it("UserPushTest flow exists with translated 60s timeout and missing-token error handling (no raw stack traces)", () => {
-      const componentPath = "src/ui/push-diagnostics.tsx";
+      const componentPath = "src/components/nadhir/UserPushTest.tsx";
       expect(
         repoFileExists(componentPath),
         `Expected user-facing self-test component at ${componentPath}`,
@@ -1601,7 +1603,7 @@ describe("Tier 2 Boundaries — F7–F13: ONM CAP Chains, DGPC Non-Fire, Account
     });
 
     it("AR/FR Android OEM battery guide covers major Algerian market vendors (Xiaomi, Samsung, Huawei, Oppo/Realme, Tecno/Infinix) across 4 locales", () => {
-      const guidePath = "src/ui/push-diagnostics.tsx";
+      const guidePath = "src/components/nadhir/OemBatteryGuide.tsx";
       expect(
         repoFileExists(guidePath),
         `Expected OEM battery guide component at ${guidePath}`,

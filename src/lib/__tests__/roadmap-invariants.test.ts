@@ -698,7 +698,7 @@ describe("Invariant 2 — Zero bare 'safe' status labels (ADR-0002) and Survival
   it("contains zero hardcoded bare 'safe' status labels or em dashes in component and route JSX text nodes and user-facing attributes", () => {
     const tsxFiles = [
       ...walkFiles(
-        join(REPO_ROOT, "src/ui"),
+        join(REPO_ROOT, "src/components"),
         (rel) => rel.endsWith(".tsx") && !rel.includes("__tests__"),
       ),
       ...walkFiles(

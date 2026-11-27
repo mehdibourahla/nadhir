@@ -1,5 +1,6 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import i18n from "@/i18n";
+
+import { IncidentCard } from "@/components/share/IncidentCard";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchOfficialIncident } from "@/lib/nadhir";
 import {
@@ -8,7 +9,6 @@ import {
   shareLocale,
   type ShareFormat,
 } from "@/lib/share-card";
-import { AtlasIncidentShareCard } from "@/ui/share-card";
 
 export const Route = createFileRoute("/share-card/incident/$id")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -26,21 +26,11 @@ export const Route = createFileRoute("/share-card/incident/$id")({
     if (!incident || !isShareable(incident)) throw notFound();
     return incident;
   },
-  component: ShareCardIncidentPage,
+  component: Page,
 });
 
-function ShareCardIncidentPage() {
+function Page() {
   const incident = Route.useLoaderData();
   const { format, lang } = Route.useSearch();
-  const t = i18n.getFixedT(lang);
-  return (
-    <div className="min-h-screen bg-[#070D17] flex items-center justify-center p-0">
-      <AtlasIncidentShareCard
-        incident={incident}
-        format={format}
-        lang={lang}
-        t={(key, vars) => (vars ? t(key, vars) : t(key))}
-      />
-    </div>
-  );
+  return <IncidentCard incident={incident} format={format} lang={lang} />;
 }

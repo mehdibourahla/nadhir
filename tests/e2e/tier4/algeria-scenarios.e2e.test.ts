@@ -1427,11 +1427,15 @@ describe("Tier 4 — 12 Real-World Algerian Multi-Hazard Application Scenarios",
       "alerts_test",
     );
     expect(channelMod.channelFromFcmData({ kind: "test" })).toBe("alerts_test");
-    const userPushTestSrc = readRepoFile("src/ui/push-diagnostics.tsx");
-    expect(userPushTestSrc).toMatch(/push-test|alerts_test|receipt|pushTest/i);
+    const userPushTestSrc = readRepoFile(
+      "src/components/nadhir/UserPushTest.tsx",
+    );
+    expect(userPushTestSrc).toMatch(/push-test|alerts_test|receipt/i);
 
     // Stage C: AR/FR OEM Battery Guide covers all 5 Android OEM families popular in Algeria
-    const oemGuideSrc = readRepoFile("src/ui/push-diagnostics.tsx");
+    const oemGuideSrc = readRepoFile(
+      "src/components/nadhir/OemBatteryGuide.tsx",
+    );
     const track2Ar = readRepoFile("src/i18n/modules/track2/ar.ts");
     const track2Fr = readRepoFile("src/i18n/modules/track2/fr.ts");
     const oemBundle = `${oemGuideSrc}\n${track2Ar}\n${track2Fr}`;
@@ -1659,7 +1663,10 @@ describe("Tier 4 — 12 Real-World Algerian Multi-Hazard Application Scenarios",
     );
 
     // Inspect Survival Mode route/component & i18n contracts for ADR-0002 / ADR-0003 invariants
-    const survivalFiles = [...listRepoFiles("src/routes/survival", ".tsx")];
+    const survivalFiles = [
+      ...listRepoFiles("src/routes/survival", ".tsx"),
+      ...listRepoFiles("src/components/survival", ".tsx"),
+    ];
     expect(survivalFiles.length).toBeGreaterThan(0);
     const survivalCode = survivalFiles.map((f) => readRepoFile(f)).join("\n");
 
