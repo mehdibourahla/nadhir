@@ -69,21 +69,22 @@ describe("antislop R-03 touch-target compliance & auth locale redirect contracts
     expect(attribButtonBlock![0]).toMatch(/min-width:\s*44px/);
   });
 
-  it("enforces min-h-11 on SiteHeader primary nav links and all SiteFooter links", () => {
-    const chrome = readSource("src/components/SiteChrome.tsx");
+  it("enforces min-h-11 on Instrument Rail primary nav links and all AtlasPageFooter links", () => {
+    const chrome = readSource("src/ui/app-shell.tsx");
 
-    // Primary desktop nav links inside SiteHeader
+    // Primary desktop nav links inside Instrument Rail
     const navMatch = chrome.match(
       /<nav[\s\S]*?aria-label=\{t\("nav\.map"\)\}[\s\S]*?<\/nav>/,
     );
     expect(navMatch, "missing desktop primary nav").toBeTruthy();
     expect(navMatch![0]).toContain("min-h-11");
     expect(navMatch![0]).toContain("min-w-11");
-    expect(navMatch![0]).not.toMatch(/className="rounded-md px-2\.5 py-1\.5/);
 
-    // SiteFooter links must have unconditional min-h-11 min-w-11 (not only pointer-coarse)
-    const footerMatch = chrome.match(/export function SiteFooter\(\)[\s\S]*$/);
-    expect(footerMatch, "missing SiteFooter").toBeTruthy();
+    // AtlasPageFooter links must have unconditional min-h-11 min-w-11
+    const footerMatch = chrome.match(
+      /export function AtlasPageFooter\(\)[\s\S]*$/,
+    );
+    expect(footerMatch, "missing AtlasPageFooter").toBeTruthy();
     const footerLinks = [...footerMatch![0].matchAll(/<Link[\s\S]*?>/g)];
     expect(footerLinks.length).toBeGreaterThanOrEqual(6);
     for (const match of footerLinks) {
@@ -93,12 +94,13 @@ describe("antislop R-03 touch-target compliance & auth locale redirect contracts
     }
   });
 
-  it("enforces >= 44px controls on /settings and Switch primitive without tiny checkboxes", () => {
+  it("enforces >= 44px controls on /settings and push diagnostics without tiny checkboxes", () => {
     const settings = readSource("src/routes/_authenticated/settings.tsx");
-    const switchSource = readSource("src/components/ui/switch.tsx");
+    const diagnostics = readSource("src/ui/push-diagnostics.tsx");
 
     // Zero em dashes in settings.tsx (R-02)
     expect(settings).not.toContain("\u2014");
+    expect(diagnostics).not.toContain("\u2014");
 
     // Zero raw small checkboxes (h-5 w-5) on /settings
     expect(settings).not.toMatch(/type="checkbox"/);
@@ -114,9 +116,8 @@ describe("antislop R-03 touch-target compliance & auth locale redirect contracts
       expect(tag, `Control missing min-h-11:\n${tag}`).toContain("min-h-11");
     }
 
-    // Switch primitive root button enforces min-h-11 min-w-11 for R-03
-    expect(switchSource).toContain("min-h-11");
-    expect(switchSource).toContain("min-w-11");
+    // Push diagnostics buttons enforce min-h-11 for R-03
+    expect(diagnostics).toContain("min-h-11");
   });
 
   it("wires locale preservation in _authenticated/route.tsx and routes/auth.tsx", () => {

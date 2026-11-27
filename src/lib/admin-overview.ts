@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 
-import type { Tone } from "@/components/admin/kit/StatusBadge";
+import type { Tone } from "@/lib/admin-format";
 import { supabase } from "@/integrations/supabase/client";
 import { ar } from "@/i18n/locales/ar";
 import { fr } from "@/i18n/locales/fr";

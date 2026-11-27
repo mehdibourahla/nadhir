@@ -13,6 +13,7 @@ import { Compass, Crosshair, Minus, Plus } from "lucide-react";
 import "@/lib/map-worker";
 import type { AirportWeather } from "@/lib/airport-weather";
 import type { Situation } from "@/lib/civil-map";
+import { EMPTY_FC } from "@/lib/satellite-layers";
 import { cn } from "@/lib/utils";
 import { resolveMapStyle, type AtlasBasemap } from "@/ui/basemaps";
 
@@ -22,11 +23,16 @@ export type AtlasHazardMapProps = {
   officialGeo: FeatureCollection;
   reportsGeo: FeatureCollection;
   fires: Extract<Situation, { source: "satellite" }>[];
+  rainfallGeo?: FeatureCollection;
+  lightningGeo?: FeatureCollection;
+  gwisGeo?: FeatureCollection;
+  gwisCentroidsGeo?: FeatureCollection;
   stations?: AirportWeather[];
   showStations?: boolean;
   selectedId?: string | undefined;
   focusTarget?: { lat: number; lon: number; zoom?: number; key: number } | null;
   onSelectSituation: (id: string | undefined) => void;
+  onSelectGwis?: (eventId: string | undefined) => void;
   onLocate?: () => void;
   className?: string;
 };
@@ -82,11 +88,16 @@ export function AtlasHazardMap({
   officialGeo,
   reportsGeo,
   fires,
+  rainfallGeo = EMPTY_FC,
+  lightningGeo = EMPTY_FC,
+  gwisGeo = EMPTY_FC,
+  gwisCentroidsGeo = EMPTY_FC,
   stations = [],
   showStations = false,
   selectedId,
   focusTarget,
   onSelectSituation,
+  onSelectGwis,
   onLocate,
   className,
 }: AtlasHazardMapProps) {
@@ -100,6 +111,10 @@ export function AtlasHazardMap({
     officialGeo,
     reportsGeo,
     fires,
+    rainfallGeo,
+    lightningGeo,
+    gwisGeo,
+    gwisCentroidsGeo,
     stations,
     showStations,
     selectedId,
@@ -109,6 +124,10 @@ export function AtlasHazardMap({
     officialGeo,
     reportsGeo,
     fires,
+    rainfallGeo,
+    lightningGeo,
+    gwisGeo,
+    gwisCentroidsGeo,
     stations,
     showStations,
     selectedId,
@@ -116,6 +135,8 @@ export function AtlasHazardMap({
 
   const onSelectRef = useRef(onSelectSituation);
   onSelectRef.current = onSelectSituation;
+  const onSelectGwisRef = useRef(onSelectGwis);
+  onSelectGwisRef.current = onSelectGwis;
 
   function attachSourcesAndLayers(map: MapLibreMap) {
     const data = latestDataRef.current;
@@ -124,56 +145,24 @@ export function AtlasHazardMap({
       data.showStations ? data.stations : [],
     );
 
-    if (!map.getSource("atlas-warnings")) {
-      map.addSource("atlas-warnings", {
-        type: "geojson",
-        data: data.warningsGeo,
-      });
-    } else {
-      (map.getSource("atlas-warnings") as GeoJSONSource).setData(
-        data.warningsGeo,
-      );
-    }
+    const setOrAddSource = (id: string, fc: FeatureCollection) => {
+      const existing = map.getSource(id) as GeoJSONSource | undefined;
+      if (!existing) {
+        map.addSource(id, { type: "geojson", data: fc });
+      } else {
+        existing.setData(fc);
+      }
+    };
 
-    if (!map.getSource("atlas-official")) {
-      map.addSource("atlas-official", {
-        type: "geojson",
-        data: data.officialGeo,
-      });
-    } else {
-      (map.getSource("atlas-official") as GeoJSONSource).setData(
-        data.officialGeo,
-      );
-    }
-
-    if (!map.getSource("atlas-reports")) {
-      map.addSource("atlas-reports", {
-        type: "geojson",
-        data: data.reportsGeo,
-      });
-    } else {
-      (map.getSource("atlas-reports") as GeoJSONSource).setData(
-        data.reportsGeo,
-      );
-    }
-
-    if (!map.getSource("atlas-fires")) {
-      map.addSource("atlas-fires", {
-        type: "geojson",
-        data: firesGeo,
-      });
-    } else {
-      (map.getSource("atlas-fires") as GeoJSONSource).setData(firesGeo);
-    }
-
-    if (!map.getSource("atlas-stations")) {
-      map.addSource("atlas-stations", {
-        type: "geojson",
-        data: stationsGeo,
-      });
-    } else {
-      (map.getSource("atlas-stations") as GeoJSONSource).setData(stationsGeo);
-    }
+    setOrAddSource("atlas-warnings", data.warningsGeo);
+    setOrAddSource("atlas-rainfall", data.rainfallGeo);
+    setOrAddSource("atlas-gwis", data.gwisGeo);
+    setOrAddSource("atlas-gwis-centroids", data.gwisCentroidsGeo);
+    setOrAddSource("atlas-lightning", data.lightningGeo);
+    setOrAddSource("atlas-official", data.officialGeo);
+    setOrAddSource("atlas-reports", data.reportsGeo);
+    setOrAddSource("atlas-fires", firesGeo);
+    setOrAddSource("atlas-stations", stationsGeo);
 
     if (!map.getLayer("atlas-warnings-fill")) {
       map.addLayer({
@@ -239,6 +228,237 @@ export function AtlasHazardMap({
           ],
           "line-width": ["case", ["==", ["get", "selected"], true], 2.8, 1.6],
           "line-opacity": 0.95,
+        },
+      });
+    }
+
+    // EUMETSAT H-SAF / NASA IMERG satellite rainfall observation field
+    if (!map.getLayer("atlas-rainfall-halo")) {
+      map.addLayer({
+        id: "atlas-rainfall-halo",
+        type: "circle",
+        source: "atlas-rainfall",
+        paint: {
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            4,
+            9,
+            7,
+            18,
+            10,
+            28,
+          ],
+          "circle-blur": 0.75,
+          "circle-color": [
+            "interpolate",
+            ["linear"],
+            ["get", "rate_mm_h"],
+            0.2,
+            "#38BDF8",
+            1.5,
+            "#0EA5E9",
+            4.0,
+            "#2563EB",
+            8.0,
+            "#4F46E5",
+            15.0,
+            "#7C3AED",
+          ],
+          "circle-opacity": [
+            "interpolate",
+            ["linear"],
+            ["get", "rate_mm_h"],
+            0.1,
+            0.22,
+            1.5,
+            0.38,
+            6.0,
+            0.55,
+          ],
+        },
+      });
+    }
+
+    if (!map.getLayer("atlas-rainfall-cell")) {
+      map.addLayer({
+        id: "atlas-rainfall-cell",
+        type: "circle",
+        source: "atlas-rainfall",
+        paint: {
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            4,
+            2.6,
+            7,
+            5.5,
+            10,
+            9,
+          ],
+          "circle-color": [
+            "interpolate",
+            ["linear"],
+            ["get", "rate_mm_h"],
+            0.2,
+            "#7DD3FC",
+            1.5,
+            "#38BDF8",
+            4.0,
+            "#3B82F6",
+            8.0,
+            "#6366F1",
+            15.0,
+            "#A855F7",
+          ],
+          "circle-opacity": 0.85,
+        },
+      });
+    }
+
+    // Copernicus EMS GWIS / EFFIS FIRMS-derived burned area perimeters (CC BY 4.0)
+    if (!map.getLayer("atlas-gwis-fill")) {
+      map.addLayer({
+        id: "atlas-gwis-fill",
+        type: "fill",
+        source: "atlas-gwis",
+        paint: {
+          "fill-color": [
+            "case",
+            ["==", ["get", "selected"], true],
+            "#F43F5E",
+            "#E11D48",
+          ],
+          "fill-opacity": [
+            "case",
+            ["==", ["get", "selected"], true],
+            0.48,
+            0.28,
+          ],
+        },
+      });
+    }
+
+    if (!map.getLayer("atlas-gwis-outline")) {
+      map.addLayer({
+        id: "atlas-gwis-outline",
+        type: "line",
+        source: "atlas-gwis",
+        paint: {
+          "line-color": [
+            "case",
+            ["==", ["get", "selected"], true],
+            "#FFE4E6",
+            "#FB7185",
+          ],
+          "line-width": ["case", ["==", ["get", "selected"], true], 3, 1.8],
+          "line-opacity": 0.96,
+        },
+      });
+    }
+
+    if (!map.getLayer("atlas-gwis-centroid")) {
+      map.addLayer({
+        id: "atlas-gwis-centroid",
+        type: "circle",
+        source: "atlas-gwis-centroids",
+        paint: {
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            4,
+            ["case", ["==", ["get", "selected"], true], 8, 4.5],
+            9,
+            ["case", ["==", ["get", "selected"], true], 10, 6],
+            12,
+            0,
+          ],
+          "circle-color": "rgba(225, 29, 72, 0.25)",
+          "circle-stroke-width": [
+            "case",
+            ["==", ["get", "selected"], true],
+            2.5,
+            1.6,
+          ],
+          "circle-stroke-color": [
+            "case",
+            ["==", ["get", "selected"], true],
+            "#FFE4E6",
+            "#FB7185",
+          ],
+        },
+      });
+    }
+
+    // EUMETSAT MTG Lightning Imager L2 observations (distinct from wildfire)
+    if (!map.getLayer("atlas-lightning-glow")) {
+      map.addLayer({
+        id: "atlas-lightning-glow",
+        type: "circle",
+        source: "atlas-lightning",
+        paint: {
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            4,
+            7,
+            8,
+            11,
+            11,
+            15,
+          ],
+          "circle-blur": 0.65,
+          "circle-color": "#FACC15",
+          "circle-opacity": [
+            "interpolate",
+            ["linear"],
+            ["get", "age_minutes"],
+            0,
+            0.52,
+            45,
+            0.34,
+            120,
+            0.18,
+          ],
+        },
+      });
+    }
+
+    if (!map.getLayer("atlas-lightning-flash")) {
+      map.addLayer({
+        id: "atlas-lightning-flash",
+        type: "circle",
+        source: "atlas-lightning",
+        paint: {
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            4,
+            2.5,
+            8,
+            3.8,
+            11,
+            5,
+          ],
+          "circle-color": "#FEF9C3",
+          "circle-stroke-width": 1.4,
+          "circle-stroke-color": "#F59E0B",
+          "circle-opacity": [
+            "interpolate",
+            ["linear"],
+            ["get", "age_minutes"],
+            0,
+            0.98,
+            60,
+            0.8,
+            120,
+            0.55,
+          ],
         },
       });
     }
@@ -422,6 +642,9 @@ export function AtlasHazardMap({
     const interactiveLayers = [
       "atlas-fires-core",
       "atlas-fires-ring",
+      "atlas-gwis-centroid",
+      "atlas-gwis-fill",
+      "atlas-gwis-outline",
       "atlas-official-points",
       "atlas-reports-points",
       "atlas-warnings-points",
@@ -438,10 +661,18 @@ export function AtlasHazardMap({
       if (!existing.length) return;
       const hits = map.queryRenderedFeatures(e.point, { layers: existing });
       const top = hits[0];
+      const gwisId = top?.properties?.["gwisEventId"];
+      if (typeof gwisId === "string" && gwisId.length > 0) {
+        onSelectRef.current(undefined);
+        onSelectGwisRef.current?.(gwisId);
+        return;
+      }
       const sid = top?.properties?.["situationId"];
       if (typeof sid === "string" && sid.length > 0) {
+        onSelectGwisRef.current?.(undefined);
         onSelectRef.current(sid);
       } else {
+        onSelectGwisRef.current?.(undefined);
         onSelectRef.current(undefined);
       }
     });
@@ -494,6 +725,10 @@ export function AtlasHazardMap({
     officialGeo,
     reportsGeo,
     fires,
+    rainfallGeo,
+    lightningGeo,
+    gwisGeo,
+    gwisCentroidsGeo,
     stations,
     showStations,
     selectedId,

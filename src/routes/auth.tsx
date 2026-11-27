@@ -18,6 +18,7 @@ import { titledMeta } from "@/lib/page-meta";
 import { APP_ORIGIN } from "@/lib/platform";
 import { NadhirMark } from "@/ui/brand";
 import { AtlasButton, AtlasInput, AtlasPanel } from "@/ui/primitives";
+import { TurnstileWidget } from "@/ui/turnstile";
 
 export const Route = createFileRoute("/auth")({
   validateSearch: (
@@ -320,6 +321,8 @@ function AuthPage() {
                   {errorMsg}
                 </div>
               )}
+
+              <TurnstileWidget />
 
               <AtlasButton
                 type="submit"

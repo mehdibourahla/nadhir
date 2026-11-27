@@ -25,6 +25,7 @@ import { relativeTime } from "@/lib/nadhir";
 import { titledMeta } from "@/lib/page-meta";
 import { pageRows } from "@/lib/paging";
 import { cn } from "@/lib/utils";
+import { AlertProvenance } from "@/ui/alert-provenance";
 import { AtlasPageFooter } from "@/ui/app-shell";
 import { cleanCopy } from "@/ui/format";
 import {
@@ -288,11 +289,15 @@ function AlertsPage() {
                       </SafeBdi>
                     </div>
                     <div className="text-sm font-semibold text-ink">
-                      {cleanCopy(g.latest.title)}
+                      <SafeBdi dir="auto">{cleanCopy(g.latest.title)}</SafeBdi>
                     </div>
                     <p className="text-xs text-ink-secondary leading-relaxed">
-                      {cleanCopy(g.latest.body)}
+                      <SafeBdi dir="auto">{cleanCopy(g.latest.body)}</SafeBdi>
                     </p>
+                    <AlertProvenance
+                      source={g.latest.source_table}
+                      observedAt={g.latest.created_at}
+                    />
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">

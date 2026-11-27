@@ -17,6 +17,7 @@ import { signOutAccount } from "@/lib/sign-out";
 import { cn } from "@/lib/utils";
 import { AtlasPageFooter } from "@/ui/app-shell";
 import { AtlasLoading, AtlasMasthead, AtlasPanel } from "@/ui/primitives";
+import { OemBatteryGuide, UserPushTest } from "@/ui/push-diagnostics";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
@@ -162,309 +163,313 @@ function SettingsPage() {
       {profileQ.isLoading ? (
         <AtlasLoading />
       ) : (
-        <AtlasPanel className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label
-                htmlFor="settings-name"
-                className="text-xs font-medium text-ink-secondary"
-              >
-                {t("authKit.name")}
-              </label>
-              <input
-                id="settings-name"
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className={`min-h-11 ${FIELD_BASE}`}
-              />
+        <div className="space-y-6">
+          <AtlasPanel className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="settings-name"
+                  className="text-xs font-medium text-ink-secondary"
+                >
+                  {t("authKit.name")}
+                </label>
+                <input
+                  id="settings-name"
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className={`min-h-11 ${FIELD_BASE}`}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="settings-phone"
+                  className="text-xs font-medium text-ink-secondary"
+                >
+                  {uiLocale === "ar"
+                    ? "رقم الهاتف"
+                    : uiLocale === "fr"
+                      ? "Téléphone"
+                      : "Phone"}
+                </label>
+                <input
+                  id="settings-phone"
+                  type="tel"
+                  dir="ltr"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className={`min-h-11 ${FIELD_BASE}`}
+                />
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label
-                htmlFor="settings-phone"
-                className="text-xs font-medium text-ink-secondary"
-              >
-                {uiLocale === "ar"
-                  ? "رقم الهاتف"
-                  : uiLocale === "fr"
-                    ? "Téléphone"
-                    : "Phone"}
-              </label>
-              <input
-                id="settings-phone"
-                type="tel"
-                dir="ltr"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className={`min-h-11 ${FIELD_BASE}`}
-              />
-            </div>
-          </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="settings-locale"
+                  className="text-xs font-medium text-ink-secondary"
+                >
+                  {uiLocale === "ar"
+                    ? "اللغة"
+                    : uiLocale === "fr"
+                      ? "Langue"
+                      : "Language"}
+                </label>
+                <select
+                  id="settings-locale"
+                  value={locale}
+                  onChange={(e) => setLocale(e.target.value as Locale)}
+                  className={`min-h-11 ${FIELD_BASE}`}
+                >
+                  {LOCALES.map((loc) => (
+                    <option key={loc} value={loc}>
+                      {LOCALE_LABELS[loc]}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label
-                htmlFor="settings-locale"
-                className="text-xs font-medium text-ink-secondary"
-              >
-                {uiLocale === "ar"
-                  ? "اللغة"
-                  : uiLocale === "fr"
-                    ? "Langue"
-                    : "Language"}
-              </label>
-              <select
-                id="settings-locale"
-                value={locale}
-                onChange={(e) => setLocale(e.target.value as Locale)}
-                className={`min-h-11 ${FIELD_BASE}`}
-              >
-                {LOCALES.map((loc) => (
-                  <option key={loc} value={loc}>
-                    {LOCALE_LABELS[loc]}
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="settings-danger"
+                  className="text-xs font-medium text-ink-secondary"
+                >
+                  {uiLocale === "ar"
+                    ? "الحد الأدنى لخطر الحرائق"
+                    : uiLocale === "fr"
+                      ? "Seuil minimal de danger feu"
+                      : "Minimum fire danger level"}
+                </label>
+                <select
+                  id="settings-danger"
+                  value={String(minDanger)}
+                  onChange={(e) => setMinDanger(Number(e.target.value))}
+                  className={`min-h-11 ${FIELD_BASE}`}
+                >
+                  <option value="2">
+                    {uiLocale === "ar"
+                      ? "متوسط (+2)"
+                      : uiLocale === "fr"
+                        ? "Modéré (2+)"
+                        : "Moderate (2+)"}
                   </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label
-                htmlFor="settings-danger"
-                className="text-xs font-medium text-ink-secondary"
-              >
-                {uiLocale === "ar"
-                  ? "الحد الأدنى لخطر الحرائق"
-                  : uiLocale === "fr"
-                    ? "Seuil minimal de danger feu"
-                    : "Minimum fire danger level"}
-              </label>
-              <select
-                id="settings-danger"
-                value={String(minDanger)}
-                onChange={(e) => setMinDanger(Number(e.target.value))}
-                className={`min-h-11 ${FIELD_BASE}`}
-              >
-                <option value="2">
-                  {uiLocale === "ar"
-                    ? "متوسط (+2)"
-                    : uiLocale === "fr"
-                      ? "Modéré (2+)"
-                      : "Moderate (2+)"}
-                </option>
-                <option value="3">
-                  {uiLocale === "ar"
-                    ? "مرتفع (+3)"
-                    : uiLocale === "fr"
-                      ? "Élevé (3+)"
-                      : "High (3+)"}
-                </option>
-                <option value="4">
-                  {uiLocale === "ar"
-                    ? "مرتفع جدًا (+4)"
-                    : uiLocale === "fr"
-                      ? "Très élevé (4+)"
-                      : "Very High (4+)"}
-                </option>
-                <option value="5">
-                  {uiLocale === "ar"
-                    ? "قصوى (5)"
-                    : uiLocale === "fr"
-                      ? "Extrême (5)"
-                      : "Extreme (5)"}
-                </option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label
-                htmlFor="settings-digest"
-                className="text-xs font-medium text-ink-secondary"
-              >
-                {uiLocale === "ar"
-                  ? "ملخص البريد الإلكتروني"
-                  : uiLocale === "fr"
-                    ? "Fréquence des e-mails"
-                    : "Email digest"}
-              </label>
-              <select
-                id="settings-digest"
-                value={digest}
-                onChange={(e) =>
-                  setDigest(e.target.value as EmailDigestFrequency)
-                }
-                className={`min-h-11 ${FIELD_BASE}`}
-              >
-                <option value="immediate">
-                  {uiLocale === "ar"
-                    ? "فوري"
-                    : uiLocale === "fr"
-                      ? "Immédiat"
-                      : "Immediate"}
-                </option>
-                <option value="hourly">
-                  {uiLocale === "ar"
-                    ? "كل ساعة"
-                    : uiLocale === "fr"
-                      ? "Toutes les heures"
-                      : "Hourly"}
-                </option>
-                <option value="daily">
-                  {uiLocale === "ar"
-                    ? "يومي"
-                    : uiLocale === "fr"
-                      ? "Quotidien"
-                      : "Daily"}
-                </option>
-                <option value="off">{offLabel}</option>
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label
-                htmlFor="settings-digest-hour"
-                className="text-xs font-medium text-ink-secondary"
-              >
-                {uiLocale === "ar"
-                  ? "ساعة الملخص اليومي (توقيت الجزائر)"
-                  : uiLocale === "fr"
-                    ? "Heure du résumé quotidien (Alger CET)"
-                    : "Daily digest hour (Algiers CET)"}
-              </label>
-              <select
-                id="settings-digest-hour"
-                value={String(digestHour)}
-                onChange={(e) => setDigestHour(Number(e.target.value))}
-                className={`min-h-11 ${FIELD_BASE}`}
-              >
-                {Array.from({ length: 24 }, (_, h) => (
-                  <option key={h} value={String(h)}>
-                    {String(h).padStart(2, "0")}:00
+                  <option value="3">
+                    {uiLocale === "ar"
+                      ? "مرتفع (+3)"
+                      : uiLocale === "fr"
+                        ? "Élevé (3+)"
+                        : "High (3+)"}
                   </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label
-                htmlFor="settings-quiet-start"
-                className="text-xs font-medium text-ink-secondary"
-              >
-                {uiLocale === "ar"
-                  ? "بداية ساعات الهدوء"
-                  : uiLocale === "fr"
-                    ? "Début des heures calmes"
-                    : "Quiet hours start"}
-              </label>
-              <select
-                id="settings-quiet-start"
-                value={quietStart}
-                onChange={(e) => setQuietStart(e.target.value)}
-                className={`min-h-11 ${FIELD_BASE}`}
-              >
-                <option value="">{offLabel}</option>
-                {Array.from({ length: 24 }, (_, h) => (
-                  <option key={h} value={String(h)}>
-                    {String(h).padStart(2, "0")}:00
+                  <option value="4">
+                    {uiLocale === "ar"
+                      ? "مرتفع جدًا (+4)"
+                      : uiLocale === "fr"
+                        ? "Très élevé (4+)"
+                        : "Very High (4+)"}
                   </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label
-                htmlFor="settings-quiet-end"
-                className="text-xs font-medium text-ink-secondary"
-              >
-                {uiLocale === "ar"
-                  ? "نهاية ساعات الهدوء"
-                  : uiLocale === "fr"
-                    ? "Fin des heures calmes"
-                    : "Quiet hours end"}
-              </label>
-              <select
-                id="settings-quiet-end"
-                value={quietEnd}
-                onChange={(e) => setQuietEnd(e.target.value)}
-                className={`min-h-11 ${FIELD_BASE}`}
-              >
-                <option value="">{offLabel}</option>
-                {Array.from({ length: 24 }, (_, h) => (
-                  <option key={h} value={String(h)}>
-                    {String(h).padStart(2, "0")}:00
+                  <option value="5">
+                    {uiLocale === "ar"
+                      ? "قصوى (5)"
+                      : uiLocale === "fr"
+                        ? "Extrême (5)"
+                        : "Extreme (5)"}
                   </option>
-                ))}
-              </select>
+                </select>
+              </div>
             </div>
-          </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-hairline pt-4">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={alertEmail}
-              onClick={() => setAlertEmail((v) => !v)}
-              className="inline-flex min-h-11 items-center gap-3 rounded-lg border border-hairline bg-surface px-3.5 text-sm font-medium text-ink hover:bg-surface-raised transition-colors cursor-pointer"
-            >
-              <span
-                className={cn(
-                  "h-5 w-9 rounded-full p-0.5 transition-colors flex items-center",
-                  alertEmail
-                    ? "bg-signal justify-end"
-                    : "bg-hairline-strong justify-start",
-                )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="settings-digest"
+                  className="text-xs font-medium text-ink-secondary"
+                >
+                  {uiLocale === "ar"
+                    ? "ملخص البريد الإلكتروني"
+                    : uiLocale === "fr"
+                      ? "Fréquence des e-mails"
+                      : "Email digest"}
+                </label>
+                <select
+                  id="settings-digest"
+                  value={digest}
+                  onChange={(e) =>
+                    setDigest(e.target.value as EmailDigestFrequency)
+                  }
+                  className={`min-h-11 ${FIELD_BASE}`}
+                >
+                  <option value="immediate">
+                    {uiLocale === "ar"
+                      ? "فوري"
+                      : uiLocale === "fr"
+                        ? "Immédiat"
+                        : "Immediate"}
+                  </option>
+                  <option value="hourly">
+                    {uiLocale === "ar"
+                      ? "كل ساعة"
+                      : uiLocale === "fr"
+                        ? "Toutes les heures"
+                        : "Hourly"}
+                  </option>
+                  <option value="daily">
+                    {uiLocale === "ar"
+                      ? "يومي"
+                      : uiLocale === "fr"
+                        ? "Quotidien"
+                        : "Daily"}
+                  </option>
+                  <option value="off">{offLabel}</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="settings-digest-hour"
+                  className="text-xs font-medium text-ink-secondary"
+                >
+                  {uiLocale === "ar"
+                    ? "ساعة الملخص اليومي (توقيت الجزائر)"
+                    : uiLocale === "fr"
+                      ? "Heure du résumé quotidien (Alger CET)"
+                      : "Daily digest hour (Algiers CET)"}
+                </label>
+                <select
+                  id="settings-digest-hour"
+                  value={String(digestHour)}
+                  onChange={(e) => setDigestHour(Number(e.target.value))}
+                  className={`min-h-11 ${FIELD_BASE}`}
+                >
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <option key={h} value={String(h)}>
+                      {String(h).padStart(2, "0")}:00
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="settings-quiet-start"
+                  className="text-xs font-medium text-ink-secondary"
+                >
+                  {uiLocale === "ar"
+                    ? "بداية ساعات الهدوء"
+                    : uiLocale === "fr"
+                      ? "Début des heures calmes"
+                      : "Quiet hours start"}
+                </label>
+                <select
+                  id="settings-quiet-start"
+                  value={quietStart}
+                  onChange={(e) => setQuietStart(e.target.value)}
+                  className={`min-h-11 ${FIELD_BASE}`}
+                >
+                  <option value="">{offLabel}</option>
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <option key={h} value={String(h)}>
+                      {String(h).padStart(2, "0")}:00
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="settings-quiet-end"
+                  className="text-xs font-medium text-ink-secondary"
+                >
+                  {uiLocale === "ar"
+                    ? "نهاية ساعات الهدوء"
+                    : uiLocale === "fr"
+                      ? "Fin des heures calmes"
+                      : "Quiet hours end"}
+                </label>
+                <select
+                  id="settings-quiet-end"
+                  value={quietEnd}
+                  onChange={(e) => setQuietEnd(e.target.value)}
+                  className={`min-h-11 ${FIELD_BASE}`}
+                >
+                  <option value="">{offLabel}</option>
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <option key={h} value={String(h)}>
+                      {String(h).padStart(2, "0")}:00
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-4 border-t border-hairline pt-4">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={alertEmail}
+                onClick={() => setAlertEmail((v) => !v)}
+                className="inline-flex min-h-11 items-center gap-3 rounded-lg border border-hairline bg-surface px-3.5 text-sm font-medium text-ink hover:bg-surface-raised transition-colors cursor-pointer"
               >
-                <span className="h-4 w-4 rounded-full bg-surface shadow-xs" />
-              </span>
-              <span>
+                <span
+                  className={cn(
+                    "h-5 w-9 rounded-full p-0.5 transition-colors flex items-center",
+                    alertEmail
+                      ? "bg-signal justify-end"
+                      : "bg-hairline-strong justify-start",
+                  )}
+                >
+                  <span className="h-4 w-4 rounded-full bg-surface shadow-xs" />
+                </span>
+                <span>
+                  {uiLocale === "ar"
+                    ? "تنبيهات البريد الإلكتروني"
+                    : uiLocale === "fr"
+                      ? "Notifications par e-mail"
+                      : "Email notifications"}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void togglePush()}
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-hairline bg-surface px-3.5 text-sm font-medium text-ink hover:bg-surface-raised transition-colors cursor-pointer"
+              >
+                <Bell className="h-4 w-4 text-signal" />
+                {alertPush
+                  ? uiLocale === "ar"
+                    ? "إشعارات الجهاز مفعّلة"
+                    : uiLocale === "fr"
+                      ? "Push appareil actif"
+                      : "Device push active"
+                  : uiLocale === "ar"
+                    ? "تفعيل إشعارات الجهاز"
+                    : uiLocale === "fr"
+                      ? "Activer le push appareil"
+                      : "Enable device push"}
+              </button>
+            </div>
+
+            <div className="flex justify-end border-t border-hairline pt-4">
+              <button
+                type="button"
+                onClick={() => saveMut.mutate()}
+                disabled={saveMut.isPending}
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-signal px-5 text-sm font-medium text-signal-ink hover:opacity-95 disabled:opacity-50 transition-opacity cursor-pointer"
+              >
+                <Save className="h-4 w-4" />
                 {uiLocale === "ar"
-                  ? "تنبيهات البريد الإلكتروني"
+                  ? "حفظ التغييرات"
                   : uiLocale === "fr"
-                    ? "Notifications par e-mail"
-                    : "Email notifications"}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void togglePush()}
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-hairline bg-surface px-3.5 text-sm font-medium text-ink hover:bg-surface-raised transition-colors cursor-pointer"
-            >
-              <Bell className="h-4 w-4 text-signal" />
-              {alertPush
-                ? uiLocale === "ar"
-                  ? "إشعارات الجهاز مفعّلة"
-                  : uiLocale === "fr"
-                    ? "Push appareil actif"
-                    : "Device push active"
-                : uiLocale === "ar"
-                  ? "تفعيل إشعارات الجهاز"
-                  : uiLocale === "fr"
-                    ? "Activer le push appareil"
-                    : "Enable device push"}
-            </button>
-          </div>
-
-          <div className="flex justify-end border-t border-hairline pt-4">
-            <button
-              type="button"
-              onClick={() => saveMut.mutate()}
-              disabled={saveMut.isPending}
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-signal px-5 text-sm font-medium text-signal-ink hover:opacity-95 disabled:opacity-50 transition-opacity cursor-pointer"
-            >
-              <Save className="h-4 w-4" />
-              {uiLocale === "ar"
-                ? "حفظ التغييرات"
-                : uiLocale === "fr"
-                  ? "Enregistrer"
-                  : "Save changes"}
-            </button>
-          </div>
-        </AtlasPanel>
+                    ? "Enregistrer"
+                    : "Save changes"}
+              </button>
+            </div>
+          </AtlasPanel>
+          <UserPushTest mode="authenticated" />
+          <OemBatteryGuide />
+        </div>
       )}
 
       <AtlasPageFooter />

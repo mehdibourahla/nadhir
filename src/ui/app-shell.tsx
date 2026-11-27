@@ -228,7 +228,10 @@ export function AtlasShell({ children, fullBleed = false }: ShellProps) {
             <Search className="h-4 w-4" />
           </button>
 
-          <nav className="flex flex-col items-center gap-1 w-full px-1 pt-1">
+          <nav
+            aria-label={t("nav.map")}
+            className="flex flex-col items-center gap-1 w-full px-1 pt-1"
+          >
             {RAIL_ITEMS.map((item) => {
               const active = item.match(location.pathname);
               const Icon = item.Icon;
@@ -238,7 +241,7 @@ export function AtlasShell({ children, fullBleed = false }: ShellProps) {
                   to={item.to}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "relative flex w-full flex-col items-center justify-center gap-1 rounded-xl py-2 px-0.5 transition-colors",
+                    "relative flex min-h-11 min-w-11 w-full flex-col items-center justify-center gap-1 rounded-xl py-2 px-0.5 transition-colors",
                     active
                       ? "bg-signal-soft text-signal"
                       : "text-ink-secondary hover:bg-surface-raised hover:text-ink",
@@ -744,28 +747,53 @@ export function AtlasPageFooter() {
           <span className="text-ink-muted">·</span>
           <span>{t("common.tagline")}</span>
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-          <Link to="/about" className="hover:text-ink transition-colors">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <Link
+            to="/about"
+            className="inline-flex min-h-11 min-w-11 items-center px-2 hover:text-ink transition-colors"
+          >
             {locale === "ar" ? "حول" : locale === "fr" ? "À propos" : "About"}
           </Link>
-          <Link to="/status" className="hover:text-ink transition-colors">
+          <Link
+            to="/status"
+            className="inline-flex min-h-11 min-w-11 items-center px-2 hover:text-ink transition-colors"
+          >
             {locale === "ar" ? "الحالة" : locale === "fr" ? "Statut" : "Status"}
           </Link>
-          <Link to="/developers" className="hover:text-ink transition-colors">
+          <Link
+            to="/contribute"
+            className="inline-flex min-h-11 min-w-11 items-center px-2 hover:text-ink transition-colors"
+          >
+            {locale === "ar"
+              ? "مساهمة"
+              : locale === "fr"
+                ? "Contribuer"
+                : "Contribute"}
+          </Link>
+          <Link
+            to="/developers"
+            className="inline-flex min-h-11 min-w-11 items-center px-2 hover:text-ink transition-colors"
+          >
             {locale === "ar"
               ? "المطورون"
               : locale === "fr"
                 ? "Développeurs"
                 : "Developers"}
           </Link>
-          <Link to="/privacy" className="hover:text-ink transition-colors">
+          <Link
+            to="/privacy"
+            className="inline-flex min-h-11 min-w-11 items-center px-2 hover:text-ink transition-colors"
+          >
             {locale === "ar"
               ? "الخصوصية"
               : locale === "fr"
                 ? "Confidentialité"
                 : "Privacy"}
           </Link>
-          <Link to="/terms" className="hover:text-ink transition-colors">
+          <Link
+            to="/terms"
+            className="inline-flex min-h-11 min-w-11 items-center px-2 hover:text-ink transition-colors"
+          >
             {locale === "ar"
               ? "الشروط"
               : locale === "fr"

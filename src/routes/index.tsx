@@ -14,15 +14,18 @@ import {
   ChevronUp,
   CloudRain,
   CloudSun,
+  Droplets,
   ExternalLink,
   Flame,
   Layers,
   MapPin,
   Plane,
+  Radar,
   Search,
   SlidersHorizontal,
   TrafficCone,
   X,
+  Zap,
 } from "lucide-react";
 
 import type { AnyLocale } from "@/i18n";
@@ -61,6 +64,16 @@ import {
 } from "@/lib/nadhir";
 import { hazardReportsQuery } from "@/lib/open-areas";
 import { pageMeta } from "@/lib/page-meta";
+import {
+  EMPTY_FC,
+  buildGwisBurnedGeoJSON,
+  buildGwisCentroidGeoJSON,
+  buildLightningGeoJSON,
+  buildSatelliteRainfallGeoJSON,
+  gwisBurnedAreasQuery,
+  lightningObservationsQuery,
+  satelliteRainfallQuery,
+} from "@/lib/satellite-layers";
 import { wilayaByCode } from "@/lib/wilaya-slugs";
 import { cn } from "@/lib/utils";
 import { defaultBasemapForTheme, type AtlasBasemap } from "@/ui/basemaps";
@@ -129,6 +142,11 @@ function LiveMapPage() {
   const [basemap, setBasemap] = useState<AtlasBasemap>("terrain");
   const [manualSatellite, setManualSatellite] = useState(false);
   const [showStations, setShowStations] = useState(false);
+  const [showRainfallManual, setShowRainfallManual] = useState(false);
+  const [showBurned, setShowBurned] = useState(false);
+  const [selectedGwisId, setSelectedGwisId] = useState<string | undefined>(
+    undefined,
+  );
   const [drawerOpen, setDrawerOpen] = useState(true);
   const [mobileSheetExpanded, setMobileSheetExpanded] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -141,6 +159,9 @@ function LiveMapPage() {
     zoom?: number;
     key: number;
   } | null>(null);
+
+  const showRainfall = showRainfallManual || search.hazard === "flood";
+  const showLightning = search.lightning;
 
   useEffect(() => {
     const syncBasemap = () => {
@@ -171,10 +192,29 @@ function LiveMapPage() {
   const quakesQ = useQuery(earthquakesQuery);
   const stationsQ = useQuery(airportWeatherQuery);
   const riskQ = useQuery({ ...todayRiskForecastsQuery, staleTime: 5 * 60_000 });
+  const rainfallQ = useQuery({
+    ...satelliteRainfallQuery,
+    enabled: showRainfall,
+  });
+  const lightningQ = useQuery({
+    ...lightningObservationsQuery,
+    enabled: showLightning,
+  });
+  const gwisQ = useQuery({
+    ...gwisBurnedAreasQuery,
+    enabled: showBurned,
+  });
 
   const units = unitsQ.data ?? [];
   const unitsById = useMemo(
     () => new Map(units.map((u) => [u.id, u])),
+    [units],
+  );
+  const wilayasByCode = useMemo(
+    () =>
+      new Map(
+        units.filter((u) => u.level === "wilaya").map((u) => [u.code, u]),
+      ),
     [units],
   );
 
@@ -322,6 +362,50 @@ function LiveMapPage() {
     [visible],
   );
 
+  const rainfallGeo = useMemo(
+    () =>
+      showRainfall
+        ? buildSatelliteRainfallGeoJSON(rainfallQ.data ?? [])
+        : EMPTY_FC,
+    [showRainfall, rainfallQ.data],
+  );
+
+  const lightningGeo = useMemo(
+    () =>
+      showLightning
+        ? buildLightningGeoJSON(lightningQ.data ?? [], now)
+        : EMPTY_FC,
+    [showLightning, lightningQ.data, now],
+  );
+
+  const gwisAreas = gwisQ.data ?? [];
+  const gwisGeo = useMemo(
+    () =>
+      showBurned ? buildGwisBurnedGeoJSON(gwisAreas, selectedGwisId) : EMPTY_FC,
+    [showBurned, gwisAreas, selectedGwisId],
+  );
+  const gwisCentroidsGeo = useMemo(
+    () =>
+      showBurned
+        ? buildGwisCentroidGeoJSON(gwisAreas, selectedGwisId)
+        : EMPTY_FC,
+    [showBurned, gwisAreas, selectedGwisId],
+  );
+  const selectedGwis = useMemo(
+    () =>
+      showBurned && selectedGwisId
+        ? (gwisAreas.find((g) => g.event_id === selectedGwisId) ?? null)
+        : null,
+    [showBurned, selectedGwisId, gwisAreas],
+  );
+  const rainfallSources = useMemo(() => {
+    const keys = new Set((rainfallQ.data ?? []).map((c) => c.source_key));
+    const names: string[] = [];
+    if (keys.has("hsaf_rainfall")) names.push("EUMETSAT H-SAF");
+    if (keys.has("imerg_rainfall")) names.push("NASA IMERG");
+    return names.length > 0 ? names.join(" · ") : "EUMETSAT H-SAF / NASA IMERG";
+  }, [rainfallQ.data]);
+
   /** Group ONM alerts by Wilaya so users never scroll 50 repetitive rows. */
   const groupedOnm = useMemo<WilayaOnmGroup[]>(() => {
     const map = new Map<string, Extract<Situation, { source: "onm" }>[]>();
@@ -374,13 +458,56 @@ function LiveMapPage() {
   );
 
   function setHazardFilter(hazard: HazardCategory) {
+    setSelectedGwisId(undefined);
     void navigate({
       search: (prev) => ({ ...prev, hazard, event: undefined }),
       replace: true,
     });
   }
 
+  function toggleLightning() {
+    void navigate({
+      search: (prev) => ({ ...prev, lightning: !prev.lightning }),
+      replace: true,
+    });
+  }
+
+  function toggleRainfall() {
+    if (search.hazard === "flood" && !showRainfallManual) {
+      setHazardFilter("all");
+      return;
+    }
+    setShowRainfallManual((v) => !v);
+  }
+
+  function toggleBurned() {
+    setShowBurned((v) => {
+      if (v) setSelectedGwisId(undefined);
+      return !v;
+    });
+  }
+
+  function selectGwis(eventId: string | undefined) {
+    setSelectedGwisId(eventId);
+    if (eventId) {
+      void navigate({
+        search: (prev) => ({ ...prev, event: undefined }),
+        replace: true,
+      });
+      const found = gwisAreas.find((g) => g.event_id === eventId);
+      if (found) {
+        setFocusTarget({
+          lat: found.lat,
+          lon: found.lon,
+          zoom: 13.5,
+          key: Date.now(),
+        });
+      }
+    }
+  }
+
   function selectEvent(id: string | undefined) {
+    if (id) setSelectedGwisId(undefined);
     void navigate({
       search: (prev) => ({ ...prev, event: id }),
       replace: true,
@@ -486,6 +613,70 @@ function LiveMapPage() {
 
   const situationListContent = (
     <div className="space-y-3">
+      {/* GWIS Burned Area Perimeters (when Burned overlay is active) */}
+      {showBurned && gwisAreas.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between px-1 text-xs font-medium text-ink-muted">
+            <span>
+              {locale === "ar"
+                ? "محيطات حرائق مقدرة (GWIS · 90 يوما)"
+                : locale === "fr"
+                  ? "Périmètres brûlés GWIS (90 j)"
+                  : "GWIS burned perimeters (90d)"}
+            </span>
+            <SafeBdi className="font-mono">{gwisAreas.length}</SafeBdi>
+          </div>
+          {[...gwisAreas]
+            .sort((a, b) => b.area_ha - a.area_ha)
+            .slice(0, 8)
+            .map((area) => {
+              const active = selectedGwis?.event_id === area.event_id;
+              const wilaya = area.wilaya_code
+                ? wilayasByCode.get(area.wilaya_code)
+                : undefined;
+              const label = wilaya
+                ? unitName(wilaya, locale)
+                : area.wilaya_code
+                  ? `Wilaya ${area.wilaya_code}`
+                  : coordLabel(area.lat, area.lon);
+              return (
+                <button
+                  key={area.event_id}
+                  type="button"
+                  onClick={() => selectGwis(area.event_id)}
+                  className={cn(
+                    "flex w-full items-stretch gap-3 rounded-xl border p-2.5 text-start transition-colors cursor-pointer",
+                    active
+                      ? "border-hazard-extreme bg-hazard-extreme-soft/60"
+                      : "border-hairline bg-surface hover:bg-surface-raised",
+                  )}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="w-1 shrink-0 rounded-full bg-hazard-extreme"
+                  />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-ink truncate">
+                        {label}
+                      </span>
+                      <SafeBdi className="font-mono text-xs font-semibold text-hazard-extreme shrink-0">
+                        {formatNumber(Math.round(area.area_ha), locale)} ha
+                      </SafeBdi>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-[11px] text-ink-muted">
+                      <SafeBdi className="font-mono">
+                        {area.burn_start_at} → {area.burn_end_at}
+                      </SafeBdi>
+                      <SafeBdi className="font-mono">#{area.event_id}</SafeBdi>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+        </div>
+      )}
+
       {/* Non-ONM Priority Events (Fires, Official, Roads, Quakes) */}
       {nonOnmItems.length > 0 && (
         <div className="space-y-1.5">
@@ -738,11 +929,16 @@ function LiveMapPage() {
         officialGeo={geoData.official}
         reportsGeo={geoData.reports}
         fires={satelliteFires}
+        rainfallGeo={rainfallGeo}
+        lightningGeo={lightningGeo}
+        gwisGeo={gwisGeo}
+        gwisCentroidsGeo={gwisCentroidsGeo}
         stations={stationsQ.data ?? []}
         showStations={showStations}
         selectedId={selected?.id}
         focusTarget={focusTarget}
         onSelectSituation={selectEvent}
+        onSelectGwis={selectGwis}
         onLocate={handleLocate}
       />
 
@@ -791,7 +987,7 @@ function LiveMapPage() {
 
         {/* Desktop Collapsible Tactical Situation Panel (368px wide) */}
         {drawerOpen && (
-          <div className="pointer-events-auto hidden md:flex max-h-[calc(100dvh-164px)] flex-col overflow-hidden rounded-2xl border border-hairline-strong bg-surface-hud backdrop-blur-md shadow-2xl">
+          <div className="pointer-events-auto hidden md:flex max-h-[calc(100dvh-204px)] flex-col overflow-hidden rounded-2xl border border-hairline-strong bg-surface-hud backdrop-blur-md shadow-2xl">
             <div className="flex items-center justify-between border-b border-hairline px-3.5 py-2.5">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-ink">
@@ -836,7 +1032,7 @@ function LiveMapPage() {
 
       {/* Selected Event Inspector Drawer (End-Edge on Desktop, Sheet on Mobile) */}
       {selected && (
-        <div className="pointer-events-auto absolute bottom-24 md:bottom-20 end-3 sm:end-4 start-3 md:start-auto md:w-[360px] z-30 overflow-hidden rounded-2xl border border-hairline-strong bg-surface shadow-2xl">
+        <div className="pointer-events-auto absolute bottom-24 md:bottom-28 end-3 sm:end-4 start-3 md:start-auto md:w-[360px] z-30 overflow-hidden rounded-2xl border border-hairline-strong bg-surface shadow-2xl">
           <div className="flex items-stretch">
             <span
               aria-hidden="true"
@@ -959,6 +1155,118 @@ function LiveMapPage() {
         </div>
       )}
 
+      {/* Selected GWIS Burned Area Inspector */}
+      {selectedGwis && !selected && (
+        <div className="pointer-events-auto absolute bottom-24 md:bottom-28 end-3 sm:end-4 start-3 md:start-auto md:w-[372px] z-30 overflow-hidden rounded-2xl border border-hairline-strong bg-surface shadow-2xl">
+          <div className="flex items-stretch">
+            <span
+              aria-hidden="true"
+              className="w-1.5 shrink-0 bg-hazard-extreme"
+            />
+            <div className="flex-1 p-4 space-y-3 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div className="space-y-1 min-w-0">
+                  <AtlasBadge tone="extreme" dot>
+                    {locale === "ar"
+                      ? "تقدير مساحة محروقة · GWIS"
+                      : locale === "fr"
+                        ? "Estimation brûlée · GWIS"
+                        : "GWIS · Burned Estimate"}
+                  </AtlasBadge>
+                  <div className="flex items-baseline gap-2.5">
+                    <span className="font-display text-2xl font-bold text-ink tabular-nums">
+                      {formatNumber(Math.round(selectedGwis.area_ha), locale)}{" "}
+                      ha
+                    </span>
+                    <span className="text-sm font-semibold text-ink-secondary truncate">
+                      {selectedGwis.wilaya_code &&
+                      wilayasByCode.get(selectedGwis.wilaya_code)
+                        ? unitName(
+                            wilayasByCode.get(selectedGwis.wilaya_code)!,
+                            locale,
+                          )
+                        : selectedGwis.wilaya_code
+                          ? `Wilaya ${selectedGwis.wilaya_code}`
+                          : `#${selectedGwis.event_id}`}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => selectGwis(undefined)}
+                  aria-label={t("common.close")}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-ink-secondary hover:bg-surface-raised cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-secondary">
+                <SafeBdi className="font-mono text-[11px]">
+                  {selectedGwis.burn_start_at} → {selectedGwis.burn_end_at}
+                </SafeBdi>
+                <SafeBdi className="font-mono text-[11px] text-ink-muted">
+                  {coordLabel(selectedGwis.lat, selectedGwis.lon)}
+                </SafeBdi>
+                <SafeBdi className="font-mono text-[11px] text-ink-muted">
+                  #{selectedGwis.event_id}
+                </SafeBdi>
+              </div>
+
+              <p className="rounded-xl border border-hairline bg-surface-raised/70 px-3 py-2 text-[11px] leading-relaxed text-ink-secondary">
+                {locale === "ar"
+                  ? "Copernicus EMS GWIS / EFFIS: تقدير مشتق من رصد FIRMS الحراري (CC BY 4.0)، وليس ندبة حريق بصرية مؤكدة."
+                  : locale === "fr"
+                    ? "Copernicus EMS GWIS / EFFIS: estimation dérivée de FIRMS (CC BY 4.0), pas une cicatrice optique."
+                    : "Copernicus EMS GWIS / EFFIS: FIRMS-derived estimate (CC BY 4.0), not an optical scar."}
+              </p>
+
+              <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                <AtlasButton
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    switchBasemap("satellite");
+                    setFocusTarget({
+                      lat: selectedGwis.lat,
+                      lon: selectedGwis.lon,
+                      zoom: 14.5,
+                      key: Date.now(),
+                    });
+                  }}
+                >
+                  <Radar className="h-3.5 w-3.5" />
+                  {locale === "ar"
+                    ? "عرض بالقمر الصناعي"
+                    : locale === "fr"
+                      ? "Vue satellite"
+                      : "Inspect on Satellite"}
+                </AtlasButton>
+                {selectedGwis.wilaya_code &&
+                  wilayaByCode(selectedGwis.wilaya_code) && (
+                    <Link
+                      to="/wilaya/$slug"
+                      params={{
+                        slug: wilayaByCode(selectedGwis.wilaya_code)!.slug,
+                      }}
+                    >
+                      <AtlasButton variant="secondary" size="sm">
+                        <MapPin className="h-3.5 w-3.5" />
+                        {wilayasByCode.get(selectedGwis.wilaya_code)
+                          ? unitName(
+                              wilayasByCode.get(selectedGwis.wilaya_code)!,
+                              locale,
+                            )
+                          : selectedGwis.wilaya_code}
+                      </AtlasButton>
+                    </Link>
+                  )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Compact Peek Sheet (>72% unobstructed map when collapsed) */}
       <div className="md:hidden pointer-events-auto fixed bottom-[76px] inset-x-3 z-20 mx-auto max-w-md overflow-hidden rounded-2xl border border-hairline-strong bg-surface-hud backdrop-blur-md shadow-xl">
         <button
@@ -1036,14 +1344,148 @@ function LiveMapPage() {
                 );
               })}
             </div>
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+              <button
+                type="button"
+                aria-pressed={showRainfall}
+                onClick={toggleRainfall}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium whitespace-nowrap cursor-pointer",
+                  showRainfall
+                    ? "border-hazard-rain bg-hazard-rain-soft text-hazard-rain-ink"
+                    : "border-hairline bg-surface text-ink-secondary",
+                )}
+              >
+                <Droplets className="h-3.5 w-3.5" />
+                <span>
+                  {locale === "ar"
+                    ? "أمطار قمر"
+                    : locale === "fr"
+                      ? "Pluie sat."
+                      : "Sat rain"}
+                </span>
+              </button>
+              <button
+                type="button"
+                aria-pressed={showLightning}
+                onClick={toggleLightning}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium whitespace-nowrap cursor-pointer",
+                  showLightning
+                    ? "border-hazard-moderate bg-hazard-moderate-soft text-hazard-moderate-ink"
+                    : "border-hairline bg-surface text-ink-secondary",
+                )}
+              >
+                <Zap className="h-3.5 w-3.5" />
+                <span>
+                  {locale === "ar"
+                    ? "برق"
+                    : locale === "fr"
+                      ? "Foudre"
+                      : "Lightning"}
+                </span>
+              </button>
+              <button
+                type="button"
+                aria-pressed={showBurned}
+                onClick={toggleBurned}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium whitespace-nowrap cursor-pointer",
+                  showBurned
+                    ? "border-hazard-extreme bg-hazard-extreme-soft text-hazard-extreme-ink"
+                    : "border-hairline bg-surface text-ink-secondary",
+                )}
+              >
+                <Radar className="h-3.5 w-3.5" />
+                <span>
+                  {locale === "ar"
+                    ? "محروق GWIS"
+                    : locale === "fr"
+                      ? "Brûlés GWIS"
+                      : "Burned GWIS"}
+                </span>
+              </button>
+            </div>
             {situationListContent}
           </div>
         )}
       </div>
 
       {/* Desktop Bottom-Center Floating Tactical Layer & Basemap Dock */}
-      <div className="hidden md:flex pointer-events-none fixed bottom-9 start-[68px] end-0 z-20 justify-center px-6">
-        <div className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-hairline-strong bg-surface-hud backdrop-blur-md px-2 py-1.5 shadow-2xl max-w-[calc(100vw-280px)] overflow-x-auto">
+      <div className="hidden md:flex pointer-events-none fixed bottom-12 start-[68px] end-0 z-20 flex-col items-center gap-2 px-6">
+        {(showRainfall || showLightning || showBurned) && (
+          <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-x-3.5 gap-y-1 rounded-xl border border-hairline-strong bg-surface-hud/95 backdrop-blur-md px-3 py-1.5 text-[11px] text-ink-secondary shadow-lg max-w-[calc(100vw-160px)]">
+            {showRainfall && (
+              <span className="inline-flex items-center gap-1.5">
+                <span
+                  className="inline-flex items-center gap-0.5"
+                  aria-hidden="true"
+                >
+                  <span className="h-2 w-2 rounded-full bg-[#38BDF8]" />
+                  <span className="h-2 w-2 rounded-full bg-[#2563EB]" />
+                  <span className="h-2 w-2 rounded-full bg-[#4F46E5]" />
+                </span>
+                <span className="font-medium text-ink">{rainfallSources}</span>
+                <span>
+                  {locale === "ar"
+                    ? "رصد أمطار بالقمر الصناعي (ليس توقعا عدديا)"
+                    : locale === "fr"
+                      ? "pluie satellite observée (hors modèle)"
+                      : "satellite rainfall obs. (not model)"}
+                </span>
+                {(rainfallQ.data?.length ?? 0) > 0 && (
+                  <SafeBdi className="font-mono text-ink-muted">
+                    ({formatNumber(rainfallQ.data?.length ?? 0, locale)})
+                  </SafeBdi>
+                )}
+              </span>
+            )}
+            {showLightning && (
+              <span className="inline-flex items-center gap-1.5">
+                <span
+                  aria-hidden="true"
+                  className="h-2 w-2 rounded-full bg-[#FACC15] ring-2 ring-[#F59E0B]/40"
+                />
+                <span className="font-medium text-ink">MTG LI L2</span>
+                <span>
+                  {locale === "ar"
+                    ? "رصد برق مباشر (وليس حريقا)"
+                    : locale === "fr"
+                      ? "foudre observée (non incendie)"
+                      : "lightning obs. (not wildfire)"}
+                </span>
+                {(lightningQ.data?.length ?? 0) > 0 && (
+                  <SafeBdi className="font-mono text-ink-muted">
+                    ({formatNumber(lightningQ.data?.length ?? 0, locale)})
+                  </SafeBdi>
+                )}
+              </span>
+            )}
+            {showBurned && (
+              <span className="inline-flex items-center gap-1.5">
+                <span
+                  aria-hidden="true"
+                  className="h-2 w-2 rounded-xs bg-[#E11D48]/60 ring-1 ring-[#FB7185]"
+                />
+                <span className="font-medium text-ink">GWIS / EFFIS</span>
+                <span>
+                  {locale === "ar"
+                    ? "تقدير FIRMS (CC BY 4.0، ليس ندبة بصرية)"
+                    : locale === "fr"
+                      ? "estimation FIRMS (CC BY 4.0, non optique)"
+                      : "FIRMS-derived estimate (CC BY 4.0, not optical scar)"}
+                </span>
+                {gwisAreas.length > 0 && (
+                  <SafeBdi className="font-mono text-ink-muted">
+                    ({formatNumber(gwisAreas.length, locale)})
+                  </SafeBdi>
+                )}
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-hairline-strong bg-surface-hud backdrop-blur-md px-2 py-1.5 shadow-2xl max-w-[calc(100vw-116px)] overflow-x-auto">
           {/* Layer Filter Pills */}
           <div className="flex items-center gap-1">
             {layerFilters.map((item) => {
@@ -1074,9 +1516,78 @@ function LiveMapPage() {
                 </button>
               );
             })}
+          </div>
+
+          <div className="mx-1 h-5 w-px bg-hairline-strong shrink-0" />
+
+          {/* Live Satellite Observation Overlays */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              aria-pressed={showRainfall}
+              onClick={toggleRainfall}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium transition-colors whitespace-nowrap cursor-pointer",
+                showRainfall
+                  ? "bg-hazard-rain-soft text-hazard-rain-ink border border-hazard-rain/40"
+                  : "text-ink-secondary hover:bg-surface-raised hover:text-ink",
+              )}
+            >
+              <Droplets className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                {locale === "ar"
+                  ? "أمطار قمر"
+                  : locale === "fr"
+                    ? "Pluie sat."
+                    : "Sat Rain"}
+              </span>
+            </button>
 
             <button
               type="button"
+              aria-pressed={showLightning}
+              onClick={toggleLightning}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium transition-colors whitespace-nowrap cursor-pointer",
+                showLightning
+                  ? "bg-hazard-moderate-soft text-hazard-moderate-ink border border-hazard-moderate/40"
+                  : "text-ink-secondary hover:bg-surface-raised hover:text-ink",
+              )}
+            >
+              <Zap className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                {locale === "ar"
+                  ? "برق"
+                  : locale === "fr"
+                    ? "Foudre"
+                    : "Lightning"}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              aria-pressed={showBurned}
+              onClick={toggleBurned}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium transition-colors whitespace-nowrap cursor-pointer",
+                showBurned
+                  ? "bg-hazard-extreme-soft text-hazard-extreme-ink border border-hazard-extreme/40"
+                  : "text-ink-secondary hover:bg-surface-raised hover:text-ink",
+              )}
+            >
+              <Radar className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                {locale === "ar"
+                  ? "محروق"
+                  : locale === "fr"
+                    ? "Brûlés"
+                    : "Burned"}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              aria-pressed={showStations}
               onClick={() => setShowStations((v) => !v)}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium transition-colors whitespace-nowrap cursor-pointer",
