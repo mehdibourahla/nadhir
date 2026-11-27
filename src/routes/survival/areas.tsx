@@ -61,9 +61,11 @@ function OpenAreasPage() {
               >
                 <div className="min-w-0 space-y-1">
                   <div className="text-sm font-semibold text-ink truncate">
-                    {i18n.language === "ar" && area.name_ar
-                      ? area.name_ar
-                      : area.name}
+                    <SafeBdi dir="auto">
+                      {i18n.language === "ar" && area.name_ar
+                        ? area.name_ar
+                        : area.name}
+                    </SafeBdi>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-ink-secondary">
                     <AtlasBadge tone="neutral">

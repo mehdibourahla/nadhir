@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { algiersTime } from "@/lib/nadhir";
 import { titledMeta } from "@/lib/page-meta";
 import { pageRows } from "@/lib/paging";
+import { cn } from "@/lib/utils";
 import {
   createWebhook,
   deleteWebhook,
@@ -38,10 +39,24 @@ export const Route = createFileRoute("/_authenticated/webhooks")({
   component: WebhooksPage,
 });
 
-const KINDS = ["fire", "weather", "official", "road", "earthquake"];
+const KINDS = ["fire", "weather", "official", "road", "earthquake"] as const;
+
+function webhookKindLabel(k: string, locale: string): string {
+  const map: Record<string, { ar: string; fr: string; en: string }> = {
+    fire: { ar: "حرائق", fr: "Incendies", en: "Fires" },
+    weather: { ar: "أرصاد ONM", fr: "Météo ONM", en: "Weather" },
+    official: { ar: "رسمي", fr: "Officiel", en: "Official" },
+    road: { ar: "طرقات", fr: "Routes", en: "Roads" },
+    earthquake: { ar: "زلازل", fr: "Séismes", en: "Earthquakes" },
+  };
+  const e = map[k];
+  if (!e) return k;
+  return locale === "ar" ? e.ar : locale === "fr" ? e.fr : e.en;
+}
 
 function WebhooksPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language || "ar";
   const qc = useQueryClient();
 
   const endpointsQ = useQuery(webhookEndpointsQuery);
@@ -70,7 +85,13 @@ function WebhooksPage() {
       setLabel("");
       setUrl("");
       void qc.invalidateQueries({ queryKey: ["webhooks"] });
-      toast.success("Webhook created");
+      toast.success(
+        locale === "ar"
+          ? "تم إنشاء نقطة الربط"
+          : locale === "fr"
+            ? "Webhook créé"
+            : "Webhook created",
+      );
     },
     onError: (err) =>
       toast.error(err instanceof Error ? err.message : t("common.error")),
@@ -93,17 +114,39 @@ function WebhooksPage() {
         edition={
           <>
             <Webhook className="h-3.5 w-3.5 text-signal" />
-            <span>AUTOMATION</span>
+            <span>
+              {locale === "ar"
+                ? "الربط الآلي"
+                : locale === "fr"
+                  ? "AUTOMATISATION"
+                  : "AUTOMATION"}
+            </span>
           </>
         }
-        title="Webhooks"
-        subtitle="Forward signed JSON alert events to your own operational endpoints."
+        title={
+          locale === "ar"
+            ? "روابط Webhooks"
+            : locale === "fr"
+              ? "Webhooks"
+              : "Webhooks"
+        }
+        subtitle={
+          locale === "ar"
+            ? "استقبل إشعارات JSON موقّعة تلقائيًا على خوادمك التشغيلية."
+            : locale === "fr"
+              ? "Transférez des événements JSON signés vers vos propres points de terminaison."
+              : "Forward signed JSON alert events to your own operational endpoints."
+        }
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <AtlasPanel className="lg:col-span-5 space-y-4">
           <h2 className="font-display text-xl font-semibold text-ink">
-            Add endpoint
+            {locale === "ar"
+              ? "إضافة نقطة ربط"
+              : locale === "fr"
+                ? "Ajouter un point de terminaison"
+                : "Add endpoint"}
           </h2>
           <form
             onSubmit={(e) => {
@@ -114,18 +157,32 @@ function WebhooksPage() {
           >
             <div className="space-y-1">
               <label className="text-xs font-medium text-ink-secondary">
-                Label
+                {locale === "ar"
+                  ? "التسمية"
+                  : locale === "fr"
+                    ? "Nom"
+                    : "Label"}
               </label>
               <AtlasInput
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
-                placeholder="Operations Slack"
+                placeholder={
+                  locale === "ar"
+                    ? "غرفة العمليات"
+                    : locale === "fr"
+                      ? "Salle d'opérations"
+                      : "Operations Slack"
+                }
                 required
               />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-ink-secondary">
-                HTTPS URL
+                {locale === "ar"
+                  ? "رابط HTTPS"
+                  : locale === "fr"
+                    ? "URL HTTPS"
+                    : "HTTPS URL"}
               </label>
               <AtlasInput
                 type="url"
@@ -140,35 +197,45 @@ function WebhooksPage() {
               {KINDS.map((k) => {
                 const checked = selectedKinds.includes(k);
                 return (
-                  <label
+                  <button
                     key={k}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-hairline px-2.5 py-1 text-xs cursor-pointer"
+                    type="button"
+                    aria-pressed={checked}
+                    onClick={() =>
+                      setSelectedKinds((prev) =>
+                        checked ? prev.filter((x) => x !== k) : [...prev, k],
+                      )
+                    }
+                    className={cn(
+                      "inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 text-xs font-medium transition-colors cursor-pointer",
+                      checked
+                        ? "border-signal/50 bg-signal-soft text-signal"
+                        : "border-hairline bg-surface text-ink-secondary hover:bg-surface-raised",
+                    )}
                   >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(e) =>
-                        setSelectedKinds((prev) =>
-                          e.target.checked
-                            ? [...prev, k]
-                            : prev.filter((x) => x !== k),
-                        )
-                      }
-                      className="accent-signal"
+                    <span
+                      className={cn(
+                        "h-2 w-2 rounded-full",
+                        checked ? "bg-signal" : "bg-hairline-strong",
+                      )}
                     />
-                    <span>{k}</span>
-                  </label>
+                    <span>{webhookKindLabel(k, locale)}</span>
+                  </button>
                 );
               })}
             </div>
             <AtlasButton
               type="submit"
               variant="primary"
-              className="w-full"
+              className="w-full min-h-11"
               disabled={createMut.isPending}
             >
               <Plus className="h-4 w-4" />
-              Create endpoint
+              {locale === "ar"
+                ? "إنشاء نقطة الربط"
+                : locale === "fr"
+                  ? "Créer le point de terminaison"
+                  : "Create endpoint"}
             </AtlasButton>
           </form>
         </AtlasPanel>
@@ -176,7 +243,11 @@ function WebhooksPage() {
         <div className="lg:col-span-7 space-y-6">
           <AtlasPanel className="space-y-3">
             <h2 className="font-display text-xl font-semibold text-ink">
-              Active endpoints ({(endpointsQ.data ?? []).length})
+              {locale === "ar"
+                ? `نقاط الربط النشطة (${(endpointsQ.data ?? []).length})`
+                : locale === "fr"
+                  ? `Points de terminaison actifs (${(endpointsQ.data ?? []).length})`
+                  : `Active endpoints (${(endpointsQ.data ?? []).length})`}
             </h2>
             {endpointsQ.isLoading ? (
               <AtlasLoading />
@@ -190,10 +261,20 @@ function WebhooksPage() {
                     <div className="min-w-0 space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-ink">
-                          {ep.label}
+                          <SafeBdi dir="auto">{ep.label}</SafeBdi>
                         </span>
                         <AtlasBadge tone={ep.active ? "clear" : "neutral"} dot>
-                          {ep.active ? "Active" : "Paused"}
+                          {ep.active
+                            ? locale === "ar"
+                              ? "نشط"
+                              : locale === "fr"
+                                ? "Actif"
+                                : "Active"
+                            : locale === "ar"
+                              ? "متوقف"
+                              : locale === "fr"
+                                ? "En pause"
+                                : "Paused"}
                         </AtlasBadge>
                       </div>
                       <SafeBdi className="block truncate font-mono text-xs text-ink-muted">
@@ -204,7 +285,19 @@ function WebhooksPage() {
                       <AtlasButton
                         variant="ghost"
                         size="icon"
-                        aria-label="Toggle"
+                        aria-label={
+                          ep.active
+                            ? locale === "ar"
+                              ? "إيقاف"
+                              : locale === "fr"
+                                ? "Mettre en pause"
+                                : "Pause"
+                            : locale === "ar"
+                              ? "تفعيل"
+                              : locale === "fr"
+                                ? "Activer"
+                                : "Resume"
+                        }
                         onClick={() =>
                           toggleMut.mutate({ id: ep.id, active: !ep.active })
                         }
@@ -228,7 +321,11 @@ function WebhooksPage() {
 
           <AtlasPanel className="space-y-3">
             <h3 className="font-display text-lg font-semibold text-ink">
-              Recent deliveries ({deliveries.length})
+              {locale === "ar"
+                ? `آخر عمليات التسليم (${deliveries.length})`
+                : locale === "fr"
+                  ? `Livraisons récentes (${deliveries.length})`
+                  : `Recent deliveries (${deliveries.length})`}
             </h3>
             <div className="divide-y divide-hairline text-xs">
               {deliveries.slice(0, 15).map((d) => (
@@ -237,7 +334,7 @@ function WebhooksPage() {
                   className="flex items-center justify-between py-2"
                 >
                   <AtlasBadge tone={d.ok ? "clear" : "extreme"}>
-                    {d.status_code ?? "ERR"}
+                    <SafeBdi>{d.status_code ?? "ERR"}</SafeBdi>
                   </AtlasBadge>
                   <SafeBdi className="font-mono text-ink-muted">
                     {algiersTime(d.created_at)}

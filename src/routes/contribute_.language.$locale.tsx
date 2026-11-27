@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Link, createFileRoute, notFound } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, Check, Send } from "lucide-react";
 import { toast } from "sonner";
 
@@ -116,6 +117,9 @@ function TranslationReviewPage() {
     onError: () => toast.error("Submission failed"),
   });
 
+  const { i18n } = useTranslation();
+  const uiLocale = (i18n.language || "ar") as string;
+
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 pt-5 pb-12">
       <div className="mb-3">
@@ -124,7 +128,11 @@ function TranslationReviewPage() {
           className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-secondary hover:text-ink"
         >
           <ArrowLeft className="h-3.5 w-3.5 atlas-dir-icon" />
-          Back to Contribute
+          {uiLocale === "ar"
+            ? "العودة إلى المساهمة"
+            : uiLocale === "fr"
+              ? "Retour à Contribuer"
+              : "Back to Contribute"}
         </Link>
       </div>
 
@@ -133,10 +141,22 @@ function TranslationReviewPage() {
           <>
             <SafeBdi>{loc.toUpperCase()}</SafeBdi>
             <span>·</span>
-            <span>{rows.length} strings</span>
+            <span>
+              {uiLocale === "ar"
+                ? `${rows.length} نص`
+                : uiLocale === "fr"
+                  ? `${rows.length} chaînes`
+                  : `${rows.length} strings`}
+            </span>
           </>
         }
-        title={`Language review (${loc.toUpperCase()})`}
+        title={
+          uiLocale === "ar"
+            ? `مراجعة الترجمة (${loc.toUpperCase()})`
+            : uiLocale === "fr"
+              ? `Relecture linguistique (${loc.toUpperCase()})`
+              : `Language review (${loc.toUpperCase()})`
+        }
         actions={
           <AtlasButton
             variant="primary"
@@ -145,7 +165,11 @@ function TranslationReviewPage() {
             onClick={() => sendMut.mutate()}
           >
             <Send className="h-3.5 w-3.5" />
-            Submit ({readyCount})
+            {uiLocale === "ar"
+              ? `إرسال (${readyCount})`
+              : uiLocale === "fr"
+                ? `Envoyer (${readyCount})`
+                : `Submit (${readyCount})`}
           </AtlasButton>
         }
       />
@@ -155,7 +179,13 @@ function TranslationReviewPage() {
           type="search"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter keys or text..."
+          placeholder={
+            uiLocale === "ar"
+              ? "ابحث في المفاتيح أو النصوص..."
+              : uiLocale === "fr"
+                ? "Filtrer les clés ou textes..."
+                : "Filter keys or text..."
+          }
         />
       </div>
 
@@ -169,15 +199,34 @@ function TranslationReviewPage() {
                   {row.path}
                 </SafeBdi>
                 {draft?.sent ? (
-                  <AtlasBadge tone="clear">Sent</AtlasBadge>
+                  <AtlasBadge tone="clear">
+                    {uiLocale === "ar"
+                      ? "تم الإرسال"
+                      : uiLocale === "fr"
+                        ? "Envoyé"
+                        : "Sent"}
+                  </AtlasBadge>
                 ) : draft?.verdict === "confirmed" ? (
-                  <AtlasBadge tone="signal">Confirmed</AtlasBadge>
+                  <AtlasBadge tone="signal">
+                    {uiLocale === "ar"
+                      ? "مؤكد"
+                      : uiLocale === "fr"
+                        ? "Confirmé"
+                        : "Confirmed"}
+                  </AtlasBadge>
                 ) : null}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                <div className="rounded-lg bg-surface-raised/60 p-3 text-ink-secondary">
-                  <div className="text-[10px] font-mono text-ink-muted mb-1">
-                    EN SOURCE
+                <div
+                  dir="ltr"
+                  className="rounded-lg bg-surface-raised/60 p-3 text-left text-ink-secondary"
+                >
+                  <div className="text-[11px] font-mono font-semibold text-ink-secondary mb-1">
+                    {uiLocale === "ar"
+                      ? "النص الأصلي (EN)"
+                      : uiLocale === "fr"
+                        ? "SOURCE EN"
+                        : "EN SOURCE"}
                   </div>
                   {row.source}
                 </div>
@@ -194,7 +243,11 @@ function TranslationReviewPage() {
                       onClick={() => confirmRow(row.path)}
                     >
                       <Check className="h-3.5 w-3.5 text-hazard-clear" />
-                      Confirm current
+                      {uiLocale === "ar"
+                        ? "تأكيد الترجمة الحالية"
+                        : uiLocale === "fr"
+                          ? "Confirmer l'actuelle"
+                          : "Confirm current"}
                     </AtlasButton>
                   </div>
                 </div>

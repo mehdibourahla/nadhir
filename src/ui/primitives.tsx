@@ -93,7 +93,7 @@ type ButtonSize = "sm" | "md" | "lg" | "icon";
 
 const BTN_VARIANT: Record<ButtonVariant, string> = {
   primary:
-    "bg-signal text-signal-ink hover:opacity-92 border border-transparent font-medium",
+    "bg-signal text-signal-ink hover:opacity-92 border border-transparent font-medium disabled:bg-surface-raised disabled:text-ink-secondary disabled:border-hairline-strong disabled:opacity-100",
   secondary:
     "bg-surface text-ink border border-hairline-strong hover:bg-surface-raised font-medium",
   ghost:

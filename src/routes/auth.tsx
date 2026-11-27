@@ -38,7 +38,7 @@ export const Route = createFileRoute("/auth")({
 });
 
 function AuthPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const search = Route.useSearch();
   const navigate = useNavigate();
 
@@ -256,7 +256,13 @@ function AuthPage() {
               {(mode === "signin" || mode === "signup" || mode === "reset") && (
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-ink-secondary">
-                    {mode === "reset" ? t("authKit.newPassword") : "Password"}
+                    {mode === "reset"
+                      ? t("authKit.newPassword")
+                      : i18n.language === "ar"
+                        ? "كلمة المرور"
+                        : i18n.language === "fr"
+                          ? "Mot de passe"
+                          : "Password"}
                   </label>
                   <div className="relative">
                     <AtlasInput

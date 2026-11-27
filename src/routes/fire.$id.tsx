@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, notFound } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -39,12 +40,35 @@ export const Route = createFileRoute("/fire/$id")({
   component: FireDetailPage,
 });
 
+function fireStateLabel(raw: string, locale: AnyLocale): string {
+  const key = raw.replace(/^state:/, "");
+  const map: Record<string, { ar: string; fr: string; en: string }> = {
+    active: { ar: "نشط", fr: "Actif", en: "Active" },
+    contained_guess: {
+      ar: "مرجّح احتواؤه",
+      fr: "Probablement maîtrisé",
+      en: "Likely contained",
+    },
+    unconfirmed: { ar: "قيد التحقق", fr: "Non confirmé", en: "Unconfirmed" },
+    extinguished: { ar: "مُخمد", fr: "Éteint", en: "Extinguished" },
+    false_positive: {
+      ar: "إنذار خاطئ",
+      fr: "Faux positif",
+      en: "False positive",
+    },
+  };
+  const entry = map[key];
+  if (!entry) return key.replace(/_/g, " ");
+  return locale === "ar" ? entry.ar : locale === "fr" ? entry.fr : entry.en;
+}
+
 function FireDetailPage() {
   const { id } = Route.useParams();
   const detailQ = useQuery(clusterDetailQuery(id));
   const detail = detailQ.data;
   const { t, i18n } = useTranslation();
   const locale = (i18n.language || "ar") as AnyLocale;
+  const [showAllPasses, setShowAllPasses] = useState(false);
   if (!detail) return null;
   const { cluster, detections, events, confirmation } = detail;
   const stage = fireStage(cluster);
@@ -135,6 +159,8 @@ function FireDetailPage() {
               lat={cluster.lat}
               lon={cluster.lon}
               zoom={11}
+              basemap="satellite"
+              markerColor="#DC2626"
               className="h-80"
             />
           </div>
@@ -154,14 +180,42 @@ function FireDetailPage() {
           )}
 
           <AtlasPanel className="space-y-3">
-            <h2 className="font-display text-lg font-semibold text-ink">
-              Satellite passes ({detections.length})
-            </h2>
-            <div className="divide-y divide-hairline max-h-72 overflow-y-auto">
-              {detections.slice(0, 25).map((d) => (
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-display text-lg font-semibold text-ink">
+                {locale === "ar"
+                  ? `عمليات الرصد بالأقمار (${detections.length})`
+                  : locale === "fr"
+                    ? `Passages satellites (${detections.length})`
+                    : `Satellite passes (${detections.length})`}
+              </h2>
+              {detections.length > 8 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllPasses((v) => !v)}
+                  className="text-xs font-medium text-signal hover:underline cursor-pointer"
+                >
+                  {showAllPasses
+                    ? locale === "ar"
+                      ? "عرض أقل"
+                      : locale === "fr"
+                        ? "Voir moins"
+                        : "Show fewer"
+                    : locale === "ar"
+                      ? `عرض الكل (${detections.length})`
+                      : locale === "fr"
+                        ? `Tout afficher (${detections.length})`
+                        : `View all (${detections.length})`}
+                </button>
+              )}
+            </div>
+            <div className="divide-y divide-hairline">
+              {(showAllPasses
+                ? detections.slice(0, 40)
+                : detections.slice(0, 8)
+              ).map((d) => (
                 <div
                   key={d.id}
-                  className="flex items-center justify-between py-2 text-xs"
+                  className="flex items-center justify-between py-2.5 text-xs"
                 >
                   <div className="flex items-center gap-2">
                     <AtlasBadge tone="neutral">
@@ -194,7 +248,8 @@ function FireDetailPage() {
                     tone={stage === "confirmed" ? "extreme" : "high"}
                     dot
                   >
-                    {stage} · {cluster.state}
+                    {stage.charAt(0).toUpperCase() + stage.slice(1)} ·{" "}
+                    {fireStateLabel(cluster.state, locale)}
                   </AtlasBadge>
                 </dd>
               </div>
@@ -235,7 +290,11 @@ function FireDetailPage() {
                     key={ev.id}
                     className="flex items-center justify-between text-xs"
                   >
-                    <span className="text-ink">{ev.event}</span>
+                    <span className="text-ink">
+                      {ev.event.startsWith("state:")
+                        ? `${locale === "ar" ? "الحالة:" : locale === "fr" ? "Statut :" : "Status:"} ${fireStateLabel(ev.event, locale)}`
+                        : ev.event.replace(/_/g, " ")}
+                    </span>
                     <SafeBdi className="font-mono text-ink-muted">
                       {algiersTime(ev.at)}
                     </SafeBdi>

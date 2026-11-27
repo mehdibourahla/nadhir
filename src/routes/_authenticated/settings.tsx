@@ -25,11 +25,12 @@ export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
 });
 
-const FIELD_CLASS =
-  "min-h-11 w-full rounded-lg border border-hairline bg-surface px-3 text-sm text-ink placeholder:text-ink-muted focus:border-signal focus:outline-none focus:ring-2 focus:ring-signal/25";
+const FIELD_BASE =
+  "w-full rounded-lg border border-hairline bg-surface px-3 text-sm text-ink placeholder:text-ink-muted focus:border-signal focus:outline-none focus:ring-2 focus:ring-signal/25";
 
 function SettingsPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const uiLocale = i18n.language || "ar";
   const navigate = useNavigate();
   const qc = useQueryClient();
   const profileQ = useQuery(profileQuery);
@@ -84,7 +85,13 @@ function SettingsPage() {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["profile"] });
-      toast.success("Settings saved");
+      toast.success(
+        uiLocale === "ar"
+          ? "تم حفظ الإعدادات"
+          : uiLocale === "fr"
+            ? "Préférences enregistrées"
+            : "Settings saved",
+      );
     },
     onError: () => toast.error(t("common.error")),
   });
@@ -94,7 +101,19 @@ function SettingsPage() {
       const next = !alertPush;
       await setUserPush(next);
       setAlertPush(next);
-      toast.success(next ? "Push enabled" : "Push disabled");
+      toast.success(
+        next
+          ? uiLocale === "ar"
+            ? "تم تفعيل إشعارات الجهاز"
+            : uiLocale === "fr"
+              ? "Notifications push activées"
+              : "Push enabled"
+          : uiLocale === "ar"
+            ? "تم إيقاف إشعارات الجهاز"
+            : uiLocale === "fr"
+              ? "Notifications push désactivées"
+              : "Push disabled",
+      );
     } catch {
       toast.error(t("common.error"));
     }
@@ -105,13 +124,22 @@ function SettingsPage() {
     void navigate({ to: "/" });
   }
 
+  const offLabel =
+    uiLocale === "ar" ? "معطّل" : uiLocale === "fr" ? "Désactivé" : "Off";
+
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 pt-5 pb-12">
       <AtlasMasthead
         edition={
           <>
             <Settings className="h-3.5 w-3.5 text-signal" />
-            <span>ACCOUNT PREFERENCES</span>
+            <span>
+              {uiLocale === "ar"
+                ? "إعدادات الحساب"
+                : uiLocale === "fr"
+                  ? "PRÉFÉRENCES DU COMPTE"
+                  : "ACCOUNT PREFERENCES"}
+            </span>
           </>
         }
         title={t("nav.settings")}
@@ -122,7 +150,11 @@ function SettingsPage() {
             className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-hairline bg-surface px-3.5 text-sm font-medium text-ink hover:bg-surface-raised transition-colors cursor-pointer"
           >
             <LogOut className="h-4 w-4 text-hazard-extreme" />
-            Sign out
+            {uiLocale === "ar"
+              ? "تسجيل الخروج"
+              : uiLocale === "fr"
+                ? "Déconnexion"
+                : "Sign out"}
           </button>
         }
       />
@@ -144,7 +176,7 @@ function SettingsPage() {
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className={`min-h-11 ${FIELD_CLASS}`}
+                className={`min-h-11 ${FIELD_BASE}`}
               />
             </div>
 
@@ -153,14 +185,19 @@ function SettingsPage() {
                 htmlFor="settings-phone"
                 className="text-xs font-medium text-ink-secondary"
               >
-                Phone
+                {uiLocale === "ar"
+                  ? "رقم الهاتف"
+                  : uiLocale === "fr"
+                    ? "Téléphone"
+                    : "Phone"}
               </label>
               <input
                 id="settings-phone"
                 type="tel"
+                dir="ltr"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className={`min-h-11 ${FIELD_CLASS}`}
+                className={`min-h-11 ${FIELD_BASE}`}
               />
             </div>
           </div>
@@ -171,13 +208,17 @@ function SettingsPage() {
                 htmlFor="settings-locale"
                 className="text-xs font-medium text-ink-secondary"
               >
-                Language
+                {uiLocale === "ar"
+                  ? "اللغة"
+                  : uiLocale === "fr"
+                    ? "Langue"
+                    : "Language"}
               </label>
               <select
                 id="settings-locale"
                 value={locale}
                 onChange={(e) => setLocale(e.target.value as Locale)}
-                className={`min-h-11 ${FIELD_CLASS}`}
+                className={`min-h-11 ${FIELD_BASE}`}
               >
                 {LOCALES.map((loc) => (
                   <option key={loc} value={loc}>
@@ -192,18 +233,46 @@ function SettingsPage() {
                 htmlFor="settings-danger"
                 className="text-xs font-medium text-ink-secondary"
               >
-                Minimum fire danger level
+                {uiLocale === "ar"
+                  ? "الحد الأدنى لخطر الحرائق"
+                  : uiLocale === "fr"
+                    ? "Seuil minimal de danger feu"
+                    : "Minimum fire danger level"}
               </label>
               <select
                 id="settings-danger"
                 value={String(minDanger)}
                 onChange={(e) => setMinDanger(Number(e.target.value))}
-                className={`min-h-11 ${FIELD_CLASS}`}
+                className={`min-h-11 ${FIELD_BASE}`}
               >
-                <option value="2">Moderate (2+)</option>
-                <option value="3">High (3+)</option>
-                <option value="4">Very High (4+)</option>
-                <option value="5">Extreme (5)</option>
+                <option value="2">
+                  {uiLocale === "ar"
+                    ? "متوسط (+2)"
+                    : uiLocale === "fr"
+                      ? "Modéré (2+)"
+                      : "Moderate (2+)"}
+                </option>
+                <option value="3">
+                  {uiLocale === "ar"
+                    ? "مرتفع (+3)"
+                    : uiLocale === "fr"
+                      ? "Élevé (3+)"
+                      : "High (3+)"}
+                </option>
+                <option value="4">
+                  {uiLocale === "ar"
+                    ? "مرتفع جدًا (+4)"
+                    : uiLocale === "fr"
+                      ? "Très élevé (4+)"
+                      : "Very High (4+)"}
+                </option>
+                <option value="5">
+                  {uiLocale === "ar"
+                    ? "قصوى (5)"
+                    : uiLocale === "fr"
+                      ? "Extrême (5)"
+                      : "Extreme (5)"}
+                </option>
               </select>
             </div>
           </div>
@@ -214,7 +283,11 @@ function SettingsPage() {
                 htmlFor="settings-digest"
                 className="text-xs font-medium text-ink-secondary"
               >
-                Email digest
+                {uiLocale === "ar"
+                  ? "ملخص البريد الإلكتروني"
+                  : uiLocale === "fr"
+                    ? "Fréquence des e-mails"
+                    : "Email digest"}
               </label>
               <select
                 id="settings-digest"
@@ -222,12 +295,30 @@ function SettingsPage() {
                 onChange={(e) =>
                   setDigest(e.target.value as EmailDigestFrequency)
                 }
-                className={`min-h-11 ${FIELD_CLASS}`}
+                className={`min-h-11 ${FIELD_BASE}`}
               >
-                <option value="immediate">Immediate</option>
-                <option value="hourly">Hourly</option>
-                <option value="daily">Daily</option>
-                <option value="off">Off</option>
+                <option value="immediate">
+                  {uiLocale === "ar"
+                    ? "فوري"
+                    : uiLocale === "fr"
+                      ? "Immédiat"
+                      : "Immediate"}
+                </option>
+                <option value="hourly">
+                  {uiLocale === "ar"
+                    ? "كل ساعة"
+                    : uiLocale === "fr"
+                      ? "Toutes les heures"
+                      : "Hourly"}
+                </option>
+                <option value="daily">
+                  {uiLocale === "ar"
+                    ? "يومي"
+                    : uiLocale === "fr"
+                      ? "Quotidien"
+                      : "Daily"}
+                </option>
+                <option value="off">{offLabel}</option>
               </select>
             </div>
 
@@ -236,13 +327,17 @@ function SettingsPage() {
                 htmlFor="settings-digest-hour"
                 className="text-xs font-medium text-ink-secondary"
               >
-                Daily digest hour (Algiers CET)
+                {uiLocale === "ar"
+                  ? "ساعة الملخص اليومي (توقيت الجزائر)"
+                  : uiLocale === "fr"
+                    ? "Heure du résumé quotidien (Alger CET)"
+                    : "Daily digest hour (Algiers CET)"}
               </label>
               <select
                 id="settings-digest-hour"
                 value={String(digestHour)}
                 onChange={(e) => setDigestHour(Number(e.target.value))}
-                className={`min-h-11 ${FIELD_CLASS}`}
+                className={`min-h-11 ${FIELD_BASE}`}
               >
                 {Array.from({ length: 24 }, (_, h) => (
                   <option key={h} value={String(h)}>
@@ -259,15 +354,19 @@ function SettingsPage() {
                 htmlFor="settings-quiet-start"
                 className="text-xs font-medium text-ink-secondary"
               >
-                Quiet hours start
+                {uiLocale === "ar"
+                  ? "بداية ساعات الهدوء"
+                  : uiLocale === "fr"
+                    ? "Début des heures calmes"
+                    : "Quiet hours start"}
               </label>
               <select
                 id="settings-quiet-start"
                 value={quietStart}
                 onChange={(e) => setQuietStart(e.target.value)}
-                className={`min-h-11 ${FIELD_CLASS}`}
+                className={`min-h-11 ${FIELD_BASE}`}
               >
-                <option value="">Off</option>
+                <option value="">{offLabel}</option>
                 {Array.from({ length: 24 }, (_, h) => (
                   <option key={h} value={String(h)}>
                     {String(h).padStart(2, "0")}:00
@@ -281,15 +380,19 @@ function SettingsPage() {
                 htmlFor="settings-quiet-end"
                 className="text-xs font-medium text-ink-secondary"
               >
-                Quiet hours end
+                {uiLocale === "ar"
+                  ? "نهاية ساعات الهدوء"
+                  : uiLocale === "fr"
+                    ? "Fin des heures calmes"
+                    : "Quiet hours end"}
               </label>
               <select
                 id="settings-quiet-end"
                 value={quietEnd}
                 onChange={(e) => setQuietEnd(e.target.value)}
-                className={`min-h-11 ${FIELD_CLASS}`}
+                className={`min-h-11 ${FIELD_BASE}`}
               >
-                <option value="">Off</option>
+                <option value="">{offLabel}</option>
                 {Array.from({ length: 24 }, (_, h) => (
                   <option key={h} value={String(h)}>
                     {String(h).padStart(2, "0")}:00
@@ -317,7 +420,13 @@ function SettingsPage() {
               >
                 <span className="h-4 w-4 rounded-full bg-surface shadow-xs" />
               </span>
-              <span>Email notifications</span>
+              <span>
+                {uiLocale === "ar"
+                  ? "تنبيهات البريد الإلكتروني"
+                  : uiLocale === "fr"
+                    ? "Notifications par e-mail"
+                    : "Email notifications"}
+              </span>
             </button>
 
             <button
@@ -326,7 +435,17 @@ function SettingsPage() {
               className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-hairline bg-surface px-3.5 text-sm font-medium text-ink hover:bg-surface-raised transition-colors cursor-pointer"
             >
               <Bell className="h-4 w-4 text-signal" />
-              {alertPush ? "Device push active" : "Enable device push"}
+              {alertPush
+                ? uiLocale === "ar"
+                  ? "إشعارات الجهاز مفعّلة"
+                  : uiLocale === "fr"
+                    ? "Push appareil actif"
+                    : "Device push active"
+                : uiLocale === "ar"
+                  ? "تفعيل إشعارات الجهاز"
+                  : uiLocale === "fr"
+                    ? "Activer le push appareil"
+                    : "Enable device push"}
             </button>
           </div>
 
@@ -338,7 +457,11 @@ function SettingsPage() {
               className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-signal px-5 text-sm font-medium text-signal-ink hover:opacity-95 disabled:opacity-50 transition-opacity cursor-pointer"
             >
               <Save className="h-4 w-4" />
-              Save changes
+              {uiLocale === "ar"
+                ? "حفظ التغييرات"
+                : uiLocale === "fr"
+                  ? "Enregistrer"
+                  : "Save changes"}
             </button>
           </div>
         </AtlasPanel>

@@ -61,6 +61,50 @@ export const Route = createFileRoute("/_authenticated/report")({
   component: ReportPage,
 });
 
+function reportKindLabel(kind: string, locale: AnyLocale): string {
+  const map: Record<string, { ar: string; fr: string; en: string }> = {
+    sighting: { ar: "دخان / حريق", fr: "Fumée / Feu", en: "Smoke / Fire" },
+    flooding: { ar: "فيضان", fr: "Inondation", en: "Flooding" },
+    storm_damage: {
+      ar: "أضرار عاصفة",
+      fr: "Dégâts tempête",
+      en: "Storm damage",
+    },
+    road_blocked: { ar: "طريق مقطوع", fr: "Route coupée", en: "Road blocked" },
+    earthquake: { ar: "هزة أرضية", fr: "Séisme", en: "Earthquake" },
+    person_trapped: {
+      ar: "شخص عالق",
+      fr: "Personne bloquée",
+      en: "Person trapped",
+    },
+    other: { ar: "خطر آخر", fr: "Autre aléa", en: "Other hazard" },
+  };
+  const e = map[kind];
+  if (!e) return kind.replace(/_/g, " ");
+  return locale === "ar" ? e.ar : locale === "fr" ? e.fr : e.en;
+}
+
+function publishStateLabel(state: string, locale: AnyLocale): string {
+  if (state === "published") {
+    return locale === "ar" ? "منشور" : locale === "fr" ? "Publié" : "Published";
+  }
+  if (state === "held") {
+    return locale === "ar"
+      ? "قيد المراجعة"
+      : locale === "fr"
+        ? "En attente"
+        : "Under review";
+  }
+  if (state === "classifying") {
+    return locale === "ar"
+      ? "جاري التحقق"
+      : locale === "fr"
+        ? "Vérification"
+        : "Checking";
+  }
+  return locale === "ar" ? "خاص" : locale === "fr" ? "Privé" : "Private";
+}
+
 function ReportPage() {
   const { t, i18n } = useTranslation();
   const locale = (i18n.language || "ar") as AnyLocale;
@@ -96,7 +140,13 @@ function ReportPage() {
     onSuccess: () => {
       setNote("");
       void qc.invalidateQueries({ queryKey: ["reports", "mine"] });
-      toast.success("Report submitted");
+      toast.success(
+        locale === "ar"
+          ? "تم إرسال البلاغ"
+          : locale === "fr"
+            ? "Signalement envoyé"
+            : "Report submitted",
+      );
     },
     onError: (err) =>
       toast.error(err instanceof Error ? err.message : t("common.error")),
@@ -114,7 +164,13 @@ function ReportPage() {
         edition={
           <>
             <Flag className="h-3.5 w-3.5 text-hazard-extreme" />
-            <span>CITIZEN OBSERVATION</span>
+            <span>
+              {locale === "ar"
+                ? "رصد مواطن"
+                : locale === "fr"
+                  ? "OBSERVATION CITOYENNE"
+                  : "CITIZEN OBSERVATION"}
+            </span>
           </>
         }
         title={
@@ -142,16 +198,17 @@ function ReportPage() {
                 <button
                   key={k}
                   type="button"
+                  aria-pressed={active}
                   onClick={() => setKind(k)}
                   className={cn(
-                    "flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-xs font-medium transition-colors cursor-pointer",
+                    "flex min-h-14 flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-xs font-medium transition-colors cursor-pointer",
                     active
                       ? "border-signal bg-signal-soft text-signal"
                       : "border-hairline bg-surface hover:bg-surface-raised text-ink-secondary",
                   )}
                 >
                   <Icon className="h-4 w-4" />
-                  <span className="truncate">{k.replace("_", " ")}</span>
+                  <span className="truncate">{reportKindLabel(k, locale)}</span>
                 </button>
               );
             })}
@@ -162,6 +219,7 @@ function ReportPage() {
             lon={lon}
             zoom={9}
             interactive
+            markerColor="#DC2626"
             onPick={(pos) => {
               setLat(pos.lat);
               setLon(pos.lon);
@@ -170,7 +228,15 @@ function ReportPage() {
           />
 
           <div className="flex items-center justify-between text-xs text-ink-secondary">
-            <span>{nearest ? unitName(nearest, locale) : "Algeria"}</span>
+            <span>
+              {nearest
+                ? unitName(nearest, locale)
+                : locale === "ar"
+                  ? "الجزائر"
+                  : locale === "fr"
+                    ? "Algérie"
+                    : "Algeria"}
+            </span>
             <SafeBdi className="font-mono">{coordLabel(lat, lon)}</SafeBdi>
           </div>
 
@@ -178,22 +244,43 @@ function ReportPage() {
             rows={3}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Describe what you observe..."
+            placeholder={
+              locale === "ar"
+                ? "صف ما تلاحظه بدقة..."
+                : locale === "fr"
+                  ? "Décrivez ce que vous observez..."
+                  : "Describe what you observe..."
+            }
           />
 
           <AtlasButton
             variant="danger"
+            className="min-h-11"
             onClick={() => submitMut.mutate()}
             disabled={submitMut.isPending}
           >
             <Send className="h-4 w-4" />
-            {submitMut.isPending ? "Submitting..." : "Submit observation"}
+            {submitMut.isPending
+              ? locale === "ar"
+                ? "جاري الإرسال..."
+                : locale === "fr"
+                  ? "Envoi en cours..."
+                  : "Submitting..."
+              : locale === "ar"
+                ? "إرسال البلاغ"
+                : locale === "fr"
+                  ? "Envoyer le signalement"
+                  : "Submit observation"}
           </AtlasButton>
         </AtlasPanel>
 
         <AtlasPanel className="lg:col-span-5 space-y-4">
           <h2 className="font-display text-xl font-semibold text-ink">
-            My reports ({myReports.length})
+            {locale === "ar"
+              ? `بلاغاتي (${myReports.length})`
+              : locale === "fr"
+                ? `Mes signalements (${myReports.length})`
+                : `My reports (${myReports.length})`}
           </h2>
           {myReports.length === 0 ? (
             <p className="text-sm text-ink-secondary">{t("common.none")}</p>
@@ -206,17 +293,21 @@ function ReportPage() {
                 >
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <AtlasBadge tone="high">{r.kind}</AtlasBadge>
-                      <AtlasBadge tone="neutral">{r.publish_state}</AtlasBadge>
+                      <AtlasBadge tone="high">
+                        {reportKindLabel(r.kind, locale)}
+                      </AtlasBadge>
+                      <AtlasBadge tone="neutral">
+                        {publishStateLabel(r.publish_state, locale)}
+                      </AtlasBadge>
                     </div>
                     {r.note && (
                       <p className="text-xs text-ink-secondary truncate">
                         {cleanCopy(r.note)}
                       </p>
                     )}
-                    <div className="font-mono text-[11px] text-ink-muted">
+                    <SafeBdi className="font-mono text-[11px] text-ink-muted">
                       {relativeTime(r.created_at, locale)}
-                    </div>
+                    </SafeBdi>
                   </div>
                   <AtlasButton
                     variant="ghost"

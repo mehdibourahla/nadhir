@@ -72,7 +72,13 @@ function AboutPage() {
         edition={
           <>
             <Compass className="h-3.5 w-3.5 text-signal" />
-            <span>ALGERIA · 69 WILAYAS · 1,541 COMMUNES</span>
+            <span>
+              {locale === "ar"
+                ? "الجزائر · 69 ولاية · 1541 بلدية"
+                : locale === "fr"
+                  ? "ALGÉRIE · 69 WILAYAS · 1 541 COMMUNES"
+                  : "ALGERIA · 69 WILAYAS · 1,541 COMMUNES"}
+            </span>
           </>
         }
         title={

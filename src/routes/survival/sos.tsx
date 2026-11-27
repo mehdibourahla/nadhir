@@ -45,7 +45,7 @@ function SosPage() {
       <AtlasPanel className="lg:col-span-7 space-y-5">
         <a
           href="tel:14"
-          className="flex items-center justify-between rounded-2xl bg-hazard-extreme px-5 py-4 text-white hover:opacity-92 transition-opacity"
+          className="flex items-center justify-between rounded-2xl bg-[#DC2626] px-5 py-4 text-white hover:bg-[#B91C1C] transition-colors"
         >
           <div>
             <div className="font-display text-2xl font-semibold">

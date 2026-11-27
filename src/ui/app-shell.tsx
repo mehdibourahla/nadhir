@@ -228,7 +228,7 @@ export function AtlasShell({ children, fullBleed = false }: ShellProps) {
             <Search className="h-4 w-4" />
           </button>
 
-          <nav className="flex flex-col items-center gap-1 w-full px-1.5 pt-1">
+          <nav className="flex flex-col items-center gap-1 w-full px-1 pt-1">
             {RAIL_ITEMS.map((item) => {
               const active = item.match(location.pathname);
               const Icon = item.Icon;
@@ -238,7 +238,7 @@ export function AtlasShell({ children, fullBleed = false }: ShellProps) {
                   to={item.to}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "relative flex w-full flex-col items-center justify-center gap-1 rounded-xl py-2 px-1 transition-colors",
+                    "relative flex w-full flex-col items-center justify-center gap-1 rounded-xl py-2 px-0.5 transition-colors",
                     active
                       ? "bg-signal-soft text-signal"
                       : "text-ink-secondary hover:bg-surface-raised hover:text-ink",
@@ -251,7 +251,7 @@ export function AtlasShell({ children, fullBleed = false }: ShellProps) {
                     />
                   )}
                   <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
-                  <span className="text-[10px] font-medium leading-[1.35] truncate max-w-[60px] px-0.5">
+                  <span className="text-[9.5px] font-medium leading-[1.35] truncate max-w-[56px]">
                     {railLabel(item)}
                   </span>
                 </Link>

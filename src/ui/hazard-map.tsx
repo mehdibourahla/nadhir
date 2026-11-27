@@ -574,6 +574,8 @@ export function MiniHazardMap({
   zoom = 10,
   radiusKm,
   interactive = false,
+  markerColor = "#DC2626",
+  basemap,
   onPick,
   className,
 }: {
@@ -582,6 +584,8 @@ export function MiniHazardMap({
   zoom?: number;
   radiusKm?: number;
   interactive?: boolean;
+  markerColor?: string;
+  basemap?: AtlasBasemap;
   onPick?: (coords: { lat: number; lon: number }) => void;
   className?: string;
 }) {
@@ -594,9 +598,10 @@ export function MiniHazardMap({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const isDark = document.documentElement.classList.contains("dark");
+    const initialMode: AtlasBasemap = basemap ?? (isDark ? "night" : "terrain");
     const map = new MapLibreMap({
       container: containerRef.current,
-      style: resolveMapStyle(isDark ? "night" : "terrain"),
+      style: resolveMapStyle(initialMode),
       center: [lon, lat],
       zoom,
       attributionControl: { compact: true },
@@ -604,8 +609,23 @@ export function MiniHazardMap({
     });
     mapRef.current = map;
 
+    const resize = () => map.resize();
+    map.on("load", resize);
+    const raf = requestAnimationFrame(resize);
+    const ro =
+      typeof ResizeObserver !== "undefined" ? new ResizeObserver(resize) : null;
+    ro?.observe(containerRef.current);
+
+    const pinEl = document.createElement("div");
+    pinEl.style.width = "20px";
+    pinEl.style.height = "20px";
+    pinEl.style.borderRadius = "9999px";
+    pinEl.style.backgroundColor = markerColor;
+    pinEl.style.border = "3px solid #ffffff";
+    pinEl.style.boxShadow = `0 0 0 6px ${markerColor}38, 0 4px 12px rgba(0,0,0,0.45)`;
+
     const marker = new Marker({
-      color: "#0A58FF",
+      element: pinEl,
       draggable: interactive,
     })
       .setLngLat([lon, lat])
@@ -630,6 +650,8 @@ export function MiniHazardMap({
     }
 
     return () => {
+      cancelAnimationFrame(raf);
+      ro?.disconnect();
       map.remove();
       mapRef.current = null;
       markerRef.current = null;

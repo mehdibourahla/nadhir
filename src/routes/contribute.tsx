@@ -49,7 +49,13 @@ export const Route = createFileRoute("/contribute")({
       { property: "og:type", content: "website" },
     ],
   }),
-  loader: () => getDeficits(),
+  loader: async () => {
+    try {
+      return await getDeficits();
+    } catch {
+      return null;
+    }
+  },
   component: ContributePage,
 });
 
@@ -107,13 +113,34 @@ function ContributePage() {
       void qc.invalidateQueries({ queryKey: ["contribution-ideas"] }),
   });
 
+  function laneLabel(l: string) {
+    const map: Record<string, { ar: string; fr: string; en: string }> = {
+      local: { ar: "محلي", fr: "Local", en: "Local" },
+      audio: { ar: "صوتي", fr: "Audio", en: "Audio" },
+      institutional: { ar: "مؤسسي", fr: "Institutionnel", en: "Institutional" },
+      science: { ar: "علمي", fr: "Science", en: "Science" },
+      language: { ar: "لغات", fr: "Langues", en: "Language" },
+      code: { ar: "تقني", fr: "Technique", en: "Code" },
+      other: { ar: "أخرى", fr: "Autre", en: "Other" },
+    };
+    const entry = map[l];
+    if (!entry) return l;
+    return locale === "ar" ? entry.ar : locale === "fr" ? entry.fr : entry.en;
+  }
+
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 pt-5 pb-12">
       <AtlasMasthead
         edition={
           <>
             <HeartHandshake className="h-3.5 w-3.5 text-signal" />
-            <span>OPEN CIVIC EFFORT</span>
+            <span>
+              {locale === "ar"
+                ? "مبادرة مدنية مفتوحة"
+                : locale === "fr"
+                  ? "INITIATIVE CIVIQUE OUVERTE"
+                  : "OPEN CIVIC EFFORT"}
+            </span>
           </>
         }
         title={t("nav.contribute")}
@@ -126,34 +153,64 @@ function ContributePage() {
         }
         metrics={[
           {
-            label: "Verified open areas",
-            value: (
+            label:
+              locale === "ar"
+                ? "مساحات مفتوحة موثّقة"
+                : locale === "fr"
+                  ? "Espaces ouverts vérifiés"
+                  : "Verified open areas",
+            value: deficits ? (
               <SafeBdi>
                 {percent(deficits.openAreasVerified, deficits.openAreasTotal)}%
               </SafeBdi>
+            ) : (
+              <SafeBdi>-</SafeBdi>
             ),
-            detail: `${formatNumber(deficits.openAreasVerified, locale)} / ${formatNumber(deficits.openAreasTotal, locale)}`,
+            detail: deficits
+              ? `${formatNumber(deficits.openAreasVerified, locale)} / ${formatNumber(deficits.openAreasTotal, locale)}`
+              : undefined,
           },
           {
-            label: "Communes with fuel data",
-            value: (
+            label:
+              locale === "ar"
+                ? "بلديات ببيانات الغطاء"
+                : locale === "fr"
+                  ? "Communes avec données combustible"
+                  : "Communes with fuel data",
+            value: deficits ? (
               <SafeBdi>
                 {percent(deficits.communesWithFuel, deficits.communesTotal)}%
               </SafeBdi>
+            ) : (
+              <SafeBdi>-</SafeBdi>
             ),
-            detail: `${formatNumber(deficits.communesWithFuel, locale)} / ${formatNumber(deficits.communesTotal, locale)}`,
+            detail: deficits
+              ? `${formatNumber(deficits.communesWithFuel, locale)} / ${formatNumber(deficits.communesTotal, locale)}`
+              : undefined,
           },
           {
-            label: "Locales shipped",
-            value: <SafeBdi>{deficits.localesShipped}</SafeBdi>,
+            label:
+              locale === "ar"
+                ? "اللغات المتاحة"
+                : locale === "fr"
+                  ? "Langues disponibles"
+                  : "Locales shipped",
+            value: <SafeBdi>{deficits?.localesShipped ?? 4}</SafeBdi>,
             detail: "AR · FR · EN · KAB",
           },
           {
-            label: "Delivery receipts",
-            value: (
+            label:
+              locale === "ar"
+                ? "إشعارات مُسلّمة"
+                : locale === "fr"
+                  ? "Accusés de livraison"
+                  : "Delivery receipts",
+            value: deficits ? (
               <SafeBdi>
                 {formatNumber(deficits.deliveryReceipts, locale)}
               </SafeBdi>
+            ) : (
+              <SafeBdi>-</SafeBdi>
             ),
           },
         ]}
@@ -183,10 +240,20 @@ function ContributePage() {
                 >
                   <span>
                     {loc === "ar"
-                      ? "العربية (Arabic)"
+                      ? locale === "fr"
+                        ? "العربية (Arabe)"
+                        : locale === "ar"
+                          ? "العربية"
+                          : "العربية (Arabic)"
                       : loc === "fr"
-                        ? "Français (French)"
-                        : "Taqbaylit (Kabyle)"}
+                        ? locale === "fr"
+                          ? "Français"
+                          : locale === "ar"
+                            ? "الفرنسية (Français)"
+                            : "Français (French)"
+                        : locale === "ar"
+                          ? "القبائلية (Taqbaylit)"
+                          : "Taqbaylit (Kabyle)"}
                   </span>
                   <ArrowRight className="h-4 w-4 text-signal atlas-dir-icon" />
                 </Link>
@@ -215,7 +282,7 @@ function ContributePage() {
               >
                 {LANES.map((l) => (
                   <option key={l} value={l}>
-                    {l}
+                    {laneLabel(l)}
                   </option>
                 ))}
               </AtlasSelect>
@@ -224,14 +291,26 @@ function ContributePage() {
                 rows={4}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder={`At least ${IDEA_MIN} characters...`}
+                placeholder={
+                  locale === "ar"
+                    ? `اكتب ${IDEA_MIN} حرفًا على الأقل...`
+                    : locale === "fr"
+                      ? `Au moins ${IDEA_MIN} caractères...`
+                      : `At least ${IDEA_MIN} characters...`
+                }
                 required
               />
 
               <AtlasInput
                 value={contact}
                 onChange={(e) => setContact(e.target.value)}
-                placeholder="Contact (optional)"
+                placeholder={
+                  locale === "ar"
+                    ? "وسيلة تواصل (اختياري)"
+                    : locale === "fr"
+                      ? "Contact (facultatif)"
+                      : "Contact (optional)"
+                }
               />
 
               <input
@@ -254,7 +333,11 @@ function ContributePage() {
                 }
               >
                 <Send className="h-4 w-4" />
-                Submit
+                {locale === "ar"
+                  ? "إرسال"
+                  : locale === "fr"
+                    ? "Envoyer"
+                    : "Submit"}
               </AtlasButton>
             </form>
           </AtlasPanel>
@@ -282,7 +365,7 @@ function ContributePage() {
                 className="flex items-start justify-between gap-4 p-4"
               >
                 <div className="space-y-1.5 min-w-0">
-                  <AtlasBadge tone="signal">{idea.lane}</AtlasBadge>
+                  <AtlasBadge tone="signal">{laneLabel(idea.lane)}</AtlasBadge>
                   <p className="text-sm text-ink leading-relaxed">
                     {cleanCopy(idea.message)}
                   </p>

@@ -116,7 +116,7 @@ function IncidentDetailPage() {
               onClick={() => void copyLink()}
             >
               <Share2 className="h-3.5 w-3.5" />
-              Share
+              {lang === "ar" ? "مشاركة" : lang === "fr" ? "Partager" : "Share"}
             </AtlasButton>
             <a href={shareLinks.whatsapp} target="_blank" rel="noreferrer">
               <AtlasButton variant="primary" size="sm">
@@ -134,6 +134,7 @@ function IncidentDetailPage() {
               lat={anchor.lat}
               lon={anchor.lon}
               zoom={10}
+              markerColor={card.fire ? "#DC2626" : "#EA580C"}
               className="h-80"
             />
           )}
@@ -143,7 +144,14 @@ function IncidentDetailPage() {
               {cleanCopy(card.eyebrow)}
             </h2>
             <p className="text-sm text-ink-secondary leading-relaxed">
-              {cleanCopy(incident.evidence)}
+              <SafeBdi dir="auto">
+                {cleanCopy(
+                  incident.evidence.replace(
+                    /^(?:[\u23EA-\u23FF]|\u{1F4E2}|\uFE0F|\s)+/u,
+                    "",
+                  ),
+                )}
+              </SafeBdi>
             </p>
             {incident.latest_mention?.document?.url && (
               <a
@@ -171,25 +179,49 @@ function IncidentDetailPage() {
             </div>
             <dl className="divide-y divide-hairline text-sm">
               <div className="flex justify-between py-2.5">
-                <dt className="text-ink-secondary">First reported</dt>
+                <dt className="text-ink-secondary">
+                  {lang === "ar"
+                    ? "أول رصد"
+                    : lang === "fr"
+                      ? "Premier signalement"
+                      : "First reported"}
+                </dt>
                 <dd className="font-mono text-ink tabular-nums">
                   <SafeBdi>{algiersTime(incident.first_reported_at)}</SafeBdi>
                 </dd>
               </div>
               <div className="flex justify-between py-2.5">
-                <dt className="text-ink-secondary">Latest bulletin</dt>
+                <dt className="text-ink-secondary">
+                  {lang === "ar"
+                    ? "آخر نشرة"
+                    : lang === "fr"
+                      ? "Dernier bilan"
+                      : "Latest bulletin"}
+                </dt>
                 <dd className="font-mono text-ink tabular-nums">
                   <SafeBdi>{algiersTime(incident.last_reported_at)}</SafeBdi>
                 </dd>
               </div>
               <div className="flex justify-between py-2.5">
-                <dt className="text-ink-secondary">Updated</dt>
+                <dt className="text-ink-secondary">
+                  {lang === "ar"
+                    ? "آخر تحديث"
+                    : lang === "fr"
+                      ? "Mise à jour"
+                      : "Updated"}
+                </dt>
                 <dd className="text-ink">
                   {relativeTime(incident.updated_at, lang)}
                 </dd>
               </div>
               <div className="flex justify-between py-2.5">
-                <dt className="text-ink-secondary">Mentions</dt>
+                <dt className="text-ink-secondary">
+                  {lang === "ar"
+                    ? "عدد الإشارات"
+                    : lang === "fr"
+                      ? "Mentions"
+                      : "Mentions"}
+                </dt>
                 <dd className="font-mono text-ink tabular-nums">
                   <SafeBdi>{incident.mention_count}</SafeBdi>
                 </dd>

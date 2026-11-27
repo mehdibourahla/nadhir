@@ -171,7 +171,12 @@ function SurvivalLayout() {
     },
     {
       to: "/survival/areas" as const,
-      label: t("survival.areasTitle"),
+      label:
+        locale === "fr"
+          ? "Espaces ouverts"
+          : locale === "ar"
+            ? "مساحات مفتوحة"
+            : t("survival.areasTitle"),
       Icon: Compass,
       active: location.pathname.startsWith("/survival/areas"),
     },
@@ -279,47 +284,50 @@ function SurvivalLayout() {
             })}
           </div>
 
-          <div className="flex flex-wrap items-center gap-1 border-t border-hairline pt-2.5 lg:border-t-0 lg:pt-0">
-            {EMERGENCY_HAZARDS.map((h) => {
-              const label =
-                locale === "ar"
-                  ? h === "general"
-                    ? "عام"
-                    : h === "fire"
-                      ? "حريق"
-                      : h === "flood"
-                        ? "فيضان"
-                        : h === "earthquake"
-                          ? "زلزال"
-                          : "عاصفة"
-                  : locale === "fr"
+          {(location.pathname === "/survival" ||
+            location.pathname === "/survival/") && (
+            <div className="flex flex-wrap items-center gap-1 border-t border-hairline pt-2.5 lg:border-t-0 lg:pt-0">
+              {EMERGENCY_HAZARDS.map((h) => {
+                const label =
+                  locale === "ar"
                     ? h === "general"
-                      ? "Général"
+                      ? "عام"
                       : h === "fire"
-                        ? "Incendie"
+                        ? "حريق"
                         : h === "flood"
-                          ? "Inondation"
+                          ? "فيضان"
                           : h === "earthquake"
-                            ? "Séisme"
-                            : "Orage"
-                    : h.charAt(0).toUpperCase() + h.slice(1);
-              return (
-                <button
-                  key={h}
-                  type="button"
-                  onClick={() => setHazard(h)}
-                  className={cn(
-                    "rounded-lg px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
-                    hazard === h
-                      ? "bg-hazard-extreme-soft text-hazard-extreme border border-hazard-extreme/30"
-                      : "text-ink-secondary hover:bg-surface-raised",
-                  )}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+                            ? "زلزال"
+                            : "عاصفة"
+                    : locale === "fr"
+                      ? h === "general"
+                        ? "Général"
+                        : h === "fire"
+                          ? "Incendie"
+                          : h === "flood"
+                            ? "Inondation"
+                            : h === "earthquake"
+                              ? "Séisme"
+                              : "Orage"
+                      : h.charAt(0).toUpperCase() + h.slice(1);
+                return (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => setHazard(h)}
+                    className={cn(
+                      "rounded-lg px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
+                      hazard === h
+                        ? "bg-hazard-extreme-soft text-hazard-extreme-ink border border-hazard-extreme/30"
+                        : "text-ink-secondary hover:bg-surface-raised",
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {pack && (

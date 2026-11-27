@@ -20,6 +20,7 @@ import {
 import { nearestPlace } from "@/lib/civil-map";
 import { adminUnitsQuery, coordLabel } from "@/lib/nadhir";
 import { titledMeta } from "@/lib/page-meta";
+import { cn } from "@/lib/utils";
 import { zoneStatus } from "@/lib/zone-status";
 import { AtlasPageFooter } from "@/ui/app-shell";
 import { MiniHazardMap } from "@/ui/hazard-map";
@@ -85,7 +86,13 @@ function ZonesPage() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["zones"] });
       setName("");
-      toast.success("Zone saved");
+      toast.success(
+        locale === "ar"
+          ? "تم حفظ المنطقة"
+          : locale === "fr"
+            ? "Zone enregistrée"
+            : "Zone saved",
+      );
     },
     onError: (err) => toast.error(t(zoneFailureKey(err))),
   });
@@ -105,7 +112,10 @@ function ZonesPage() {
     e.preventDefault();
     const nearest = nearestPlace(unitsQ.data ?? [], lat, lon);
     saveMut.mutate({
-      name: name.trim() || nearest?.name_fr || "My Zone",
+      name:
+        name.trim() ||
+        nearest?.name_fr ||
+        (locale === "ar" ? "منطقتي" : locale === "fr" ? "Ma zone" : "My Zone"),
       lat,
       lon,
       radius_km: radiusKm,
@@ -123,9 +133,10 @@ function ZonesPage() {
         edition={
           <>
             <MapPin className="h-3.5 w-3.5 text-signal" />
-            <span>
-              {zones.length} / {MAX_ZONES} ZONES
-            </span>
+            <SafeBdi>
+              {zones.length} / {MAX_ZONES}{" "}
+              {locale === "ar" ? "مناطق" : locale === "fr" ? "ZONES" : "ZONES"}
+            </SafeBdi>
           </>
         }
         title={
@@ -159,6 +170,7 @@ function ZonesPage() {
             lon={lon}
             zoom={8}
             interactive
+            markerColor="#0A58FF"
             onPick={(pos) => {
               setLat(pos.lat);
               setLon(pos.lon);
@@ -169,27 +181,45 @@ function ZonesPage() {
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-ink-secondary">
-                Zone name
+                {locale === "ar"
+                  ? "اسم المنطقة"
+                  : locale === "fr"
+                    ? "Nom de la zone"
+                    : "Zone name"}
               </label>
               <AtlasInput
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Alger, Maison..."
+                placeholder={
+                  locale === "ar"
+                    ? "الجزائر، المنزل..."
+                    : locale === "fr"
+                      ? "Alger, Maison..."
+                      : "Algiers, Home..."
+                }
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-ink-secondary">
-                  Coordinates
+                  {locale === "ar"
+                    ? "الإحداثيات"
+                    : locale === "fr"
+                      ? "Coordonnées"
+                      : "Coordinates"}
                 </label>
-                <div className="h-10 flex items-center rounded-[10px] border border-hairline bg-surface-raised px-3 font-mono text-xs text-ink">
+                <div className="min-h-11 flex items-center rounded-[10px] border border-hairline bg-surface-raised px-3 font-mono text-xs text-ink">
                   <SafeBdi>{coordLabel(lat, lon)}</SafeBdi>
                 </div>
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-ink-secondary">
-                  Radius ({radiusKm} km)
+                  {locale === "ar"
+                    ? `نصف القطر (${radiusKm} كم)`
+                    : locale === "fr"
+                      ? `Rayon (${radiusKm} km)`
+                      : `Radius (${radiusKm} km)`}
                 </label>
                 <input
                   type="range"
@@ -198,43 +228,60 @@ function ZonesPage() {
                   step={5}
                   value={radiusKm}
                   onChange={(e) => setRadiusKm(Number(e.target.value))}
-                  className="w-full accent-signal mt-2.5"
+                  className="w-full min-h-11 accent-signal"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2 pt-1">
-              {ZONE_HAZARDS.map((h) => (
-                <label
-                  key={h.key}
-                  className="flex items-center gap-2 text-xs text-ink cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={hazards[h.key]}
-                    onChange={(e) =>
+              {ZONE_HAZARDS.map((h) => {
+                const active = hazards[h.key];
+                return (
+                  <button
+                    key={h.key}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() =>
                       setHazards((prev) => ({
                         ...prev,
-                        [h.key]: e.target.checked,
+                        [h.key]: !prev[h.key],
                       }))
                     }
-                    className="accent-signal"
-                  />
-                  <span>
-                    {t(h.label, { defaultValue: h.key.replace("notify_", "") })}
-                  </span>
-                </label>
-              ))}
+                    className={cn(
+                      "flex min-h-11 items-center justify-between gap-2 rounded-xl border px-3 text-xs font-medium transition-colors cursor-pointer text-start",
+                      active
+                        ? "border-signal/50 bg-signal-soft text-signal"
+                        : "border-hairline bg-surface text-ink-secondary hover:bg-surface-raised",
+                    )}
+                  >
+                    <span className="truncate">
+                      {t(h.label, {
+                        defaultValue: h.key.replace("notify_", ""),
+                      })}
+                    </span>
+                    <span
+                      className={cn(
+                        "h-2 w-2 shrink-0 rounded-full",
+                        active ? "bg-signal" : "bg-hairline-strong",
+                      )}
+                    />
+                  </button>
+                );
+              })}
             </div>
 
             <AtlasButton
               type="submit"
               variant="primary"
-              className="w-full"
+              className="w-full min-h-11"
               disabled={saveMut.isPending || zones.length >= MAX_ZONES}
             >
               <Plus className="h-4 w-4" />
-              Save zone
+              {locale === "ar"
+                ? "حفظ المنطقة"
+                : locale === "fr"
+                  ? "Enregistrer la zone"
+                  : "Save zone"}
             </AtlasButton>
           </form>
         </AtlasPanel>
@@ -243,7 +290,15 @@ function ZonesPage() {
           {zonesQ.isLoading ? (
             <AtlasLoading />
           ) : zones.length === 0 ? (
-            <AtlasEmpty title="No zones configured yet" />
+            <AtlasEmpty
+              title={
+                locale === "ar"
+                  ? "لم تتم إضافة أي منطقة بعد"
+                  : locale === "fr"
+                    ? "Aucune zone configurée"
+                    : "No zones configured yet"
+              }
+            />
           ) : (
             <div className="space-y-3">
               {zones.map((z: Zone) => {
@@ -285,7 +340,7 @@ function ZonesPage() {
                     <div className="space-y-1.5 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-display text-lg font-semibold text-ink truncate">
-                          {z.name}
+                          <SafeBdi dir="auto">{z.name}</SafeBdi>
                         </span>
                         <AtlasBadge
                           tone={
@@ -298,10 +353,22 @@ function ZonesPage() {
                           dot
                         >
                           {!z.active
-                            ? "Paused"
+                            ? locale === "ar"
+                              ? "متوقف مؤقتًا"
+                              : locale === "fr"
+                                ? "En pause"
+                                : "Paused"
                             : activeCount > 0
-                              ? `${activeCount} active`
-                              : "Clear"}
+                              ? locale === "ar"
+                                ? `${activeCount} نشط`
+                                : locale === "fr"
+                                  ? `${activeCount} actif${activeCount > 1 ? "s" : ""}`
+                                  : `${activeCount} active`
+                              : locale === "ar"
+                                ? "هادئ"
+                                : locale === "fr"
+                                  ? "Calme"
+                                  : "Clear"}
                         </AtlasBadge>
                       </div>
                       <div className="font-mono text-xs text-ink-muted">
@@ -320,7 +387,17 @@ function ZonesPage() {
                         }
                       >
                         <Power className="h-3.5 w-3.5" />
-                        {z.active ? "Pause" : "Resume"}
+                        {z.active
+                          ? locale === "ar"
+                            ? "إيقاف"
+                            : locale === "fr"
+                              ? "Pause"
+                              : "Pause"
+                          : locale === "ar"
+                            ? "استئناف"
+                            : locale === "fr"
+                              ? "Reprendre"
+                              : "Resume"}
                       </AtlasButton>
                       <AtlasButton
                         variant="ghost"
