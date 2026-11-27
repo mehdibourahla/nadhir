@@ -1,8 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { Compass, Layers, Radio, ShieldCheck } from "lucide-react";
 
-import { EmergencyNumbers } from "@/components/SiteChrome";
+import type { AnyLocale } from "@/i18n";
 import { pageMeta } from "@/lib/page-meta";
+import { AtlasPageFooter } from "@/ui/app-shell";
+import { AtlasButton, AtlasMasthead, AtlasPanel } from "@/ui/primitives";
 
 export const Route = createFileRoute("/about")({
   head: () => ({
@@ -11,113 +14,119 @@ export const Route = createFileRoute("/about")({
   component: AboutPage,
 });
 
-const SOURCES = [
-  {
-    name: "NASA FIRMS (VIIRS / MODIS)",
-    licence: "Public domain",
-    url: "https://www.earthdata.nasa.gov/data/tools/firms",
-  },
-  {
-    name: "EUMETSAT Meteosat MTG FCI",
-    licence: "EUMETSAT open data",
-    url: "https://www.eumetsat.int/",
-  },
-  {
-    name: "Copernicus Sentinel-3 SLSTR",
-    url: "https://view.eumetsat.int/",
-  },
-  {
-    name: "Open-Meteo weather",
-    licence: "CC-BY 4.0",
-    url: "https://open-meteo.com/",
-  },
-  {
-    name: "Copernicus EFFIS / GWIS",
-    url: "https://forest-fire.emergency.copernicus.eu/",
-  },
-  {
-    name: "ONM — الديوان الوطني للأرصاد الجوية",
-    url: "https://ametvigilance.meteo.dz/",
-  },
-  {
-    name: "Protection Civile (DGPC) — الحماية المدنية",
-    url: "https://t.me/DGPCDZ",
-  },
-  {
-    name: "EMSC — earthquakes",
-    url: "https://www.emsc-csem.org/",
-  },
-  {
-    name: "OpenStreetMap",
-    licence: "ODbL",
-    url: "https://www.openstreetmap.org/copyright",
-  },
-];
-
-function Section({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="mt-6">
-      <h2 className="text-lg">{title}</h2>
-      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-        {body}
-      </p>
-    </section>
-  );
-}
-
 function AboutPage() {
-  const { t } = useTranslation();
+  const { i18n } = useTranslation();
+  const locale = (i18n.language || "ar") as AnyLocale;
+
+  const pillars = [
+    {
+      Icon: Radio,
+      title:
+        locale === "ar"
+          ? "مصادر رسمية وأقمار صناعية"
+          : locale === "fr"
+            ? "Sources officielles et satellites"
+            : "Official bulletins & satellites",
+      body:
+        locale === "ar"
+          ? "يجمع نذير بين نشرات الديوان الوطني للأرصاد الجوية (ONM CAP) وتدخلات الحماية المدنية (DGPC) ورصد NASA FIRMS وEUMETSAT MTG FCI وبيانات الزلازل."
+          : locale === "fr"
+            ? "Nadhir agrège les vigilances officielles ONM (CAP), les bilans DGPC, les détections satellitaires NASA FIRMS et EUMETSAT MTG FCI, ainsi que le suivi sismique."
+            : "Nadhir unifies official ONM CAP vigilance bulletins, DGPC civil protection updates, NASA FIRMS and EUMETSAT MTG FCI satellite thermal feeds, and seismic monitoring.",
+    },
+    {
+      Icon: ShieldCheck,
+      title:
+        locale === "ar"
+          ? "الشفافية والصرامة في التصنيف"
+          : locale === "fr"
+            ? "Rigueur et attribution des sources"
+            : "Strict source provenance",
+      body:
+        locale === "ar"
+          ? "لا تُخلط الإشارات الحرارية الأولية بالحرائق المؤكدة. كل حدث يعرض مصدره وتوقيته الدقيق بتوقيت الجزائر."
+          : locale === "fr"
+            ? "Les signaux thermiques isolés ne sont jamais confondus avec les incendies confirmés. Chaque événement affiche sa source et son horodatage exact."
+            : "Uncorroborated thermal anomalies are strictly separated from confirmed incidents. Every alert shows its exact source and Algiers timestamp.",
+    },
+    {
+      Icon: Layers,
+      title:
+        locale === "ar"
+          ? "العمل دون اتصال في الطوارئ"
+          : locale === "fr"
+            ? "Mode survie hors ligne"
+            : "Offline-ready emergency toolkit",
+      body:
+        locale === "ar"
+          ? "حزمة الطوارئ تحفظ موقعك وأقرب المساحات المفتوحة وأرقام النجدة الوطنية (14، 1548، 1055، 1070) للوصول إليها حتى عند انقطاع الشبكة."
+          : locale === "fr"
+            ? "Le mode survie conserve vos coordonnées, les espaces ouverts proches et les numéros d'urgence algériens (14, 1548, 1055, 1070) hors ligne."
+            : "Survival Mode caches your coordinates, nearby open areas, and official Algerian emergency numbers (14, 1548, 1055, 1070) for offline access.",
+    },
+  ];
+
   return (
-    <div className="mx-auto max-w-[820px] px-4 py-8">
-      <h1 className="text-2xl">{t("about.title")}</h1>
-      <p className="mt-2 text-sm font-medium">{t("about.independent")}</p>
-      <Section title={t("about.missionTitle")} body={t("about.mission")} />
-      <Section title={t("about.howTitle")} body={t("about.how")} />
-      <Section title={t("about.dangerTitle")} body={t("about.danger")} />
-      <Section title={t("about.limitsTitle")} body={t("about.limits")} />
-      <Section title={t("about.dataTitle")} body={t("about.data")} />
+    <div className="mx-auto max-w-4xl px-4 sm:px-6 pt-5 pb-12">
+      <AtlasMasthead
+        edition={
+          <>
+            <Compass className="h-3.5 w-3.5 text-signal" />
+            <span>
+              {locale === "ar"
+                ? "الجزائر · 69 ولاية · 1541 بلدية"
+                : locale === "fr"
+                  ? "ALGÉRIE · 69 WILAYAS · 1 541 COMMUNES"
+                  : "ALGERIA · 69 WILAYAS · 1,541 COMMUNES"}
+            </span>
+          </>
+        }
+        title={
+          locale === "ar"
+            ? "عن نذير"
+            : locale === "fr"
+              ? "À propos de Nadhir"
+              : "About Nadhir"
+        }
+        subtitle={
+          locale === "ar"
+            ? "منصة وطنية مستقلة للإنذار المبكر ومتابعة المخاطر الطبيعية والطقس في الجزائر."
+            : locale === "fr"
+              ? "Instrument indépendant d'information civique sur les aléas météorologiques, incendies et séismes en Algérie."
+              : "An independent civic awareness instrument tracking weather, wildfires, seismic events, and road disruptions across Algeria."
+        }
+        actions={
+          <Link to="/status">
+            <AtlasButton variant="secondary" size="sm">
+              {locale === "ar"
+                ? "حالة المصادر"
+                : locale === "fr"
+                  ? "Voir le statut"
+                  : "View live status"}
+            </AtlasButton>
+          </Link>
+        }
+      />
 
-      <ul className="panel mt-4 divide-y divide-border text-sm">
-        {SOURCES.map((s) => (
-          <li
-            key={s.name}
-            className="flex flex-wrap items-center justify-between gap-2 p-3"
-          >
-            <a
-              href={s.url}
-              target="_blank"
-              rel="noreferrer"
-              className="font-medium underline underline-offset-2"
-            >
-              {s.name}
-            </a>
-            {s.licence && (
-              <span className="text-xs text-muted-foreground">{s.licence}</span>
-            )}
-          </li>
+      <div className="space-y-4">
+        {pillars.map(({ Icon, title, body }) => (
+          <AtlasPanel key={title} className="flex items-start gap-4">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-soft text-signal">
+              <Icon className="h-5 w-5" />
+            </span>
+            <div className="space-y-1.5">
+              <h2 className="font-display text-xl font-semibold text-ink">
+                {title}
+              </h2>
+              <p className="text-sm text-ink-secondary leading-relaxed">
+                {body}
+              </p>
+            </div>
+          </AtlasPanel>
         ))}
-      </ul>
-
-      <Link
-        to="/contribute"
-        className="card mt-6 flex flex-wrap items-center justify-between gap-4 p-5 transition-colors hover:border-[var(--accent)]"
-      >
-        <span className="flex flex-col gap-1">
-          <span className="font-display text-[17px] font-semibold">
-            {t("about.contributeTitle")}
-          </span>
-          <span className="max-w-[58ch] text-sm text-muted-foreground">
-            {t("about.contributeBody")}
-          </span>
-        </span>
-        <span className="inline-flex h-9 shrink-0 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground">
-          {t("about.contributeCta")}
-        </span>
-      </Link>
-
-      <div className="mt-6">
-        <EmergencyNumbers />
       </div>
+
+      <AtlasPageFooter />
     </div>
   );
 }

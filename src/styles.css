@@ -1,326 +1,315 @@
-@import "tailwindcss" source(none);
-@source "../src";
+@import "tailwindcss";
 @import "tw-animate-css";
+@import "maplibre-gl/dist/maplibre-gl.css";
 
 @custom-variant dark (&:is(.dark *));
 
-@theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-
-  --color-ground: var(--ground);
-  --color-background: var(--ground);
-  --color-surface: var(--surface);
-  --color-card: var(--surface);
-  --color-raised: var(--raised);
-  --color-muted: var(--raised);
-  --color-secondary: var(--raised);
-  --color-border: var(--border);
-  --color-input: var(--border);
-
-  --color-foreground: var(--ink);
-  --color-card-foreground: var(--ink);
-  --color-secondary-foreground: var(--ink);
-  --color-muted-foreground: var(--ink-soft);
-  --color-faint: var(--ink-faint);
-
-  --color-primary: var(--accent);
-  --color-primary-foreground: var(--accent-ink);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-ink);
-  --color-ring: var(--accent);
-
-  --color-emergency: var(--emergency);
-  --color-emergency-surface: var(--emergency-surface);
-  --color-destructive: var(--emergency);
-  --color-destructive-foreground: var(--surface);
-  --color-popover: var(--surface);
-  --color-popover-foreground: var(--ink);
-
-  --color-risk-1: var(--risk-1);
-  --color-risk-2: var(--risk-2);
-  --color-risk-3: var(--risk-3);
-  --color-risk-4: var(--risk-4);
-  --color-risk-5: var(--risk-5);
-
-  --font-display: "Fraunces", Georgia, serif;
-  --font-sans: "Inter", "IBM Plex Sans Arabic", system-ui, sans-serif;
-  --font-arabic: "IBM Plex Sans Arabic", "Inter", system-ui, sans-serif;
-
-  --shadow-card:
-    0 1px 2px rgb(11 16 14 / 0.05), 0 8px 24px -16px rgb(11 16 14 / 0.28);
-  --shadow-sheet:
-    0 -2px 8px rgb(11 16 14 / 0.06), 0 -18px 48px -24px rgb(11 16 14 / 0.35);
-}
-
 :root {
+  color-scheme: light;
+
+  --atlas-canvas: #f1f4f9;
+  --atlas-surface: #ffffff;
+  --atlas-surface-raised: #e7ecf4;
+  --atlas-surface-hud: rgba(255, 255, 255, 0.92);
+  --atlas-hairline: #d5dfec;
+  --atlas-hairline-strong: #b2c2d8;
+  --atlas-ink: #0a1628;
+  --atlas-ink-secondary: #475b78;
+  --atlas-ink-muted: #5a6e8a;
+  --atlas-accent: #0a58ff;
+  --atlas-accent-soft: rgba(10, 88, 255, 0.1);
+  --atlas-accent-ink: #ffffff;
+
+  --hazard-extreme: #dc2626;
+  --hazard-extreme-ink: #9f1239;
+  --hazard-extreme-soft: #ffe4e6;
+  --hazard-high: #ea580c;
+  --hazard-high-ink: #9a3412;
+  --hazard-high-soft: #ffedd5;
+  --hazard-moderate: #ca8a04;
+  --hazard-moderate-ink: #854d0e;
+  --hazard-moderate-soft: #fef9c3;
+  --hazard-rain: #0284c7;
+  --hazard-rain-ink: #075985;
+  --hazard-rain-soft: #e0f2fe;
+  --hazard-seismic: #7c3aed;
+  --hazard-seismic-ink: #5b21b6;
+  --hazard-seismic-soft: #ede9fe;
+  --hazard-clear: #059669;
+  --hazard-clear-ink: #065f46;
+  --hazard-clear-soft: #d1fae5;
+
+  /* Compatibility mappings for untouched admin kit */
+  --background: #f1f4f9;
+  --foreground: #0a1628;
+  --card: #ffffff;
+  --card-foreground: #0a1628;
+  --popover: #ffffff;
+  --popover-foreground: #0a1628;
+  --primary: #0a58ff;
+  --primary-foreground: #ffffff;
+  --secondary: #e7ecf4;
+  --secondary-foreground: #0a1628;
+  --muted: #e7ecf4;
+  --muted-foreground: #475b78;
+  --accent: #e7ecf4;
+  --accent-foreground: #0a1628;
+  --destructive: #e11d48;
+  --destructive-foreground: #ffffff;
+  --border: #d5dfec;
+  --input: #d5dfec;
+  --ring: #0a58ff;
   --radius: 0.625rem;
-
-  --ground: #f9fafb;
-  --surface: #ffffff;
-  --raised: #eef0f3;
-  --border: #dbdee2;
-
-  --ink: #161b20;
-  --ink-soft: #5f6469;
-  --ink-faint: #686d73;
-
-  --accent: #03332c;
-  --accent-ink: #ffffff;
-  --accent-tint: #e6f2ef;
-
-  --emergency: #d40924;
-  --emergency-surface: #fceced;
-  --emergency-ink: var(--emergency);
-
-  --risk-1: #30ad51;
-  --risk-2: #e4af00;
-  --risk-3: #f16a00;
-  --risk-4: #d40924;
-  --risk-5: #8c1220;
-
-  --risk-tint-1: #eef8f1;
-  --risk-tint-2: #fdf9eb;
-  --risk-tint-3: #fef3eb;
-  --risk-tint-4: #fcebed;
-  --risk-tint-5: #f6eced;
-
-  --risk-ink-1: #184028;
-  --risk-ink-2: #4e4010;
-  --risk-ink-3: #512c10;
-  --risk-ink-4: #490f1b;
-  --risk-ink-5: #33111a;
-
-  /* light hazard hues sit under 3:1 on a light ground; marks carry a ring instead */
-  --mark-ring: rgb(22 27 32 / 0.28);
 }
 
 .dark {
-  --ground: #0b0d10;
-  --surface: #16191c;
-  --raised: #212428;
-  --border: #2f3338;
+  color-scheme: dark;
 
-  --ink: #eceff1;
-  --ink-soft: #a1a5a9;
-  --ink-faint: #8c9196;
+  --atlas-canvas: #070d17;
+  --atlas-surface: #0d1626;
+  --atlas-surface-raised: #132035;
+  --atlas-surface-hud: rgba(13, 22, 38, 0.92);
+  --atlas-hairline: rgba(148, 179, 219, 0.14);
+  --atlas-hairline-strong: rgba(148, 179, 219, 0.28);
+  --atlas-ink: #edf3fa;
+  --atlas-ink-secondary: #a8bdd8;
+  --atlas-ink-muted: #94a3b8;
+  --atlas-accent: #38bdf8;
+  --atlas-accent-soft: rgba(56, 189, 248, 0.16);
+  --atlas-accent-ink: #04111f;
 
-  --accent: #57cbb0;
-  --accent-ink: #04231d;
-  --accent-tint: #10312a;
+  --hazard-extreme: #fb7185;
+  --hazard-extreme-ink: #fecdd3;
+  --hazard-extreme-soft: rgba(225, 29, 72, 0.24);
+  --hazard-high: #fb923c;
+  --hazard-high-ink: #fed7aa;
+  --hazard-high-soft: rgba(234, 88, 12, 0.24);
+  --hazard-moderate: #facc15;
+  --hazard-moderate-ink: #fef08a;
+  --hazard-moderate-soft: rgba(202, 138, 4, 0.22);
+  --hazard-rain: #38bdf8;
+  --hazard-rain-ink: #bae6fd;
+  --hazard-rain-soft: rgba(2, 132, 199, 0.24);
+  --hazard-seismic: #a78bfa;
+  --hazard-seismic-ink: #ddd6fe;
+  --hazard-seismic-soft: rgba(124, 58, 237, 0.24);
+  --hazard-clear: #34d399;
+  --hazard-clear-ink: #a7f3d0;
+  --hazard-clear-soft: rgba(5, 150, 105, 0.22);
 
-  /* nudged from #ee3b3b: small red text and destructive buttons need 4.5:1 on --surface */
-  --emergency: #f04444;
-  --emergency-surface: #341e20;
-  --emergency-ink: #f9baba;
+  /* Compatibility mappings for untouched admin kit */
+  --background: #070d17;
+  --foreground: #edf3fa;
+  --card: #0d1626;
+  --card-foreground: #edf3fa;
+  --popover: #0d1626;
+  --popover-foreground: #edf3fa;
+  --primary: #38bdf8;
+  --primary-foreground: #04111f;
+  --secondary: #132035;
+  --secondary-foreground: #edf3fa;
+  --muted: #132035;
+  --muted-foreground: #8ba1bf;
+  --accent: #132035;
+  --accent-foreground: #edf3fa;
+  --destructive: #fb7185;
+  --destructive-foreground: #070d17;
+  --border: rgba(148, 179, 219, 0.16);
+  --input: rgba(148, 179, 219, 0.2);
+  --ring: #38bdf8;
+}
 
-  --risk-1: #46c865;
-  --risk-2: #f7ce21;
-  --risk-3: #ff8a2b;
-  --risk-4: #ee3b3b;
-  --risk-5: #9c1f35;
+@theme inline {
+  --color-canvas: var(--atlas-canvas);
+  --color-surface: var(--atlas-surface);
+  --color-surface-raised: var(--atlas-surface-raised);
+  --color-surface-hud: var(--atlas-surface-hud);
+  --color-hairline: var(--atlas-hairline);
+  --color-hairline-strong: var(--atlas-hairline-strong);
+  --color-ink: var(--atlas-ink);
+  --color-ink-secondary: var(--atlas-ink-secondary);
+  --color-ink-muted: var(--atlas-ink-muted);
+  --color-signal: var(--atlas-accent);
+  --color-signal-soft: var(--atlas-accent-soft);
+  --color-signal-ink: var(--atlas-accent-ink);
 
-  --risk-tint-1: #1d3226;
-  --risk-tint-2: #36321d;
-  --risk-tint-3: #37291e;
-  --risk-tint-4: #341e20;
-  --risk-tint-5: #291a20;
+  --color-hazard-extreme: var(--hazard-extreme);
+  --color-hazard-extreme-ink: var(--hazard-extreme-ink);
+  --color-hazard-extreme-soft: var(--hazard-extreme-soft);
+  --color-hazard-high: var(--hazard-high);
+  --color-hazard-high-ink: var(--hazard-high-ink);
+  --color-hazard-high-soft: var(--hazard-high-soft);
+  --color-hazard-moderate: var(--hazard-moderate);
+  --color-hazard-moderate-ink: var(--hazard-moderate-ink);
+  --color-hazard-moderate-soft: var(--hazard-moderate-soft);
+  --color-hazard-rain: var(--hazard-rain);
+  --color-hazard-rain-ink: var(--hazard-rain-ink);
+  --color-hazard-rain-soft: var(--hazard-rain-soft);
+  --color-hazard-seismic: var(--hazard-seismic);
+  --color-hazard-seismic-ink: var(--hazard-seismic-ink);
+  --color-hazard-seismic-soft: var(--hazard-seismic-soft);
+  --color-hazard-clear: var(--hazard-clear);
+  --color-hazard-clear-ink: var(--hazard-clear-ink);
+  --color-hazard-clear-soft: var(--hazard-clear-soft);
 
-  --risk-ink-1: #beecc9;
-  --risk-ink-2: #fceeb1;
-  --risk-ink-3: #ffd6b5;
-  --risk-ink-4: #f9baba;
-  --risk-ink-5: #dcb1b8;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 
-  --mark-ring: rgb(236 239 241 / 0.35);
+  --font-display: "Fraunces", "Cairo", Georgia, serif;
+  --font-sans:
+    "Plus Jakarta Sans", "Cairo", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 @layer base {
-  * {
-    border-color: var(--border);
+  html {
+    background-color: var(--atlas-canvas);
+    color: var(--atlas-ink);
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    caret-color: var(--atlas-accent);
   }
 
-  html,
   body {
+    margin: 0;
+    min-height: 100dvh;
+    background-color: var(--atlas-canvas);
+    color: var(--atlas-ink);
     overflow-x: clip;
   }
 
-  body {
-    background-color: var(--ground);
-    color: var(--ink);
-    font-family: var(--font-sans);
-    -webkit-font-smoothing: antialiased;
-  }
-
-  html[lang="ar"] {
-    --font-display: var(--font-arabic);
-    --font-sans: var(--font-arabic);
-  }
-
-  html[lang="ar"] body {
-    font-family: var(--font-arabic);
+  html[lang="ar"],
+  html[dir="rtl"] {
+    font-family: "Cairo", "Plus Jakarta Sans", system-ui, sans-serif;
     line-height: 1.65;
   }
 
-  h1,
-  h2,
-  h3 {
-    font-family: var(--font-display);
-    font-weight: 600;
-    letter-spacing: -0.014em;
-    text-wrap: balance;
+  html[lang="ar"] .font-display,
+  html[dir="rtl"] .font-display {
+    font-family: "Cairo", "Plus Jakarta Sans", system-ui, sans-serif !important;
+    letter-spacing: 0 !important;
+    font-style: normal !important;
+    line-height: 1.3;
   }
 
-  html[lang="ar"] h1,
-  html[lang="ar"] h2,
-  html[lang="ar"] h3,
-  html[lang="ar"] .font-display {
-    font-family: var(--font-arabic);
-    letter-spacing: 0;
-    line-height: 1.35;
+  html[lang="ar"] *,
+  html[dir="rtl"] * {
+    letter-spacing: 0 !important;
   }
 
-  :focus-visible {
-    outline: 2px solid var(--accent);
+  html[lang="ar"] .font-mono,
+  html[dir="rtl"] .font-mono {
+    font-family: "JetBrains Mono", "Cairo", sans-serif;
+  }
+
+  ::selection {
+    background-color: var(--atlas-accent-soft);
+    color: var(--atlas-ink);
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--atlas-accent);
     outline-offset: 2px;
-    border-radius: 4px;
   }
 
-  table {
-    font-variant-numeric: tabular-nums;
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--atlas-hairline-strong) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--atlas-hairline-strong);
+    border-radius: 999px;
   }
 }
 
-@utility tabular {
+.font-display {
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 48;
+}
+
+.tabular-nums {
   font-variant-numeric: tabular-nums;
 }
 
-@utility card {
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+[dir="rtl"] .atlas-dir-icon {
+  transform: scaleX(-1);
 }
 
-@utility card-raised {
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-}
-
-@utility hairline {
-  border-block-end: 1px solid var(--border);
-}
-
-.danger-track {
-  background: linear-gradient(
-    to right,
-    var(--risk-1),
-    var(--risk-2),
-    var(--risk-3),
-    var(--risk-4),
-    var(--risk-5)
-  );
-}
-
-[dir="rtl"] .danger-track {
-  background: linear-gradient(
-    to left,
-    var(--risk-1),
-    var(--risk-2),
-    var(--risk-3),
-    var(--risk-4),
-    var(--risk-5)
-  );
-}
-
-@keyframes sheet-in {
-  from {
-    transform: translateY(12px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.sheet-in {
-  animation: sheet-in 220ms cubic-bezier(0.2, 0.8, 0.3, 1);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sheet-in {
-    animation: none;
-  }
-}
-
+/* MapLibre GL instrument overrides */
 .maplibregl-ctrl-attrib {
-  font-size: 11px;
-  line-height: 1.2;
-  background: var(--surface) !important;
-  color: var(--ink-soft);
-}
-
-.maplibregl-ctrl-attrib.maplibregl-compact {
-  min-height: 44px;
-  padding: 0 44px 0 0;
-  border-radius: 22px;
-  box-sizing: border-box;
+  direction: ltr !important;
+  unicode-bidi: isolate !important;
+  background: var(--atlas-surface-hud) !important;
+  color: var(--atlas-ink-secondary) !important;
+  font-size: 10px !important;
+  border-radius: 999px !important;
+  border: 1px solid var(--atlas-hairline) !important;
+  margin: 0 12px 10px 12px !important;
 }
 
 .maplibregl-ctrl-attrib.maplibregl-compact-show {
-  padding: 0 44px 0 10px;
-}
-
-.maplibregl-ctrl-bottom-left > .maplibregl-ctrl-attrib.maplibregl-compact-show,
-.maplibregl-ctrl-top-left > .maplibregl-ctrl-attrib.maplibregl-compact-show {
-  padding: 0 10px 0 44px;
-}
-
-.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-inner {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px;
-}
-
-.maplibregl-ctrl-attrib .maplibregl-ctrl-attrib-button {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
-  border-radius: 22px;
-  background-position: center;
-  background-repeat: no-repeat;
+  border-radius: 8px !important;
 }
 
 .maplibregl-ctrl-attrib a {
+  color: var(--atlas-ink-secondary) !important;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 44px;
   min-width: 44px;
-  padding-inline: 6px;
-  color: var(--ink-soft);
+  padding: 0 3px;
 }
 
-.map-scroll {
-  scrollbar-width: none;
+.maplibregl-ctrl-attrib .maplibregl-ctrl-attrib-button {
+  min-height: 44px;
+  min-width: 44px;
+  background-color: transparent !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: 18px 18px !important;
 }
 
-.map-scroll::-webkit-scrollbar {
-  display: none;
+.dark .maplibregl-ctrl-attrib .maplibregl-ctrl-attrib-button {
+  filter: invert(0.85);
 }
 
-/* iOS zooms into any focused field under 16px and never zooms back out */
-@supports (-webkit-touch-callout: none) {
-  input,
-  textarea,
-  select {
-    font-size: max(16px, 1em);
+.maplibregl-ctrl-bottom-right,
+.maplibregl-ctrl-bottom-left {
+  z-index: 15 !important;
+}
+
+@media (max-width: 767px) {
+  .maplibregl-ctrl-attrib {
+    margin-bottom: 130px !important;
   }
 }

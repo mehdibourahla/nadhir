@@ -1,11 +1,14 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, ChevronLeft, Share2, TriangleAlert } from "lucide-react";
 import { useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { CheckCircle2, Copy, Send, ShieldAlert } from "lucide-react";
+import { toast } from "sonner";
 
-import { useSurvival } from "@/components/survival/survival-context";
 import { checkInMessage } from "@/lib/survival";
-import { NATIVE } from "@/lib/platform";
+import { cn } from "@/lib/utils";
+import { formatAlgiersClock } from "@/ui/format";
+import { AtlasButton, AtlasInput, AtlasPanel } from "@/ui/primitives";
+import { useSurvivalContext } from "@/ui/survival-context";
 
 export const Route = createFileRoute("/survival/checkin")({
   component: CheckInPage,
@@ -13,174 +16,126 @@ export const Route = createFileRoute("/survival/checkin")({
 
 function CheckInPage() {
   const { t } = useTranslation();
-  const { positionCardData: card } = useSurvival();
+  const { card } = useSurvivalContext();
   const [kind, setKind] = useState<"ok" | "assist">("ok");
+  const [name, setName] = useState("");
 
-  // Built at render AND at send time, so a page left open never sends a stale timestamp.
-  const composeMessage = () => {
-    const time = new Intl.DateTimeFormat("fr-DZ", {
-      timeZone: "Africa/Algiers",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date());
-    return checkInMessage({
-      kind,
-      name: null,
-      card,
-      time,
-      t: (k, o) => (o ? t(k, o) : t(k)),
-    });
-  };
-  const message = composeMessage();
+  const message = checkInMessage({
+    kind,
+    name: name.trim() || null,
+    card,
+    time: `${formatAlgiersClock()} CET`,
+    t: (k, o) => (o ? t(k, o) : t(k)),
+  });
 
-  const onSend = () => {
-    const fresh = composeMessage();
-    const sms = () => {
-      window.location.href = `sms:?&body=${encodeURIComponent(fresh)}`;
-    };
-    if (NATIVE) {
-      void import("@/lib/native-share")
-        .then(({ shareText }) => shareText(fresh))
-        .catch(sms);
-      return;
+  async function handleShare() {
+    if (typeof navigator !== "undefined" && "share" in navigator) {
+      try {
+        await navigator.share({ text: message });
+        return;
+      } catch {
+        // user cancelled or unavailable
+      }
     }
-    if (navigator.share) {
-      void navigator.share({ text: fresh }).catch(() => undefined);
-    } else {
-      sms();
-    }
-  };
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(message)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  }
+
+  async function handleCopy() {
+    await navigator.clipboard.writeText(message);
+    toast.success("Copied");
+  }
 
   return (
-    <>
-      <div className="flex items-center gap-2">
-        <Link
-          to="/survival"
-          className="flex size-11 shrink-0 items-center justify-center rounded-md hover:bg-muted"
-          aria-label={t("common.back")}
-        >
-          <ChevronLeft aria-hidden className="size-5 rtl:rotate-180" />
-        </Link>
-        <h1 className="font-display text-xl">{t("survival.checkinTitle")}</h1>
+    <AtlasPanel className="max-w-2xl space-y-5">
+      <div className="space-y-1">
+        <h2 className="font-display text-2xl font-semibold text-ink">
+          {t("survival.checkinTitle")}
+        </h2>
+        <p className="text-sm text-ink-secondary">
+          {t("survival.checkinIntro")}
+        </p>
       </div>
 
-      <p className="text-[13px] leading-relaxed text-muted-foreground">
-        {t("survival.checkinIntro")}
-      </p>
-
-      <button
-        type="button"
-        onClick={() => setKind("ok")}
-        aria-pressed={kind === "ok"}
-        className="flex min-h-14 items-center gap-3 rounded-xl border p-4 text-start"
-        style={
-          kind === "ok"
-            ? {
-                backgroundColor: "var(--accent-tint)",
-                borderColor: "var(--accent)",
-              }
-            : {
-                borderColor: "var(--border)",
-                backgroundColor: "var(--surface)",
-              }
-        }
-      >
-        <span
-          className="flex size-10 shrink-0 items-center justify-center rounded-full"
-          style={{ backgroundColor: "var(--surface)", color: "var(--accent)" }}
-        >
-          <CheckCircle2 aria-hidden className="size-5" />
-        </span>
-        <span className="flex flex-col gap-0.5">
-          <span
-            className="text-base font-bold"
-            style={kind === "ok" ? { color: "var(--accent)" } : undefined}
-          >
-            {t("survival.checkinOk")}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {t("survival.checkinOkSub")}
-          </span>
-        </span>
-      </button>
-
-      <button
-        type="button"
-        onClick={() => setKind("assist")}
-        aria-pressed={kind === "assist"}
-        className="flex min-h-14 items-center gap-3 rounded-xl border p-4 text-start"
-        style={
-          kind === "assist"
-            ? {
-                backgroundColor: "var(--emergency-surface)",
-                borderColor: "var(--emergency)",
-              }
-            : {
-                borderColor: "var(--border)",
-                backgroundColor: "var(--surface)",
-              }
-        }
-      >
-        <span
-          className="flex size-10 shrink-0 items-center justify-center rounded-full"
-          style={{
-            backgroundColor: "var(--surface)",
-            color: "var(--emergency)",
-          }}
-        >
-          <TriangleAlert aria-hidden className="size-5" />
-        </span>
-        <span className="flex flex-col gap-0.5">
-          <span
-            className="text-base font-bold"
-            style={
-              kind === "assist" ? { color: "var(--emergency-ink)" } : undefined
-            }
-          >
-            {t("survival.checkinAssist")}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {t("survival.checkinAssistSub")}
-          </span>
-        </span>
-      </button>
-
-      <section className="flex flex-col gap-2">
-        <h2 className="text-xs font-semibold text-muted-foreground">
-          {t("survival.checkinPreview")}
-        </h2>
-        <p
-          dir="auto"
-          className="rounded-lg bg-muted px-3.5 py-3 text-sm leading-relaxed"
-        >
-          {message}
-        </p>
-        {card?.coords ? (
-          <p className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
-            <span className="text-muted-foreground">
-              {t("survival.sosCoords")}
-            </span>
-            <span dir="ltr" className="tabular font-semibold">
-              {card.coords}
-            </span>
-          </p>
-        ) : null}
-      </section>
-
-      <div className="mt-auto flex flex-col gap-2.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <button
           type="button"
-          onClick={onSend}
-          className="flex h-14 items-center justify-center gap-2.5 rounded-xl bg-primary text-base font-bold text-primary-foreground disabled:opacity-50"
+          onClick={() => setKind("ok")}
+          className={cn(
+            "flex items-start gap-3 rounded-xl border p-4 text-start transition-colors cursor-pointer",
+            kind === "ok"
+              ? "border-hazard-clear bg-hazard-clear-soft"
+              : "border-hairline bg-surface hover:bg-surface-raised",
+          )}
         >
-          <Share2 aria-hidden className="size-5" />
-          {t("survival.checkinSend")}
+          <CheckCircle2 className="h-5 w-5 text-hazard-clear shrink-0 mt-0.5" />
+          <div>
+            <div className="text-sm font-semibold text-ink">
+              {t("survival.checkinOk")}
+            </div>
+            <div className="text-xs text-ink-secondary mt-0.5">
+              {t("survival.checkinOkSub")}
+            </div>
+          </div>
         </button>
-        <p className="px-2 text-center text-xs leading-relaxed text-muted-foreground">
-          {t("survival.checkinNote")}
-        </p>
+
+        <button
+          type="button"
+          onClick={() => setKind("assist")}
+          className={cn(
+            "flex items-start gap-3 rounded-xl border p-4 text-start transition-colors cursor-pointer",
+            kind === "assist"
+              ? "border-hazard-extreme bg-hazard-extreme-soft"
+              : "border-hairline bg-surface hover:bg-surface-raised",
+          )}
+        >
+          <ShieldAlert className="h-5 w-5 text-hazard-extreme shrink-0 mt-0.5" />
+          <div>
+            <div className="text-sm font-semibold text-ink">
+              {t("survival.checkinAssist")}
+            </div>
+            <div className="text-xs text-ink-secondary mt-0.5">
+              {t("survival.checkinAssistSub")}
+            </div>
+          </div>
+        </button>
       </div>
-    </>
+
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-ink-secondary">
+          {t("authKit.name")}
+        </label>
+        <AtlasInput
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t("authKit.name")}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <div className="text-xs font-mono text-ink-muted">
+          {t("survival.checkinPreview")}
+        </div>
+        <div className="rounded-xl border border-hairline bg-surface-raised/70 p-4 text-sm text-ink leading-relaxed">
+          {message}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <AtlasButton variant="primary" onClick={() => void handleShare()}>
+          <Send className="h-4 w-4" />
+          {t("survival.checkinSend")}
+        </AtlasButton>
+        <AtlasButton variant="secondary" onClick={() => void handleCopy()}>
+          <Copy className="h-4 w-4" />
+          Copy
+        </AtlasButton>
+      </div>
+
+      <p className="text-xs text-ink-muted">{t("survival.checkinNote")}</p>
+    </AtlasPanel>
   );
 }

@@ -1,35 +1,49 @@
-import { useQuery } from "@tanstack/react-query";
-import { Outlet, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Clock, ShieldAlert, WifiOff, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Link,
+  Outlet,
+  createFileRoute,
+  useLocation,
+  useNavigate,
+} from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import {
+  CheckCircle2,
+  Compass,
+  MapPin,
+  PhoneCall,
+  ShieldAlert,
+  Wifi,
+  WifiOff,
+} from "lucide-react";
 
-import { EmergencyNumbers } from "@/components/SiteChrome";
-import {
-  SurvivalContext,
-  type SurvivalState,
-} from "@/components/survival/survival-context";
 import type { Locale } from "@/i18n";
+import { adminUnitsQuery, settlementsQuery } from "@/lib/nadhir";
+import { openAreasQuery } from "@/lib/open-areas";
+import { titledMeta } from "@/lib/page-meta";
 import {
-  adminUnitsQuery,
-  haversineKm,
-  relativeTime,
-  settlementsQuery,
-} from "@/lib/nadhir";
-import {
-  SURVIVAL_ACTIVE_KEY,
-  formatCoords,
+  EMERGENCY_HAZARDS,
   parseEmergencyHazard,
   positionCard,
   type EmergencyHazardKind,
-  type PositionCard,
 } from "@/lib/survival";
 import {
   deviceStorage,
   loadPack,
   type SurvivalPack,
 } from "@/lib/survival-pack";
-import { titledMeta } from "@/lib/page-meta";
+import { cn } from "@/lib/utils";
+import { AtlasPageFooter } from "@/ui/app-shell";
+import {
+  AlgiersClock,
+  AtlasBadge,
+  AtlasButton,
+  AtlasMasthead,
+  EmergencyDialBar,
+  SafeBdi,
+} from "@/ui/primitives";
+import { SurvivalContext } from "@/ui/survival-context";
 
 type SurvivalSearch = {
   hazard?: EmergencyHazardKind;
@@ -60,209 +74,275 @@ export const Route = createFileRoute("/survival")({
 
 function SurvivalLayout() {
   const { t, i18n } = useTranslation();
-  const locale = i18n.language as Locale;
-  const navigate = useNavigate();
+  const locale = (
+    i18n.language === "fr" || i18n.language === "en" ? i18n.language : "ar"
+  ) as Locale;
   const search = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const location = useLocation();
 
-  const [online, setOnline] = useState(() => navigator.onLine);
+  const [online, setOnline] = useState(() =>
+    typeof navigator !== "undefined" ? navigator.onLine : true,
+  );
   const [position, setPosition] = useState<{ lat: number; lon: number } | null>(
     null,
   );
   const [positionDenied, setPositionDenied] = useState(false);
-  const [pack] = useState<SurvivalPack | null>(() => loadPack(deviceStorage));
-  const [confirmExit, setConfirmExit] = useState(false);
-  const [hazard, setHazard] = useState<EmergencyHazardKind>(
-    () => search.hazard ?? "general",
+  const [pack] = useState<SurvivalPack | null>(() =>
+    typeof window !== "undefined" ? loadPack(deviceStorage) : null,
   );
 
   useEffect(() => {
-    if (search.hazard) setHazard(search.hazard);
-  }, [search.hazard]);
-
-  useEffect(() => {
-    const up = () => setOnline(true);
-    const down = () => setOnline(false);
-    window.addEventListener("online", up);
-    window.addEventListener("offline", down);
+    const onOnline = () => setOnline(true);
+    const onOffline = () => setOnline(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
     return () => {
-      window.removeEventListener("online", up);
-      window.removeEventListener("offline", down);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
     };
   }, []);
 
-  useEffect(() => {
-    if (!("geolocation" in navigator)) {
-      setPositionDenied(true);
+  function requestPosition() {
+    if (typeof navigator === "undefined" || !("geolocation" in navigator))
       return;
-    }
     navigator.geolocation.getCurrentPosition(
-      (pos) =>
-        setPosition({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      (pos) => {
+        setPositionDenied(false);
+        setPosition({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+      },
       () => setPositionDenied(true),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
+      { enableHighAccuracy: true, timeout: 10_000 },
     );
-  }, []);
+  }
 
-  // Static public admin units and settlements resolved strictly on-device (ADR-0006).
-  const units = useQuery({
-    ...adminUnitsQuery,
-    enabled: online && position !== null,
-    retry: online ? 2 : false,
-  });
-  const settlements = useQuery({
-    ...settlementsQuery,
-    enabled: online && position !== null,
-    retry: online ? 2 : false,
-  });
+  const unitsQ = useQuery({ ...adminUnitsQuery, enabled: online });
+  const settlementsQ = useQuery({ ...settlementsQuery, enabled: online });
+  const openAreasQ = useQuery({ ...openAreasQuery, enabled: online });
 
-  const positionCardData = useMemo<PositionCard | null>(() => {
-    if (!position) return null;
-    if (units.data && settlements.data) {
+  const card = useMemo(() => {
+    if (position && unitsQ.data && settlementsQ.data) {
       return positionCard(
         position.lat,
         position.lon,
-        units.data,
-        settlements.data,
+        unitsQ.data,
+        settlementsQ.data,
         locale,
       );
     }
-    // Offline fallback uses nearby saved pack metadata without ever substituting pack coords for GPS.
-    const packDist = pack
-      ? haversineKm(position.lat, position.lon, pack.lat, pack.lon)
-      : Infinity;
-    const nearby = pack && packDist < 2;
-    return {
-      commune: nearby ? pack.commune : null,
-      wilaya: nearby ? pack.wilaya : null,
-      nearest: nearby && packDist < 0.5 ? pack.nearest : null,
-      coords: formatCoords(position.lat, position.lon),
-    };
-  }, [position, units.data, settlements.data, pack, locale]);
+    if (pack) {
+      return {
+        commune: pack.commune,
+        wilaya: pack.wilaya,
+        nearest: pack.nearest,
+        coords: pack.coords,
+      };
+    }
+    return null;
+  }, [position, unitsQ.data, settlementsQ.data, locale, pack]);
 
-  const offshoreM5Plus = Boolean(search.offshoreM5);
+  const hazard: EmergencyHazardKind = search.hazard ?? "general";
 
-  const state = useMemo<SurvivalState>(
-    () => ({
-      online,
-      position,
-      positionDenied,
-      pack,
-      hazard,
-      setHazard,
-      offshoreM5Plus,
-      positionCardData,
-    }),
-    [
-      online,
-      position,
-      positionDenied,
-      pack,
-      hazard,
-      offshoreM5Plus,
-      positionCardData,
-    ],
-  );
+  function setHazard(next: EmergencyHazardKind) {
+    void navigate({
+      search: (prev) => {
+        if (next === "general") {
+          const { hazard: _removed, ...rest } = prev;
+          return rest;
+        }
+        return { ...prev, hazard: next };
+      },
+      replace: true,
+    });
+  }
+
+  const tabs = [
+    {
+      to: "/survival" as const,
+      label:
+        locale === "ar"
+          ? "الإرشادات"
+          : locale === "fr"
+            ? "Protocoles"
+            : "Protocols",
+      Icon: ShieldAlert,
+      active:
+        location.pathname === "/survival" || location.pathname === "/survival/",
+    },
+    {
+      to: "/survival/areas" as const,
+      label:
+        locale === "fr"
+          ? "Espaces ouverts"
+          : locale === "ar"
+            ? "مساحات مفتوحة"
+            : t("survival.areasTitle"),
+      Icon: Compass,
+      active: location.pathname.startsWith("/survival/areas"),
+    },
+    {
+      to: "/survival/checkin" as const,
+      label: t("survival.checkinTitle"),
+      Icon: CheckCircle2,
+      active: location.pathname.startsWith("/survival/checkin"),
+    },
+    {
+      to: "/survival/sos" as const,
+      label: t("survival.sos"),
+      Icon: PhoneCall,
+      active: location.pathname.startsWith("/survival/sos"),
+    },
+  ];
 
   return (
-    <SurvivalContext.Provider value={state}>
-      <div className="mx-auto flex min-h-screen w-full max-w-xl flex-col bg-background">
-        <header className="flex items-center justify-between gap-2 border-b border-border bg-surface px-4 py-2">
-          <span className="flex min-w-0 items-center gap-2">
-            <ShieldAlert
-              aria-hidden
-              className="size-4 shrink-0"
-              style={{ color: "var(--emergency-ink)" }}
-            />
-            <span className="truncate text-sm font-semibold text-foreground">
-              {t("track3.emergency.sheetTitle")}
-            </span>
-          </span>
-          <span className="flex shrink-0 items-center gap-2">
-            <span
-              className="flex items-center gap-1.5 text-xs"
-              style={online ? undefined : { color: "var(--risk-ink-2)" }}
+    <SurvivalContext.Provider
+      value={{
+        online,
+        hazard,
+        offshoreM5: Boolean(search.offshoreM5),
+        setHazard,
+        position,
+        positionDenied,
+        requestPosition,
+        card,
+        pack,
+        openAreas: openAreasQ.data ?? pack?.openAreas ?? [],
+      }}
+    >
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 pt-5 pb-12 space-y-6">
+        <AtlasMasthead
+          edition={
+            <>
+              <AtlasBadge tone={online ? "clear" : "extreme"} dot>
+                {online ? (
+                  <>
+                    <Wifi className="h-3 w-3" />
+                    {t("survival.online")}
+                  </>
+                ) : (
+                  <>
+                    <WifiOff className="h-3 w-3" />
+                    Offline
+                  </>
+                )}
+              </AtlasBadge>
+              <span>·</span>
+              <AlgiersClock />
+            </>
+          }
+          title={t("survival.mode")}
+          subtitle={
+            card
+              ? `${card.commune ?? card.coords}${card.wilaya ? ` · ${card.wilaya}` : ""}`
+              : t("survival.noPosition")
+          }
+          actions={
+            <AtlasButton
+              variant="secondary"
+              size="sm"
+              onClick={requestPosition}
             >
-              {online ? null : <WifiOff aria-hidden className="size-3.5" />}
-              {online ? (
-                <span className="text-muted-foreground">
-                  {t("survival.online")}
-                </span>
-              ) : (
-                <span className="font-semibold">{t("survival.offline")}</span>
-              )}
-            </span>
-            <button
-              type="button"
-              onClick={() => setConfirmExit(true)}
-              className="inline-flex min-h-11 items-center gap-1 rounded-md px-3 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <X aria-hidden className="size-4" />
-              <span>{t("survival.exit")}</span>
-            </button>
-          </span>
-        </header>
+              <MapPin className="h-4 w-4 text-signal" />
+              {position
+                ? locale === "ar"
+                  ? "تحديث الموقع"
+                  : locale === "fr"
+                    ? "Actualiser GPS"
+                    : "Refresh GPS"
+                : locale === "ar"
+                  ? "تحديد موقعي"
+                  : locale === "fr"
+                    ? "Localiser"
+                    : "Locate me"}
+            </AtlasButton>
+          }
+        />
 
-        {online ? null : (
-          <p
-            role="status"
-            className="flex items-center gap-2 px-4 py-2 text-xs"
-            style={{
-              backgroundColor: "var(--risk-tint-2)",
-              color: "var(--risk-ink-2)",
-            }}
-          >
-            <Clock aria-hidden className="size-3.5 shrink-0" />
-            {t("survival.offlineBanner", {
-              time: pack
-                ? relativeTime(pack.saved_at, locale)
-                : t("track3.emergency.noPackSaved"),
+        {/* Immediate 1-Tap Algerian Official Emergency Dial Bar */}
+        <EmergencyDialBar locale={locale} />
+
+        {/* Sub-route Navigation + Hazard Selector */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-y border-hairline py-3.5">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5">
+            {tabs.map((tab) => {
+              const Icon = tab.Icon;
+              return (
+                <Link
+                  key={tab.to}
+                  to={tab.to}
+                  className={cn(
+                    "inline-flex items-center justify-center sm:justify-start gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors",
+                    tab.active
+                      ? "bg-signal text-signal-ink"
+                      : "bg-surface border border-hairline text-ink-secondary hover:text-ink",
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{tab.label}</span>
+                </Link>
+              );
             })}
-          </p>
+          </div>
+
+          {(location.pathname === "/survival" ||
+            location.pathname === "/survival/") && (
+            <div className="flex flex-wrap items-center gap-1 border-t border-hairline pt-2.5 lg:border-t-0 lg:pt-0">
+              {EMERGENCY_HAZARDS.map((h) => {
+                const label =
+                  locale === "ar"
+                    ? h === "general"
+                      ? "عام"
+                      : h === "fire"
+                        ? "حريق"
+                        : h === "flood"
+                          ? "فيضان"
+                          : h === "earthquake"
+                            ? "زلزال"
+                            : "عاصفة"
+                    : locale === "fr"
+                      ? h === "general"
+                        ? "Général"
+                        : h === "fire"
+                          ? "Incendie"
+                          : h === "flood"
+                            ? "Inondation"
+                            : h === "earthquake"
+                              ? "Séisme"
+                              : "Orage"
+                      : h.charAt(0).toUpperCase() + h.slice(1);
+                return (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => setHazard(h)}
+                    className={cn(
+                      "rounded-lg px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
+                      hazard === h
+                        ? "bg-hazard-extreme-soft text-hazard-extreme-ink border border-hazard-extreme/30"
+                        : "text-ink-secondary hover:bg-surface-raised",
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {pack && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-hazard-clear/30 bg-hazard-clear-soft px-4 py-2.5 text-xs text-ink">
+            <span>
+              {t("survival.packSaved", { time: pack.saved_at.slice(0, 16) })}
+            </span>
+            <SafeBdi className="font-mono text-ink-secondary">
+              {pack.openAreas.length} areas
+            </SafeBdi>
+          </div>
         )}
 
-        <div className="flex flex-1 flex-col gap-4 p-4">
-          <Outlet />
-        </div>
-
-        <div className="p-4 pt-0">
-          <EmergencyNumbers compact showSheetLink={false} />
-        </div>
-
-        {confirmExit ? (
-          <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 p-4 sm:items-center">
-            <div className="card-raised w-full max-w-sm p-5">
-              <h2 className="font-display text-xl">
-                {t("survival.exitTitle")}
-              </h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {t("survival.exitBody")}
-              </p>
-              <div className="mt-4 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    try {
-                      localStorage.removeItem(SURVIVAL_ACTIVE_KEY);
-                    } catch {
-                      // Storage denial must not block leaving Survival Mode.
-                    }
-                    void navigate({ to: "/" });
-                  }}
-                  className="inline-flex min-h-11 flex-1 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-                >
-                  {t("survival.exitYes")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmExit(false)}
-                  className="inline-flex min-h-11 flex-1 items-center justify-center rounded-md border border-border px-4 py-2 text-sm font-medium"
-                >
-                  {t("survival.enterCancel")}
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
+        <Outlet />
+        <AtlasPageFooter />
       </div>
     </SurvivalContext.Provider>
   );

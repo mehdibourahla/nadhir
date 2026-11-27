@@ -1,19 +1,19 @@
+import { useEffect, useState } from "react";
 import {
-  createFileRoute,
   Outlet,
+  createFileRoute,
   redirect,
-  useNavigate,
   useLocation,
+  useNavigate,
 } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { supabase } from "@/integrations/supabase/client";
 import { hasSessionCookie } from "@/integrations/supabase/session-cookie";
 import { authDestination, authRedirectSearch } from "@/lib/auth-destination";
+import { AtlasLoading } from "@/ui/primitives";
 
 export const Route = createFileRoute("/_authenticated")({
-  // data-only runs beforeLoad on the server, so a signed-out visitor is redirected
-  // before any markup is committed; the component still renders client-side only.
   ssr: "data-only",
   beforeLoad: ({ location }) => {
     if (!hasSessionCookie())
@@ -27,47 +27,41 @@ export const Route = createFileRoute("/_authenticated")({
 });
 
 function AuthenticatedLayout() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const [validUser, setValidUser] = useState<string | null>(null);
-  const [sessionUser, setSessionUser] = useState<string | null>();
-  const previousUser = useRef<string | null | undefined>(undefined);
+  const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      const nextUser = session?.user.id ?? null;
-      if (previousUser.current !== nextUser) {
-        previousUser.current = nextUser;
-        setValidUser(null);
-        setSessionUser(nextUser);
-      }
-    });
-    return () => data.subscription.unsubscribe();
-  }, []);
-
-  // A dehydrated data-only match does not re-run beforeLoad on the client, and the
-  // cookie check cannot see a revoked or expired session — so validate here, and
-  // hold the subtree back until it resolves rather than rendering doomed queries.
-  useEffect(() => {
-    if (authDestination(location.href) !== location.href) return;
-    if (sessionUser === undefined) return;
-    let cancelled = false;
-    void supabase.auth.getUser().then(({ data, error }) => {
-      if (cancelled) return;
-      const ok = !error && !!data.user;
-      setValidUser(ok ? data.user!.id : null);
-      if (!ok)
+    let active = true;
+    void supabase.auth.getUser().then(({ data }) => {
+      if (!active) return;
+      if (!data.user) {
         void navigate({
           to: "/auth",
-          search: authRedirectSearch(location.href, location.searchStr),
+          search: {
+            returnTo: authDestination(
+              `${location.pathname}${location.searchStr}`,
+            ),
+          },
           replace: true,
         });
+        return;
+      }
+      setChecked(true);
     });
     return () => {
-      cancelled = true;
+      active = false;
     };
-  }, [navigate, location.href, location.searchStr, sessionUser]);
+  }, [location.pathname, location.searchStr, navigate]);
 
-  if (!validUser || validUser !== sessionUser) return null;
-  return <Outlet key={validUser} />;
+  if (!checked) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-12">
+        <AtlasLoading label={t("authKit.checking")} />
+      </div>
+    );
+  }
+
+  return <Outlet />;
 }
