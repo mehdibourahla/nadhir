@@ -3,7 +3,7 @@ apply plugin: 'com.android.application'
 def maxPlayVersionCode = 2100000000
 def envVersionCode = System.getenv("NADHIR_ANDROID_VERSION_CODE")?.toString()?.trim() ?: ""
 def propVersionCode = findProperty("nadhirVersionCode")?.toString()?.trim() ?: ""
-def rawVersionCode = envVersionCode ?: propVersionCode ?: "4"
+def rawVersionCode = envVersionCode ?: propVersionCode ?: "5"
 def resolvedVersionCode
 try {
     resolvedVersionCode = Integer.parseInt(rawVersionCode)
@@ -16,7 +16,7 @@ if (resolvedVersionCode < 1 || resolvedVersionCode > maxPlayVersionCode) {
 
 def envVersionName = System.getenv("NADHIR_ANDROID_VERSION_NAME")?.toString()?.trim() ?: ""
 def propVersionName = findProperty("nadhirVersionName")?.toString()?.trim() ?: ""
-def resolvedVersionName = envVersionName ?: propVersionName ?: "1.1.0"
+def resolvedVersionName = envVersionName ?: propVersionName ?: "1.2.0"
 if (!resolvedVersionName) {
     throw new GradleException("Android versionName must be non-empty.")
 }
