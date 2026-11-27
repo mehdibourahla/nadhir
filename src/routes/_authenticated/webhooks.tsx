@@ -1,15 +1,18 @@
+import { useMemo, useState } from "react";
 import {
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
-  useInfiniteQuery,
 } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Plus, Power, Trash2, Webhook } from "lucide-react";
 import { toast } from "sonner";
 
 import { algiersTime } from "@/lib/nadhir";
+import { titledMeta } from "@/lib/page-meta";
+import { pageRows } from "@/lib/paging";
 import {
   createWebhook,
   deleteWebhook,
@@ -17,9 +20,16 @@ import {
   webhookDeliveriesQuery,
   webhookEndpointsQuery,
 } from "@/lib/webhooks";
-import { titledMeta } from "@/lib/page-meta";
-import { pageRows } from "@/lib/paging";
-import { LoadMore } from "@/components/LoadMore";
+import { AtlasPageFooter } from "@/ui/app-shell";
+import {
+  AtlasBadge,
+  AtlasButton,
+  AtlasInput,
+  AtlasLoading,
+  AtlasMasthead,
+  AtlasPanel,
+  SafeBdi,
+} from "@/ui/primitives";
 
 export const Route = createFileRoute("/_authenticated/webhooks")({
   head: () => ({
@@ -28,232 +38,218 @@ export const Route = createFileRoute("/_authenticated/webhooks")({
   component: WebhooksPage,
 });
 
-const KINDS = ["fire", "risk"] as const;
+const KINDS = ["fire", "weather", "official", "road", "earthquake"];
 
 function WebhooksPage() {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const endpoints = useQuery(webhookEndpointsQuery);
-  const deliveries = useInfiniteQuery(webhookDeliveriesQuery);
-  const deliveryRows = pageRows(deliveries.data);
+
+  const endpointsQ = useQuery(webhookEndpointsQuery);
+  const deliveriesQ = useInfiniteQuery(webhookDeliveriesQuery);
+  const deliveries = useMemo(
+    () => pageRows(deliveriesQ.data),
+    [deliveriesQ.data],
+  );
 
   const [label, setLabel] = useState("");
   const [url, setUrl] = useState("");
-  const [kinds, setKinds] = useState<string[]>(["fire", "risk"]);
-  const [minSeverity, setMinSeverity] = useState(3);
-  const [revealed, setRevealed] = useState<string | null>(null);
+  const [selectedKinds, setSelectedKinds] = useState<string[]>([
+    "fire",
+    "weather",
+  ]);
 
-  const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ["webhooks"] });
-  };
-
-  const create = useMutation({
+  const createMut = useMutation({
     mutationFn: () =>
       createWebhook({
-        label: label.trim(),
+        label: label.trim() || "Webhook",
         url: url.trim(),
-        kinds,
-        min_severity: minSeverity,
+        kinds: selectedKinds,
+        min_severity: 2,
       }),
     onSuccess: () => {
       setLabel("");
       setUrl("");
-      invalidate();
-      toast.success(t("webhooks.created"));
+      void qc.invalidateQueries({ queryKey: ["webhooks"] });
+      toast.success("Webhook created");
     },
-    onError: (e: Error) => toast.error(t(e.message)),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("common.error")),
   });
 
-  const toggle = useMutation({
-    mutationFn: (v: { id: string; active: boolean }) =>
-      updateWebhook(v.id, { active: v.active }),
-    onSuccess: invalidate,
-    onError: (e: Error) => toast.error(t(e.message)),
+  const toggleMut = useMutation({
+    mutationFn: ({ id, active }: { id: string; active: boolean }) =>
+      updateWebhook(id, { active }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["webhooks"] }),
   });
 
-  const remove = useMutation({
-    mutationFn: (id: string) => deleteWebhook(id),
-    onSuccess: invalidate,
-    onError: (e: Error) => toast.error(t(e.message)),
+  const delMut = useMutation({
+    mutationFn: deleteWebhook,
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["webhooks"] }),
   });
-
-  const validUrl = /^https:\/\/.+/.test(url.trim());
-  const hasKinds = kinds.length > 0;
 
   return (
-    <div className="mx-auto max-w-[900px] px-4 py-6">
-      <h1 className="text-2xl">{t("webhooks.title")}</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {t("webhooks.subtitle")}
-      </p>
+    <div className="mx-auto max-w-5xl px-4 sm:px-6 pt-5 pb-12">
+      <AtlasMasthead
+        edition={
+          <>
+            <Webhook className="h-3.5 w-3.5 text-signal" />
+            <span>AUTOMATION</span>
+          </>
+        }
+        title="Webhooks"
+        subtitle="Forward signed JSON alert events to your own operational endpoints."
+      />
 
-      <section className="panel mt-5 p-4">
-        <h2 className="text-base">{t("webhooks.add")}</h2>
-        <form
-          className="mt-3 grid gap-3 sm:grid-cols-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!validUrl || !label.trim() || !hasKinds) return;
-            create.mutate();
-          }}
-        >
-          <label className="text-sm">
-            {t("webhooks.label")}
-            <input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              maxLength={60}
-              required
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2"
-            />
-          </label>
-          <label className="text-sm">
-            {t("webhooks.url")}
-            <input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://example.org/hooks/nadhir"
-              required
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2"
-            />
-          </label>
-          <fieldset className="text-sm">
-            <legend>{t("webhooks.kinds")}</legend>
-            <div className="mt-1 flex gap-3">
-              {KINDS.map((k) => (
-                <label key={k} className="flex items-center gap-1.5">
-                  <input
-                    type="checkbox"
-                    checked={kinds.includes(k)}
-                    onChange={(e) =>
-                      setKinds((prev) =>
-                        e.target.checked
-                          ? [...prev, k]
-                          : prev.filter((x) => x !== k),
-                      )
-                    }
-                  />
-                  {t(`webhooks.kind_${k}`)}
-                </label>
-              ))}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <AtlasPanel className="lg:col-span-5 space-y-4">
+          <h2 className="font-display text-xl font-semibold text-ink">
+            Add endpoint
+          </h2>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              createMut.mutate();
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-ink-secondary">
+                Label
+              </label>
+              <AtlasInput
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="Operations Slack"
+                required
+              />
             </div>
-            {!hasKinds ? (
-              <p className="mt-1 text-xs text-destructive">
-                {t("webhooks.kindsRequired")}
-              </p>
-            ) : null}
-          </fieldset>
-          <label className="text-sm">
-            {t("webhooks.minSeverity")}
-            <select
-              value={minSeverity}
-              onChange={(e) => setMinSeverity(Number(e.target.value))}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2"
-            >
-              {[1, 2, 3, 4, 5].map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="sm:col-span-2">
-            <button
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-ink-secondary">
+                HTTPS URL
+              </label>
+              <AtlasInput
+                type="url"
+                dir="ltr"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://..."
+                required
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {KINDS.map((k) => {
+                const checked = selectedKinds.includes(k);
+                return (
+                  <label
+                    key={k}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-hairline px-2.5 py-1 text-xs cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) =>
+                        setSelectedKinds((prev) =>
+                          e.target.checked
+                            ? [...prev, k]
+                            : prev.filter((x) => x !== k),
+                        )
+                      }
+                      className="accent-signal"
+                    />
+                    <span>{k}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <AtlasButton
               type="submit"
-              disabled={
-                !validUrl || !label.trim() || !hasKinds || create.isPending
-              }
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+              variant="primary"
+              className="w-full"
+              disabled={createMut.isPending}
             >
-              {create.isPending ? t("webhooks.saving") : t("webhooks.save")}
-            </button>
-            {url && !validUrl ? (
-              <span className="ms-3 text-xs text-muted-foreground">
-                {t("webhooks.httpsOnly")}
-              </span>
-            ) : null}
-          </div>
-        </form>
-      </section>
+              <Plus className="h-4 w-4" />
+              Create endpoint
+            </AtlasButton>
+          </form>
+        </AtlasPanel>
 
-      <section className="panel mt-5 divide-y divide-border">
-        {(endpoints.data ?? []).length === 0 ? (
-          <p className="p-4 text-sm text-muted-foreground">
-            {t("webhooks.empty")}
-          </p>
-        ) : null}
-        {(endpoints.data ?? []).map((e) => (
-          <div key={e.id} className="p-4">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <span className="font-medium">{e.label}</span>
-              <span className="text-xs text-muted-foreground">
-                {e.last_attempt_at
-                  ? t("webhooks.lastAttempt", {
-                      time: algiersTime(e.last_attempt_at),
-                      status: e.last_status ?? "—",
-                    })
-                  : t("webhooks.neverSent")}
-              </span>
+        <div className="lg:col-span-7 space-y-6">
+          <AtlasPanel className="space-y-3">
+            <h2 className="font-display text-xl font-semibold text-ink">
+              Active endpoints ({(endpointsQ.data ?? []).length})
+            </h2>
+            {endpointsQ.isLoading ? (
+              <AtlasLoading />
+            ) : (
+              <div className="divide-y divide-hairline">
+                {(endpointsQ.data ?? []).map((ep) => (
+                  <div
+                    key={ep.id}
+                    className="flex items-center justify-between gap-3 py-3"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-ink">
+                          {ep.label}
+                        </span>
+                        <AtlasBadge tone={ep.active ? "clear" : "neutral"} dot>
+                          {ep.active ? "Active" : "Paused"}
+                        </AtlasBadge>
+                      </div>
+                      <SafeBdi className="block truncate font-mono text-xs text-ink-muted">
+                        {ep.url}
+                      </SafeBdi>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <AtlasButton
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Toggle"
+                        onClick={() =>
+                          toggleMut.mutate({ id: ep.id, active: !ep.active })
+                        }
+                      >
+                        <Power className="h-4 w-4" />
+                      </AtlasButton>
+                      <AtlasButton
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t("common.delete")}
+                        onClick={() => delMut.mutate(ep.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-ink-muted" />
+                      </AtlasButton>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </AtlasPanel>
+
+          <AtlasPanel className="space-y-3">
+            <h3 className="font-display text-lg font-semibold text-ink">
+              Recent deliveries ({deliveries.length})
+            </h3>
+            <div className="divide-y divide-hairline text-xs">
+              {deliveries.slice(0, 15).map((d) => (
+                <div
+                  key={d.id}
+                  className="flex items-center justify-between py-2"
+                >
+                  <AtlasBadge tone={d.ok ? "clear" : "extreme"}>
+                    {d.status_code ?? "ERR"}
+                  </AtlasBadge>
+                  <SafeBdi className="font-mono text-ink-muted">
+                    {algiersTime(d.created_at)}
+                  </SafeBdi>
+                </div>
+              ))}
             </div>
-            <p className="mt-1 break-all text-xs text-muted-foreground">
-              {e.url}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {e.kinds.map((k) => t(`webhooks.kind_${k}`)).join(" · ")} ·{" "}
-              {t("webhooks.minSeverity")} {e.min_severity}
-            </p>
-            {e.last_error ? (
-              <p className="mt-1 text-xs text-destructive">{e.last_error}</p>
-            ) : null}
-            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
-              <button
-                type="button"
-                onClick={() => toggle.mutate({ id: e.id, active: !e.active })}
-                className="rounded-md border border-input px-2 py-1 hover:bg-secondary"
-              >
-                {e.active ? t("webhooks.pause") : t("webhooks.resume")}
-              </button>
-              <button
-                type="button"
-                onClick={() => setRevealed(revealed === e.id ? null : e.id)}
-                className="rounded-md border border-input px-2 py-1 hover:bg-secondary"
-              >
-                {t("webhooks.showSecret")}
-              </button>
-              <button
-                type="button"
-                onClick={() => remove.mutate(e.id)}
-                className="rounded-md border border-input px-2 py-1 text-destructive hover:bg-secondary"
-              >
-                {t("webhooks.delete")}
-              </button>
-              {revealed === e.id ? (
-                <code className="break-all text-[11px]">{e.secret}</code>
-              ) : null}
-            </div>
-          </div>
-        ))}
-      </section>
+          </AtlasPanel>
+        </div>
+      </div>
 
-      <section className="panel mt-5 p-4">
-        <h2 className="text-base">{t("webhooks.deliveries")}</h2>
-        <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-          {deliveryRows.length === 0 ? (
-            <li>{t("webhooks.noDeliveries")}</li>
-          ) : null}
-          {deliveryRows.map((d) => (
-            <li key={d.id} className="tabular">
-              {algiersTime(d.created_at)} ·{" "}
-              {d.ok ? "200 OK" : `${d.status_code ?? "ERR"} ${d.error ?? ""}`}
-            </li>
-          ))}
-        </ul>
-        <LoadMore query={deliveries} />
-      </section>
-
-      <p className="mt-4 text-xs text-muted-foreground">
-        {t("webhooks.signatureNote")}
-      </p>
+      <AtlasPageFooter />
     </div>
   );
 }

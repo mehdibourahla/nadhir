@@ -268,35 +268,24 @@ describe("M6.4 UI/Craft visual polish & RTL/BiDi guarantees", () => {
     expect(tAr("alerts.unread", { count: 3 })).toBe("3 غير مقروءة");
   });
 
-  it("enforces layout/RTL/BiDi structural guards across home, survival, header, map, privacy, and security components", () => {
+  it("enforces layout/RTL/BiDi structural guards across Atlas home, survival, rail, map, and privacy components", () => {
     const home = readSource("src/routes/index.tsx");
-    expect(home).toContain("lg:flex-col");
-    expect(home).toContain("sm:hidden");
+    expect(home).toContain("AtlasHazardMap");
+    expect(home).toContain("Basemap mode");
+    expect(home).toContain("AlgiersClock");
 
-    const survival = readSource("src/routes/survival/index.tsx");
-    expect(survival).toContain('className="flex flex-wrap items-center gap-2"');
-    expect(survival).not.toContain(
-      "map-scroll flex items-center gap-2 overflow-x-auto",
-    );
+    const survival = readSource("src/routes/survival/route.tsx");
+    expect(survival).toContain("flex-wrap");
 
-    const chrome = readSource("src/components/SiteChrome.tsx");
-    expect(chrome).toContain('<ThemeToggle className="hidden sm:flex" />');
-    expect(chrome).toContain("<ThemeToggle showLabel />");
+    const shell = readSource("src/ui/app-shell.tsx");
+    expect(shell).toContain("start-0");
+    expect(shell).toContain("w-[68px]");
 
-    const fireMap = readSource("src/components/FireMap.tsx");
-    expect(fireMap).toContain(
-      '[dir="rtl"] .civil-map-page .maplibregl-ctrl-bottom-right',
-    );
-    expect(fireMap).toContain("right: auto; left: 0;");
+    const styles = readSource("src/styles.css");
+    expect(styles).toContain("direction: ltr !important;");
 
-    const privacy = readSource("src/routes/privacy.tsx");
-    const privacyControls = readSource(
-      "src/components/nadhir/PrivacyControls.tsx",
-    );
-    expect(privacy).toContain('<bdi dir="ltr" className="tabular-nums">');
-    expect(privacyControls).toContain(
-      '<bdi dir="ltr" className="tabular-nums">',
-    );
+    const wilaya = readSource("src/routes/wilaya.$slug.tsx");
+    expect(wilaya).toContain("SafeBdi");
 
     const accountSecurity = readSource("src/components/AccountSecurity.tsx");
     expect(accountSecurity).toContain("break-words");

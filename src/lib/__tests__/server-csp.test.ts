@@ -16,7 +16,7 @@ describe("report photo content security policy", () => {
     );
 
     expect(csp).toContain(
-      "img-src 'self' data: blob: https://*.cartocdn.com https://view.eumetsat.int https://project-ref.supabase.co",
+      "img-src 'self' data: blob: https://*.cartocdn.com https://server.arcgisonline.com https://view.eumetsat.int https://project-ref.supabase.co",
     );
     expect(csp).not.toContain("/storage/v1/object");
     expect(csp).not.toContain("ignored=true");
@@ -37,7 +37,7 @@ describe("report photo content security policy", () => {
     const csp = build(url, true);
 
     expect(csp).toContain(
-      `img-src 'self' data: blob: https://*.cartocdn.com https://view.eumetsat.int ${origin}`,
+      `img-src 'self' data: blob: https://*.cartocdn.com https://server.arcgisonline.com https://view.eumetsat.int ${origin}`,
     );
   });
 

@@ -1,9 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { ShieldCheck } from "lucide-react";
 
+import type { AnyLocale } from "@/i18n";
 import { pageMeta } from "@/lib/page-meta";
-
-const POLICY_VERSION = "2026-11-25";
+import { AtlasPageFooter } from "@/ui/app-shell";
+import { AtlasMasthead, AtlasPanel } from "@/ui/primitives";
 
 export const Route = createFileRoute("/privacy")({
   head: () => ({
@@ -17,91 +19,83 @@ export const Route = createFileRoute("/privacy")({
 });
 
 function PrivacyPage() {
-  const { t } = useTranslation();
-  const sections = [
-    "collect",
-    "use",
-    "retention",
-    "sharing",
-    "app",
-    "rights",
-    "contact",
-  ] as const;
-
-  const anpdpSections = [
-    ["legalFrameworkTitle", "legalFrameworkBody"],
-    ["minimizationTitle", "minimizationBody"],
-    ["crossBorderTitle", "crossBorderBody"],
-    ["retentionTitle", "retentionBody"],
-    ["anpdpRightsTitle", "anpdpRightsBody"],
-  ] as const;
-
-  const versionSentinel = "\u0000POLICY_VERSION\u0000";
-  const versionTemplate = t("privacyCompliance.policyVersionLabel", {
-    version: versionSentinel,
-  });
-  const versionIdx = versionTemplate.indexOf(versionSentinel);
+  const { i18n } = useTranslation();
+  const locale = (i18n.language || "ar") as AnyLocale;
 
   return (
-    <div className="mx-auto max-w-[760px] px-4 py-6">
-      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <span className="rounded-md border border-border bg-muted px-2.5 py-1 font-medium text-foreground">
-          {t("privacyCompliance.badge")}
-        </span>
-        <span>
-          {versionIdx !== -1 ? (
-            <>
-              {versionTemplate.slice(0, versionIdx)}
-              <bdi dir="ltr" className="tabular-nums">
-                {POLICY_VERSION}
-              </bdi>
-              {versionTemplate.slice(versionIdx + versionSentinel.length)}
-            </>
-          ) : (
-            <bdi dir="ltr" className="tabular-nums">
-              {POLICY_VERSION}
-            </bdi>
-          )}
-        </span>
-      </div>
+    <div className="mx-auto max-w-4xl px-4 sm:px-6 pt-5 pb-12">
+      <AtlasMasthead
+        edition={
+          <>
+            <ShieldCheck className="h-3.5 w-3.5 text-signal" />
+            <span>PRIVACY COMMITMENT</span>
+          </>
+        }
+        title={
+          locale === "ar"
+            ? "سياسة الخصوصية"
+            : locale === "fr"
+              ? "Politique de confidentialité"
+              : "Privacy policy"
+        }
+        subtitle={
+          locale === "ar"
+            ? "لا نبيع بياناتك ولا نتتبع موقعك دون موافقة صريحة. الموقع الجغرافي في وضع الطوارئ يبقى على جهازك."
+            : locale === "fr"
+              ? "Aucune vente de données, aucun suivi publicitaire. Votre position GPS en mode survie reste sur votre appareil."
+              : "Zero ad tracking, zero data brokering. Device geolocation in Survival Mode stays strictly on your device."
+        }
+      />
 
-      <h1 className="mt-3 text-2xl">{t("legal.privacyTitle")}</h1>
+      <AtlasPanel className="space-y-6 text-sm text-ink-secondary leading-relaxed">
+        <section className="space-y-2">
+          <h2 className="font-display text-xl font-semibold text-ink">
+            1. Public browsing without an account
+          </h2>
+          <p>
+            The live map, 6-day forecast, wilaya dossiers, archive history,
+            system status, and Survival Mode require no account and collect no
+            personal identifiers.
+          </p>
+        </section>
 
-      <div className="panel mt-4 space-y-4 p-5">
-        {sections.map((s) => (
-          <section key={s}>
-            <h2 className="text-base font-semibold">
-              {t(`legal.privacy_${s}_title`)}
-            </h2>
-            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-              {t(`legal.privacy_${s}_body`)}
-            </p>
-          </section>
-        ))}
-      </div>
+        <section className="space-y-2 border-t border-hairline pt-5">
+          <h2 className="font-display text-xl font-semibold text-ink">
+            2. Account zones & notifications
+          </h2>
+          <p>
+            When you create an account to monitor specific zones, we store only
+            your email address, configured zone coordinates, and alert channel
+            preferences so we can deliver timely hazard alerts.
+          </p>
+        </section>
 
-      <div className="panel mt-5 space-y-4 p-5">
-        {anpdpSections.map(([titleKey, bodyKey]) => (
-          <section key={titleKey}>
-            <h2 className="text-base font-semibold">
-              {t(`privacyCompliance.sections.${titleKey}`)}
-            </h2>
-            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-              {t(`privacyCompliance.sections.${bodyKey}`)}
-            </p>
-          </section>
-        ))}
+        <section className="space-y-2 border-t border-hairline pt-5">
+          <h2 className="font-display text-xl font-semibold text-ink">
+            3. Citizen report photo privacy
+          </h2>
+          <p>
+            EXIF metadata (camera model, embedded GPS headers) is stripped from
+            uploaded citizen hazard photos before storage.
+          </p>
+        </section>
 
-        <div className="border-t border-border pt-4">
-          <Link
-            to="/settings"
-            hash="privacy"
-            className="inline-flex min-h-11 items-center rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-95"
-          >
-            {t("privacyCompliance.manageInSettings")}
-          </Link>
-        </div>
-      </div>
+        <section className="space-y-2 border-t border-hairline pt-5">
+          <h2 className="font-display text-xl font-semibold text-ink">
+            4. Your controls
+          </h2>
+          <p>
+            You may export your data or permanently delete your account at any
+            time from{" "}
+            <Link to="/settings" className="text-signal hover:underline">
+              Settings
+            </Link>
+            .
+          </p>
+        </section>
+      </AtlasPanel>
+
+      <AtlasPageFooter />
     </div>
   );
 }

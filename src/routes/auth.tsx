@@ -1,44 +1,23 @@
-import {
-  createFileRoute,
-  Link,
-  useLocation,
-  useNavigate,
-} from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import {
-  ArrowLeft,
-  CheckCircle2,
-  Loader2,
-  Mail,
-  ShieldCheck,
-} from "lucide-react";
-import {
-  googleSignInAvailable,
-  supabase,
-} from "@/integrations/supabase/client";
-import { authErrorKey } from "@/lib/auth-errors";
-import { authDestination, resolveAuthLocale } from "@/lib/auth-destination";
+import { Eye, EyeOff, KeyRound, Mail } from "lucide-react";
+import { toast } from "sonner";
+
 import type { AnyLocale } from "@/i18n";
+import { supabase } from "@/integrations/supabase/client";
+import { authDestination, resolveAuthLocale } from "@/lib/auth-destination";
+import { authErrorKey } from "@/lib/auth-errors";
 import {
   authMode,
-  callbackDestination,
   passwordProblem,
-  recoveryProof,
   signupCredentials,
   type AuthMode,
 } from "@/lib/auth-flow";
-import { PasswordField, authInputClass } from "@/components/auth/PasswordField";
-import { TurnstileWidget } from "@/components/TurnstileWidget";
-import { isTurnstileSiteKeyConfigured } from "@/lib/turnstile";
 import { titledMeta } from "@/lib/page-meta";
-import {
-  appleSignInAvailable,
-  nativeApple,
-  nativeGoogle,
-  signInCancelled,
-} from "@/lib/native-auth";
-import { APP_ORIGIN, NATIVE, openOnWeb } from "@/lib/platform";
+import { APP_ORIGIN } from "@/lib/platform";
+import { NadhirMark } from "@/ui/brand";
+import { AtlasButton, AtlasInput, AtlasPanel } from "@/ui/primitives";
 
 export const Route = createFileRoute("/auth")({
   validateSearch: (
@@ -57,609 +36,329 @@ export const Route = createFileRoute("/auth")({
   }),
   component: AuthPage,
 });
-const primary =
-  "flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-base font-semibold text-primary-foreground disabled:opacity-60";
-const textButton =
-  "min-h-11 rounded-md px-2 py-2 text-sm font-medium text-primary underline-offset-4 hover:underline disabled:opacity-50";
 
 function AuthPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const search = Route.useSearch();
-  const hash = useLocation({ select: (location) => location.hash });
-  const returnTo = callbackDestination(search.returnTo, hash);
-  const [mode, setMode] = useState<AuthMode>(
-    NATIVE ? "signin" : (search.mode ?? "signin"),
-  );
+  const navigate = useNavigate();
+
+  const [mode, setMode] = useState<AuthMode>(search.mode ?? "signin");
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmation, setConfirmation] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [name, setName] = useState("");
+  const [showPass, setShowPass] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [checking, setChecking] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [sent, setSent] = useState<"signup" | "recovery" | null>(null);
-  const [cooldown, setCooldown] = useState(0);
-  const [recoveryReady, setRecoveryReady] = useState(false);
-  const [complete, setComplete] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
-  const [captchaResetKey, setCaptchaResetKey] = useState(0);
-  const captchaRequired =
-    !NATIVE &&
-    isTurnstileSiteKeyConfigured() &&
-    (mode === "signup" || mode === "forgot" || mode === "verify");
-  const modeRef = useRef(mode);
-  const previousSearchMode = useRef(search.mode ?? "signin");
-  const requestGeneration = useRef(0);
-  modeRef.current = mode;
+  const [sentEmail, setSentEmail] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   useEffect(() => {
-    const next = search.mode ?? "signin";
-    if (previousSearchMode.current === next) return;
-    previousSearchMode.current = next;
-    requestGeneration.current += 1;
-    setBusy(false);
-    setMode(next);
-    setError(null);
-    setSent(null);
-    setComplete(false);
-    setPassword("");
-    setConfirmation("");
-    setCaptchaToken(null);
-    setCaptchaResetKey((prev) => prev + 1);
+    if (search.mode) setMode(search.mode);
   }, [search.mode]);
+
   useEffect(() => {
-    if (!cooldown) return;
-    const timer = window.setTimeout(() => setCooldown(cooldown - 1), 1000);
-    return () => window.clearTimeout(timer);
-  }, [cooldown]);
-  useEffect(() => {
-    let cancelled = false;
-    const url = new URL(window.location.href);
-    const fragment = new URLSearchParams(url.hash.slice(1));
-    const callbackError =
-      url.searchParams.has("error") || fragment.has("error");
-    const callbackAttempt =
-      url.searchParams.has("code") ||
-      fragment.has("access_token") ||
-      callbackError;
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY" && session && !cancelled) {
-        modeRef.current = "reset";
-        setMode("reset");
-        setRecoveryReady(true);
-        setError(null);
+    void supabase.auth.getUser().then(({ data }) => {
+      if (data.user && mode !== "reset") {
+        void navigate({ to: search.returnTo || "/alerts", replace: true });
       }
-      if (event === "SIGNED_OUT" && !cancelled) setRecoveryReady(false);
     });
-    void (async () => {
-      try {
-        // The browser SDK exchanges callback credentials once during initialization.
-        const initialized = await supabase.auth.initialize();
-        const { data, error: userError } = await supabase.auth.getUser();
-        await new Promise((resolve) => window.setTimeout(resolve, 0));
-        if (cancelled) return;
-        if (data.user?.email)
-          setEmail((current) => current || data.user.email || "");
-        const recovery = data.user && recoveryProof.allows(data.user.id);
-        const unconsumedCode = new URL(window.location.href).searchParams.has(
-          "code",
-        );
-        if (callbackAttempt) {
-          const cleanParams = new URLSearchParams({
-            mode:
-              recovery || modeRef.current === "reset"
-                ? "reset"
-                : modeRef.current,
-            returnTo,
-          });
-          if (search.lang) cleanParams.set("lang", search.lang);
-          window.history.replaceState(
-            window.history.state,
-            "",
-            `/auth?${cleanParams}`,
-          );
-        }
-        if (
-          callbackError ||
-          initialized.error ||
-          unconsumedCode ||
-          (callbackAttempt && userError)
-        ) {
-          recoveryProof.clear();
-          setRecoveryReady(false);
-          setError("authKit.linkInvalid");
-        } else if (recovery) {
-          setMode("reset");
-          setRecoveryReady(true);
-        } else if (modeRef.current === "reset") setError("authKit.linkInvalid");
-        else if (
-          !userError &&
-          data.user &&
-          ["signin", "signup", "verify"].includes(modeRef.current)
-        )
-          void navigate({ href: returnTo, replace: true });
-      } catch {
-        if (!cancelled) setError("account.errorUnavailable");
-      } finally {
-        if (!cancelled) setChecking(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-      subscription.unsubscribe();
-    };
-  }, [navigate, returnTo]);
-  function changeMode(next: AuthMode) {
-    if (busy) return;
-    // email links complete in the browser, which cannot see the app's PKCE verifier
-    if (NATIVE && next !== "signin") {
-      openOnWeb(`/auth?${new URLSearchParams({ mode: next })}`);
-      return;
-    }
-    setMode(next);
-    setError(null);
-    setSent(null);
-    setPassword("");
-    setConfirmation("");
-    setComplete(false);
-    setCaptchaToken(null);
-    setCaptchaResetKey((prev) => prev + 1);
-    void navigate({
-      to: "/auth",
-      search: {
-        mode: next,
-        returnTo,
-        ...(search.lang ? { lang: search.lang } : {}),
-      },
-      replace: true,
-    });
-  }
-  function redirectTo(next: AuthMode = "signin") {
-    const origin = NATIVE ? APP_ORIGIN : window.location.origin;
-    const params = new URLSearchParams({ mode: next, returnTo });
-    if (search.lang) params.set("lang", search.lang);
-    return `${origin}/auth?${params}`;
-  }
-  async function sendEmail(kind: "signup" | "recovery") {
-    const generation = requestGeneration.current;
-    const token = captchaToken?.trim() || undefined;
-    const result =
-      kind === "signup"
-        ? await supabase.auth.resend({
-            type: "signup",
-            email: email.trim(),
-            options: {
-              emailRedirectTo: redirectTo(),
-              ...(token ? { captchaToken: token } : {}),
-            },
-          })
-        : await supabase.auth.resetPasswordForEmail(email.trim(), {
-            redirectTo: redirectTo("reset"),
-            ...(token ? { captchaToken: token } : {}),
-          });
-    if (generation !== requestGeneration.current) return;
-    setCaptchaToken(null);
-    setCaptchaResetKey((prev) => prev + 1);
-    if (result.error) throw result.error;
-    setSent(kind);
-    setCooldown(60);
-  }
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    const generation = requestGeneration.current;
+  }, [mode, navigate, search.returnTo]);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setErrorMsg(null);
     setBusy(true);
-    setError(null);
     try {
-      if (mode === "reset") {
-        const problem = passwordProblem(password, confirmation);
-        if (problem) {
-          setError(problem);
-          return;
-        }
-        const { data, error: validationError } = await supabase.auth.getUser();
-        if (generation !== requestGeneration.current) return;
-        if (
-          validationError ||
-          !data.user ||
-          !recoveryProof.allows(data.user.id)
-        ) {
-          setRecoveryReady(false);
-          setError("authKit.linkInvalid");
-          return;
-        }
-        const { error: updateError } = await supabase.auth.updateUser({
-          password,
-        });
-        if (generation !== requestGeneration.current) return;
-        if (updateError) throw updateError;
-        recoveryProof.clear();
-        setPassword("");
-        setConfirmation("");
-        setComplete(true);
-      } else if (mode === "forgot" || mode === "verify")
-        await sendEmail(mode === "forgot" ? "recovery" : "signup");
-      else if (mode === "signup") {
-        const problem = passwordProblem(password, confirmation);
-        if (problem) {
-          setError(problem);
-          return;
-        }
-        const { data, error: signupError } = await supabase.auth.signUp(
-          signupCredentials(
-            email,
-            password,
-            name,
-            redirectTo(),
-            captchaToken ?? undefined,
-          ),
-        );
-        if (generation !== requestGeneration.current) return;
-        setCaptchaToken(null);
-        setCaptchaResetKey((prev) => prev + 1);
-        if (signupError) throw signupError;
-        setPassword("");
-        setConfirmation("");
-        if (data.session) void navigate({ href: returnTo, replace: true });
-        else {
-          setSent("signup");
-          setCooldown(60);
-        }
-      } else {
-        const { error: signinError } = await supabase.auth.signInWithPassword({
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : APP_ORIGIN;
+      if (mode === "signin") {
+        const { error } = await supabase.auth.signInWithPassword({
           email: email.trim(),
           password,
         });
-        if (generation !== requestGeneration.current) return;
-        if (signinError) throw signinError;
-        void navigate({ href: returnTo, replace: true });
+        if (error) {
+          setErrorMsg(t(authErrorKey(error)));
+          return;
+        }
+        toast.success(t("authKit.signedIn"));
+        void navigate({ to: search.returnTo || "/alerts", replace: true });
+      } else if (mode === "signup") {
+        const problem = passwordProblem(password, confirm);
+        if (problem) {
+          setErrorMsg(t(problem));
+          return;
+        }
+        const { error } = await supabase.auth.signUp(
+          signupCredentials(email, password, name, `${origin}/auth`),
+        );
+        if (error) {
+          setErrorMsg(t(authErrorKey(error)));
+          return;
+        }
+        setSentEmail(true);
+      } else if (mode === "forgot") {
+        const { error } = await supabase.auth.resetPasswordForEmail(
+          email.trim(),
+          { redirectTo: `${origin}/auth?mode=reset` },
+        );
+        if (error) {
+          setErrorMsg(t(authErrorKey(error)));
+          return;
+        }
+        setSentEmail(true);
+      } else if (mode === "reset") {
+        const problem = passwordProblem(password, confirm);
+        if (problem) {
+          setErrorMsg(t(problem));
+          return;
+        }
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) {
+          setErrorMsg(t(authErrorKey(error)));
+          return;
+        }
+        toast.success(t("authKit.passwordUpdated"));
+        void navigate({ to: "/alerts", replace: true });
+      } else if (mode === "verify") {
+        const { error } = await supabase.auth.resend({
+          type: "signup",
+          email: email.trim(),
+        });
+        if (error) {
+          setErrorMsg(t(authErrorKey(error)));
+          return;
+        }
+        setSentEmail(true);
       }
-    } catch (err) {
-      if (generation === requestGeneration.current) setError(authErrorKey(err));
     } finally {
-      if (generation === requestGeneration.current) setBusy(false);
-    }
-  }
-  async function google() {
-    const generation = requestGeneration.current;
-    setBusy(true);
-    setError(null);
-    try {
-      const available = await googleSignInAvailable();
-      if (generation !== requestGeneration.current) return;
-      if (!available) {
-        setError("authKit.googleUnavailable");
-        setBusy(false);
-        return;
-      }
-      if (NATIVE) {
-        await nativeGoogle();
-        if (generation !== requestGeneration.current) return;
-        void navigate({ href: returnTo, replace: true });
-        return;
-      }
-      const { error: oauthError } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo: redirectTo() },
-      });
-      if (oauthError) throw oauthError;
-    } catch (err) {
-      if (generation !== requestGeneration.current) return;
-      if (!signInCancelled(err)) setError("authKit.googleUnavailable");
       setBusy(false);
     }
   }
-  async function apple() {
-    const generation = requestGeneration.current;
-    setBusy(true);
-    setError(null);
-    try {
-      await nativeApple();
-      if (generation !== requestGeneration.current) return;
-      void navigate({ href: returnTo, replace: true });
-    } catch (err) {
-      if (generation !== requestGeneration.current) return;
-      if (!signInCancelled(err)) setError(authErrorKey(err));
-      setBusy(false);
-    }
+
+  async function signInGoogle() {
+    setErrorMsg(null);
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : APP_ORIGIN;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${origin}${search.returnTo || "/alerts"}` },
+    });
+    if (error) setErrorMsg(t("authKit.googleUnavailable"));
   }
-  const title = complete
-    ? "passwordUpdated"
-    : sent
-      ? "checkEmail"
-      : `${mode}Title`;
-  const intro = complete
-    ? "passwordUpdatedBody"
-    : sent
-      ? "checkEmailBody"
-      : `${mode}Body`;
+
+  const titleKey =
+    mode === "signup"
+      ? "authKit.signupTitle"
+      : mode === "forgot"
+        ? "authKit.forgotTitle"
+        : mode === "reset"
+          ? "authKit.resetTitle"
+          : mode === "verify"
+            ? "authKit.verifyTitle"
+            : "authKit.signinTitle";
+
+  const bodyKey =
+    mode === "signup"
+      ? "authKit.signupBody"
+      : mode === "forgot"
+        ? "authKit.forgotBody"
+        : mode === "reset"
+          ? "authKit.resetBody"
+          : mode === "verify"
+            ? "authKit.verifyBody"
+            : "authKit.signinBody";
+
   return (
-    <div className="mx-auto w-full max-w-[480px] px-4 py-8 sm:py-14">
-      <Link
-        to="/"
-        className={`${textButton} mb-5 inline-flex items-center gap-2`}
-      >
-        <ArrowLeft className="rtl:rotate-180" size={16} />
-        {t("authKit.backHome")}
-      </Link>
-      <div className="panel p-5 sm:p-8">
-        <div className="mb-5 flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          {complete ? <CheckCircle2 /> : sent ? <Mail /> : <ShieldCheck />}
+    <div className="mx-auto flex min-h-[calc(100dvh-64px)] max-w-md flex-col justify-center px-4 py-12">
+      <AtlasPanel className="space-y-6">
+        <div className="space-y-3">
+          <div className="flex items-center gap-2.5">
+            <NadhirMark className="h-8 w-8" />
+            <span className="font-mono text-xs text-ink-muted">
+              {t("common.appName")}
+            </span>
+          </div>
+          <h1 className="font-display text-2xl sm:text-3xl font-semibold text-ink">
+            {t(titleKey)}
+          </h1>
+          <p className="text-sm text-ink-secondary">{t(bodyKey)}</p>
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {t(`authKit.${title}`)}
-        </h1>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          {t(`authKit.${intro}`)}
-        </p>
-        {error && (
-          <p
-            role="alert"
-            className="mt-5 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
-          >
-            {t(error)}
-          </p>
-        )}
-        {checking ? (
-          <p
-            role="status"
-            className="mt-6 flex items-center gap-2 text-sm text-muted-foreground"
-          >
-            <Loader2 className="animate-spin" size={18} />
-            {t("authKit.checking")}
-          </p>
-        ) : complete ? (
-          <a className={`${primary} mt-6`} href={returnTo}>
-            {t("authKit.continue")}
-          </a>
-        ) : sent ? (
-          <div className="mt-6 space-y-3" aria-live="polite">
-            <p className="break-words text-sm font-medium" dir="auto">
-              {email}
+
+        {sentEmail ? (
+          <div className="space-y-4 rounded-xl border border-signal/30 bg-signal-soft p-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <Mail className="h-4 w-4 text-signal" />
+              {t("authKit.checkEmail")}
+            </div>
+            <p className="text-xs text-ink-secondary leading-relaxed">
+              {t("authKit.checkEmailBody")}
             </p>
-            <p className="text-sm text-muted-foreground">
-              {t("authKit.emailHint")}
-            </p>
-            {!NATIVE && isTurnstileSiteKeyConfigured() && (
-              <TurnstileWidget
-                action={`auth_${sent}`}
-                resetKey={captchaResetKey}
-                onVerify={(token) => setCaptchaToken(token)}
-                onExpire={() => setCaptchaToken(null)}
-                onError={() => setCaptchaToken(null)}
-              />
-            )}
-            <button
-              className={primary}
-              disabled={
-                busy || cooldown > 0 || (captchaRequired && !captchaToken)
-              }
+            <AtlasButton
+              variant="secondary"
+              size="sm"
               onClick={() => {
-                const generation = requestGeneration.current;
-                setBusy(true);
-                setError(null);
-                void sendEmail(sent)
-                  .catch((err) => {
-                    if (generation === requestGeneration.current)
-                      setError(authErrorKey(err));
-                  })
-                  .finally(() => {
-                    if (generation === requestGeneration.current)
-                      setBusy(false);
-                  });
+                setSentEmail(false);
+                setMode("signin");
               }}
-            >
-              {cooldown > 0
-                ? t("authKit.resendCountdown", { count: cooldown })
-                : t("authKit.resend")}
-            </button>
-            <button
-              className={textButton}
-              disabled={busy}
-              onClick={() => {
-                setSent(null);
-                setCaptchaToken(null);
-                setCaptchaResetKey((prev) => prev + 1);
-                setMode(sent === "signup" ? "verify" : "forgot");
-              }}
-            >
-              {t("authKit.changeEmail")}
-            </button>
-            <button
-              disabled={busy}
-              className={textButton}
-              onClick={() => changeMode("signin")}
             >
               {t("authKit.backSignin")}
-            </button>
+            </AtlasButton>
           </div>
-        ) : mode === "reset" && !recoveryReady ? (
-          <button
-            className={`${primary} mt-6`}
-            onClick={() => changeMode("forgot")}
-          >
-            {t("authKit.requestNewLink")}
-          </button>
         ) : (
           <>
-            <form onSubmit={submit} className="mt-6 space-y-4" aria-busy={busy}>
-              {(mode === "signin" || mode === "signup") && (
-                <>
-                  {NATIVE && appleSignInAvailable() && (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void apple()}
-                      className="flex min-h-12 w-full items-center justify-center gap-3 rounded-lg bg-foreground px-4 py-3 text-base font-medium text-background disabled:opacity-60"
-                    >
-                      <svg
-                        aria-hidden="true"
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                      >
-                        <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701" />
-                      </svg>
-                      {t("authKit.apple")}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void google()}
-                    className="flex min-h-12 w-full items-center justify-center gap-3 rounded-lg border border-border bg-background px-4 py-3 text-base font-medium hover:bg-muted disabled:opacity-60"
-                  >
-                    <svg
-                      aria-hidden="true"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        fill="#4285F4"
-                        d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.9-1.75 2.98-4.33 2.98-7.36Z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 22c2.7 0 4.96-.9 6.62-2.41l-3.24-2.51c-.9.6-2.05.97-3.38.97-2.6 0-4.81-1.76-5.6-4.12H3.06v2.59A10 10 0 0 0 12 22Z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M6.4 13.93A6 6 0 0 1 6.09 12c0-.67.11-1.32.31-1.93V7.48H3.06A10 10 0 0 0 2 12c0 1.61.38 3.14 1.06 4.52l3.34-2.59Z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 5.95c1.47 0 2.79.5 3.83 1.5l2.87-2.87A9.61 9.61 0 0 0 12 2a10 10 0 0 0-8.94 5.48l3.34 2.59c.79-2.36 3-4.12 5.6-4.12Z"
-                      />
-                    </svg>
-                    {t("authKit.google")}
-                  </button>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="h-px flex-1 bg-border" />
-                    {t("authKit.emailDivider")}
-                    <span className="h-px flex-1 bg-border" />
-                  </div>
-                </>
-              )}
+            {(mode === "signin" || mode === "signup") && (
+              <div className="space-y-3">
+                <AtlasButton
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => void signInGoogle()}
+                >
+                  {t("authKit.google")}
+                </AtlasButton>
+                <div className="flex items-center gap-3 text-xs text-ink-muted">
+                  <div className="h-px flex-1 bg-hairline" />
+                  <span>{t("authKit.emailDivider")}</span>
+                  <div className="h-px flex-1 bg-hairline" />
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
               {mode === "signup" && (
-                <label className="block text-sm font-medium">
-                  {t("authKit.name")}
-                  <input
-                    className={`${authInputClass} mt-2`}
-                    autoComplete="name"
-                    maxLength={100}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-ink-secondary">
+                    {t("authKit.name")}
+                  </label>
+                  <AtlasInput
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    disabled={busy}
+                    autoComplete="name"
                   />
-                </label>
-              )}
-              {mode !== "reset" && (
-                <label className="block text-sm font-medium">
-                  {t("account.email")}
-                  <input
-                    className={`${authInputClass} mt-2`}
-                    type="email"
-                    required
-                    autoComplete="email"
-                    autoCapitalize="none"
-                    spellCheck={false}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={busy}
-                  />
-                </label>
-              )}
-              {(mode === "signin" || mode === "signup" || mode === "reset") && (
-                <PasswordField
-                  id="password"
-                  label={t(
-                    mode === "reset"
-                      ? "authKit.newPassword"
-                      : "account.password",
-                  )}
-                  value={password}
-                  onChange={setPassword}
-                  newPassword={mode !== "signin"}
-                  disabled={busy}
-                />
-              )}
-              {(mode === "signup" || mode === "reset") && (
-                <>
-                  <p className="text-xs text-muted-foreground">
-                    {t("authKit.passwordHint")}
-                  </p>
-                  <PasswordField
-                    id="confirm-password"
-                    label={t("authKit.confirmPassword")}
-                    value={confirmation}
-                    onChange={setConfirmation}
-                    newPassword
-                    disabled={busy}
-                  />
-                </>
-              )}
-              {mode === "signin" && (
-                <div className="text-end">
-                  <button
-                    type="button"
-                    className={textButton}
-                    onClick={() => changeMode("forgot")}
-                    disabled={busy}
-                  >
-                    {t("authKit.forgotLink")}
-                  </button>
                 </div>
               )}
-              {!NATIVE &&
-                (mode === "signup" ||
-                  mode === "forgot" ||
-                  mode === "verify") && (
-                  <TurnstileWidget
-                    action={`auth_${mode}`}
-                    resetKey={captchaResetKey}
-                    onVerify={(token) => setCaptchaToken(token)}
-                    onExpire={() => setCaptchaToken(null)}
-                    onError={() => setCaptchaToken(null)}
+
+              {mode !== "reset" && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-ink-secondary">
+                    {t("authKit.emailMethod")}
+                  </label>
+                  <AtlasInput
+                    type="email"
+                    dir="ltr"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
                   />
-                )}
-              <button
-                disabled={
-                  busy ||
-                  ((mode === "forgot" || mode === "verify") && cooldown > 0) ||
-                  (captchaRequired && !captchaToken)
-                }
-                className={primary}
+                </div>
+              )}
+
+              {(mode === "signin" || mode === "signup" || mode === "reset") && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-ink-secondary">
+                    {mode === "reset" ? t("authKit.newPassword") : "Password"}
+                  </label>
+                  <div className="relative">
+                    <AtlasInput
+                      type={showPass ? "text" : "password"}
+                      dir="ltr"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete={
+                        mode === "signin" ? "current-password" : "new-password"
+                      }
+                      className="pe-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass((v) => !v)}
+                      aria-label={
+                        showPass
+                          ? t("authKit.hidePassword")
+                          : t("authKit.showPassword")
+                      }
+                      className="absolute inset-y-0 end-0 flex w-10 items-center justify-center text-ink-muted hover:text-ink cursor-pointer"
+                    >
+                      {showPass ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {(mode === "signup" || mode === "reset") && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-ink-secondary">
+                    {t("authKit.confirmPassword")}
+                  </label>
+                  <AtlasInput
+                    type="password"
+                    dir="ltr"
+                    required
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                    autoComplete="new-password"
+                  />
+                </div>
+              )}
+
+              {errorMsg && (
+                <div
+                  role="alert"
+                  className="rounded-lg border border-hazard-extreme/35 bg-hazard-extreme-soft px-3 py-2 text-xs text-hazard-extreme"
+                >
+                  {errorMsg}
+                </div>
+              )}
+
+              <AtlasButton
+                type="submit"
+                variant="primary"
+                className="w-full"
+                disabled={busy}
               >
-                {busy && <Loader2 className="animate-spin" size={18} />}
-                {t(busy ? "authKit.working" : `authKit.${mode}Action`)}
-              </button>
+                <KeyRound className="h-4 w-4" />
+                {busy
+                  ? t("authKit.working")
+                  : mode === "signup"
+                    ? t("authKit.signupAction")
+                    : mode === "forgot"
+                      ? t("authKit.forgotAction")
+                      : mode === "reset"
+                        ? t("authKit.resetAction")
+                        : mode === "verify"
+                          ? t("authKit.verifyAction")
+                          : t("authKit.signinAction")}
+              </AtlasButton>
             </form>
-            <div className="mt-5 border-t border-border pt-3 text-center">
+
+            <div className="flex flex-col gap-2 border-t border-hairline pt-4 text-xs text-ink-secondary">
               {mode === "signin" ? (
                 <>
                   <button
-                    className={textButton}
-                    disabled={busy}
-                    onClick={() => changeMode("signup")}
+                    type="button"
+                    onClick={() => setMode("signup")}
+                    className="text-start font-medium text-signal hover:underline cursor-pointer"
                   >
                     {t("authKit.createAccount")}
                   </button>
                   <button
-                    className={`${textButton} block w-full text-muted-foreground`}
-                    disabled={busy}
-                    onClick={() => changeMode("verify")}
+                    type="button"
+                    onClick={() => setMode("forgot")}
+                    className="text-start hover:text-ink cursor-pointer"
                   >
-                    {t("authKit.verifyLink")}
+                    {t("authKit.forgotLink")}
                   </button>
                 </>
               ) : (
                 <button
-                  className={textButton}
-                  disabled={busy}
-                  onClick={() => changeMode("signin")}
+                  type="button"
+                  onClick={() => setMode("signin")}
+                  className="text-start font-medium text-signal hover:underline cursor-pointer"
                 >
                   {t("authKit.backSignin")}
                 </button>
@@ -667,10 +366,13 @@ function AuthPage() {
             </div>
           </>
         )}
-      </div>
-      <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">
-        {t("authKit.publicAccess")}
-      </p>
+
+        <div className="flex items-center justify-between border-t border-hairline pt-3 text-xs text-ink-muted">
+          <Link to="/" className="hover:text-ink">
+            {t("authKit.backHome")}
+          </Link>
+        </div>
+      </AtlasPanel>
     </div>
   );
 }
